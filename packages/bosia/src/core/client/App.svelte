@@ -39,24 +39,52 @@
 	let pageInstance = $state<any>(null);
 	if (!ssrMode) router.getPageSnapshot = () => pageInstance?.snapshot;
 
-	// The last title navigation itself wrote. Same page, same title still → the
-	// page didn't take it over, so navigation may replace it again.
+	// The last title navigation (or SSR's metadata()) wrote, as document.title
+	// reads it. Same page, same title still → no component took it over, so
+	// navigation may replace it again.
 	let navTitle: string | null = null;
-	let decodedDefaultTitle: string | undefined;
-	// defaultTitle is app.html's raw <title> text; a <textarea> decodes every
-	// entity the way the browser did on a hard load. Trusted Types block the
-	// innerHTML write, so the raw text is the fallback there.
-	function readDefaultTitle(): string {
-		if (decodedDefaultTitle === undefined) {
+	const asDocumentTitle = (s: string) => s.replace(/[\t\n\f\r ]+/g, " ").trim();
+
+	// Build-time titles are raw HTML text; a <textarea> decodes every entity the
+	// way the browser did on a hard load. Trusted Types block the innerHTML
+	// write, so the raw text is the fallback there.
+	const decoded = new Map<string, string>();
+	function decodeTitle(raw: string): string {
+		let text = decoded.get(raw);
+		if (text === undefined) {
 			try {
 				const t = document.createElement("textarea");
-				t.innerHTML = defaultTitle;
-				decodedDefaultTitle = t.value;
+				t.innerHTML = raw;
+				text = t.value;
 			} catch {
-				decodedDefaultTitle = defaultTitle;
+				text = raw;
 			}
+			decoded.set(raw, text);
 		}
-		return decodedDefaultTitle;
+		return text;
+	}
+
+	/** The title a route has when metadata() gives none: what its deepest titled
+	 *  layout writes, or app.html's default when no layout writes one. null when
+	 *  Svelte owns it: the page file writes one, or that layout's is dynamic.
+	 *  `depth` is that layout's index, -1 for the default. */
+	function routeTitle(route: (typeof clientRoutes)[number]): {
+		title: string | null;
+		depth: number;
+	} {
+		if (route.headTitle) return { title: null, depth: route.layoutTitles.length };
+		let depth = route.layoutTitles.length - 1;
+		while (depth >= 0 && route.layoutTitles[depth] === false) depth--;
+		if (depth < 0) return { title: decodeTitle(defaultTitle), depth };
+		const t = route.layoutTitles[depth];
+		return { title: typeof t === "string" ? decodeTitle(t) : null, depth };
+	}
+
+	/** How many leading layouts two routes share, by file path. */
+	function sharedDepth(a: string[], b: string[]): number {
+		let s = 0;
+		while (s < a.length && s < b.length && a[s] === b[s]) s++;
+		return s;
 	}
 
 	// Call the landed-on page's snapshot.restore() once it's mounted (post-tick).
@@ -144,6 +172,9 @@
 		firstNav = false;
 		if (isFirst) {
 			currentLayoutPaths = (match.route as any).layoutPaths ?? [];
+			const ssrTitle: string | undefined = (window as any).__BOSIA_TITLE__;
+			const own = ssrTitle ?? routeTitle(match.route).title;
+			navTitle = own === null ? null : asDocumentTitle(own);
 			lastSettledPath = pathname;
 			lastNavKey = navKey;
 			lastTick = currentTick;
@@ -182,13 +213,7 @@
 		const destLayoutPaths = ((match.route as any).layoutPaths as string[]) ?? [];
 		const loadingImport = (match.route as any).loading as (() => Promise<any>) | null;
 		if (loadingImport && pathname !== lastSettledPath) {
-			let s = 0;
-			while (
-				s < currentLayoutPaths.length &&
-				s < destLayoutPaths.length &&
-				currentLayoutPaths[s] === destLayoutPaths[s]
-			)
-				s++;
+			const s = sharedDepth(currentLayoutPaths, destLayoutPaths);
 			loadingImport().then((m) => {
 				if (cancelled) return; // superseded nav
 				loadingDepth = s;
@@ -279,6 +304,21 @@
 			// Tear down the loading skeleton and record identity for the next nav.
 			// Superseded navs have cancelled === true and never reach here, so they
 			// can't clobber a newer nav's loader.
+			// Layouts that stay mounted through this nav. The skeleton and the error
+			// page render in their own {#if} branch, so leaving either remounts every
+			// layout and the page. Otherwise the shared ones stay, except the one
+			// that moves to or from the leaf spot (renderLayout's other branch).
+			// Read before both are cleared below.
+			const pageShown = !showLoading && !appState.errorComponent;
+			let keptLayouts = 0;
+			if (pageShown) {
+				keptLayouts = sharedDepth(currentLayoutPaths, destLayoutPaths);
+				if (currentLayoutPaths.length !== destLayoutPaths.length)
+					keptLayouts = Math.min(
+						keptLayouts,
+						Math.min(currentLayoutPaths.length, destLayoutPaths.length) - 1,
+					);
+			}
 			showLoading = false;
 			LoadingComponent = null;
 			currentLayoutPaths = destLayoutPaths;
@@ -336,7 +376,7 @@
 				}
 				return;
 			}
-			const pageChanged = PageComponent !== pageMod.default;
+			const pageChanged = !pageShown || PageComponent !== pageMod.default;
 			PageComponent = pageMod.default;
 			layoutComponents = layoutMods.map((m: any) => m.default);
 
@@ -429,19 +469,27 @@
 			if (result || !match.route.hasServerData) {
 				const md = result?.metadata;
 				document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
-				// A page with no title gets the one a hard load would give it: app.html's
-				// <title>, else "Bosia App". Set before Svelte flushes, so a freshly
-				// mounted <svelte:head><title> still wins. Svelte sets a title only on
-				// mount or change, so the current one is kept when nothing would set it
-				// back: a route whose page or layout file writes one, or the same page
-				// again (invalidate, a form action, ?page=2) once a child like <Seo>
-				// has replaced the title navigation wrote.
+				// With no metadata() title, a page gets the one a hard load would give
+				// it: its layout's static <svelte:head><title>, else app.html's <title>,
+				// else "Bosia App". Svelte sets a title only on mount or change, so a
+				// layout that stays mounted never writes its own back. Set before Svelte
+				// flushes, so a freshly mounted <svelte:head><title> still wins. Left
+				// alone when Svelte will set it (the page file writes one, or the layout
+				// that does is freshly mounted), when it is dynamic, and on the same page
+				// (invalidate, a form action, ?page=2) once a child like <Seo> took over.
 				if (md?.title) {
 					document.title = md.title;
 					navTitle = document.title;
-				} else if (!match.route.headTitle && (pageChanged || document.title === navTitle)) {
-					document.title = readDefaultTitle();
-					navTitle = document.title;
+				} else {
+					const own = routeTitle(match.route);
+					if (
+						own.title !== null &&
+						own.depth < keptLayouts &&
+						(pageChanged || document.title === navTitle)
+					) {
+						document.title = own.title;
+						navTitle = document.title;
+					}
 				}
 				if (md?.lang) document.documentElement.lang = md.lang;
 				const emit = (tag: "meta" | "link", attrs: Record<string, string | undefined>) => {

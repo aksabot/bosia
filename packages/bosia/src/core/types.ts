@@ -39,11 +39,16 @@ export interface PageRoute {
 	/** `export const prerender = true` in +page.server.ts — its data is a static file at runtime. */
 	prerender: boolean;
 	/**
-	 * The +page.svelte or one of its +layout.svelte files writes a
-	 * `<svelte:head><title>`. Client navigation then leaves the title to Svelte
-	 * instead of setting the default one (see client/App.svelte).
+	 * The +page.svelte writes a `<svelte:head><title>`. Client navigation then
+	 * leaves the title to Svelte (see client/App.svelte).
 	 */
 	headTitle: boolean;
+	/**
+	 * Per layout, in order: the title its `<svelte:head>` writes. false for none,
+	 * the raw text when static, true when dynamic. A layout that stays mounted
+	 * never writes its title again, so client navigation puts a static one back.
+	 */
+	layoutTitles: (string | boolean)[];
 }
 
 /** An API route discovered from the file system */

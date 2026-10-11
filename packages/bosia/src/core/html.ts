@@ -275,13 +275,17 @@ export function buildHtml(
 			: "";
 
 	const ssrFlag = ssr ? "" : "window.__BOSIA_SSR__=false;";
+	const titleFlag = ssrTitleScript(metadata?.title);
 
 	const depsScript =
 		pageDeps !== null || layoutDeps !== null
 			? `window.__BOSIA_PAGE_DEPS__=${safeJsonStringify(pageDeps)};window.__BOSIA_LAYOUT_DEPS__=${safeJsonStringify(layoutDeps ?? [])};`
 			: "";
 
-	const sysScript = ssrFlag || depsScript ? `\n  <script${n}>${ssrFlag}${depsScript}</script>` : "";
+	const sysScript =
+		ssrFlag || titleFlag || depsScript
+			? `\n  <script${n}>${ssrFlag}${titleFlag}${depsScript}</script>`
+			: "";
 
 	const dataIslands = csr
 		? `\n  <script${n} type="application/json" id="__bosia-page-data__">${safeJsonForScript(pageData)}</script>` +
@@ -519,6 +523,12 @@ export function escapeAttr(s: string): string {
 		.replace(/>/g, "&gt;");
 }
 
+/** The title metadata() gave this page, for the client: navigation may replace
+ *  it, but not a title a component set after it (client/App.svelte). */
+function ssrTitleScript(title: string | undefined): string {
+	return title ? `window.__BOSIA_TITLE__=${safeJsonStringify(title)};` : "";
+}
+
 export function buildHtmlTail(
 	body: string,
 	pageData: any,
@@ -531,6 +541,7 @@ export function buildHtmlTail(
 	pageDeps: any = null,
 	layoutDeps: any[] | null = null,
 	segments?: AppHtmlSegments,
+	ssrTitle?: string,
 ): string {
 	// Same rebase as buildHtml — the streamed tail carries the identical markup.
 	body = rebaseHtmlAttrs(B, body);
@@ -550,12 +561,13 @@ export function buildHtmlTail(
 			out += `\n<script${n} type="application/json" id="__bosia-form-data__">${safeJsonForScript(formData)}</script>`;
 		}
 		const ssrFlag = ssr ? "" : "window.__BOSIA_SSR__=false;";
+		const titleFlag = ssrTitleScript(ssrTitle);
 		const depsInject =
 			pageDeps !== null || layoutDeps !== null
 				? `window.__BOSIA_PAGE_DEPS__=${safeJsonStringify(pageDeps)};window.__BOSIA_LAYOUT_DEPS__=${safeJsonStringify(layoutDeps ?? [])};`
 				: "";
-		if (ssrFlag || depsInject) {
-			out += `\n<script${n}>${ssrFlag}${depsInject}</script>`;
+		if (ssrFlag || titleFlag || depsInject) {
+			out += `\n<script${n}>${ssrFlag}${titleFlag}${depsInject}</script>`;
 		}
 		out += `\n<script${n} type="module" src="${ENTRY}"></script>`;
 	} else if (isDev) {

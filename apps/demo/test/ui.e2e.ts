@@ -172,6 +172,44 @@ describe.each(["prod", "dev"] as const)("%s", (mode) => {
 		expect(errors).toEqual([]);
 	});
 
+	// /title-test's layout writes a static <svelte:head><title>. It stays
+	// mounted, so Svelte never writes it again: navigation has to put it back.
+	const LAYOUT_TITLE = "Title Test · Bosia Demo";
+	const settled = (path: string) =>
+		`${pathIs(path)} && !!document.querySelector(".bosia-bar.done")`;
+
+	test("a layout's static title comes back after a page's own title", async () => {
+		await open("/title-test/named");
+		await waitFor(`document.title === "Named | Title Test"`);
+		await view.click('[data-title-nav] a[href="/title-test"]');
+		await waitFor(settled("/title-test"));
+		expect(await view.evaluate("document.title")).toBe(LAYOUT_TITLE);
+		expect(errors).toEqual([]);
+	});
+
+	test("the first same-page navigation drops the metadata title of a hard load", async () => {
+		await open("/title-meta");
+		await waitFor(`document.title === "Named by metadata"`);
+		await view.click("a[data-quiet]");
+		await waitFor(`${settled("/title-meta")} && location.search === "?quiet"`);
+		expect(await view.evaluate("document.title")).toBe("Bosia App");
+		expect(errors).toEqual([]);
+	});
+
+	// The error page leaves the old page component in place, so going back to
+	// it used to look like "same page" and kept the error's title.
+	test("leaving an error page back to the same page drops the error title", async () => {
+		await open("/title-error");
+		await waitFor(`document.title === "Bosia App"`);
+		await view.click('[data-title-error-nav] a[href="/title-error/broken"]');
+		await waitFor(`document.title === "Oops 404"`);
+		await view.click("a[data-back]");
+		await waitFor(settled("/title-error"));
+		await waitFor(hasText("No title of its own"));
+		expect(await view.evaluate("document.title")).toBe("Bosia App");
+		expect(errors).toEqual([]);
+	});
+
 	test("enhanced form action shows its success data", async () => {
 		await open("/actions-test");
 		await markSpa();

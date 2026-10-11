@@ -80,12 +80,14 @@ describe("generateRoutesFile() — server import thunks", () => {
 		expect(client).toContain('id: "/(app)/blog"');
 	});
 
-	test("client routes carry headTitle and the default title", async () => {
+	test("client routes carry the head titles and the default title", async () => {
 		const m = manifest(null);
 		m.pages[0]!.headTitle = true;
+		m.pages[0]!.layoutTitles = ["My &amp; Site"];
 		generateRoutesFile(m, "Fisika &amp; Co");
 		const client = await import(join(tmpDir, ".bosia", "routes.client.ts") + "?title");
 		expect(client.clientRoutes[0].headTitle).toBe(true);
+		expect(client.clientRoutes[0].layoutTitles).toEqual(["My &amp; Site"]);
 		expect(client.defaultTitle).toBe("Fisika &amp; Co");
 		const server = await import(join(tmpDir, ".bosia", "routes.ts") + "?title");
 		expect(server.defaultTitle).toBe("Fisika &amp; Co");

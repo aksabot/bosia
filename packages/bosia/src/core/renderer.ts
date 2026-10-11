@@ -884,6 +884,7 @@ export async function renderSSRStream(
 					data.pageDeps,
 					data.layoutDeps,
 					appHtmlSegments,
+					metadata?.title,
 				);
 			return compress(
 				html,
@@ -954,6 +955,7 @@ export async function renderSSRStream(
 					data.pageDeps,
 					data.layoutDeps,
 					appHtmlSegments,
+					metadata?.title,
 				),
 		) as Uint8Array<ArrayBuffer>;
 		// Stored with the cache entry too, so hits carry the same Link header.

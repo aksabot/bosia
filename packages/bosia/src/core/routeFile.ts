@@ -74,6 +74,7 @@ export function generateRoutesFile(manifest: RouteManifest, defaultTitle: string
 	lines.push("  layoutPaths: string[];");
 	lines.push("  prerender: boolean;");
 	lines.push("  headTitle: boolean;");
+	lines.push("  layoutTitles: (string | boolean)[];");
 	lines.push("}> = [");
 	for (const r of pages) {
 		const layoutImports = r.layouts
@@ -111,6 +112,7 @@ export function generateRoutesFile(manifest: RouteManifest, defaultTitle: string
 		lines.push(`    layoutPaths: ${JSON.stringify(r.layouts)},`);
 		lines.push(`    prerender: ${r.prerender},`);
 		lines.push(`    headTitle: ${!!r.headTitle},`);
+		lines.push(`    layoutTitles: ${JSON.stringify(r.layoutTitles ?? [])},`);
 		lines.push("  },");
 	}
 	lines.push("];\n");
@@ -210,6 +212,7 @@ function generateClientRoutesFile(
 	lines.push("  layoutPaths: string[];");
 	lines.push("  prerender: boolean;");
 	lines.push("  headTitle: boolean;");
+	lines.push("  layoutTitles: (string | boolean)[];");
 	lines.push("}> = [");
 	for (const r of pages) {
 		const layoutImports = r.layouts
@@ -244,6 +247,7 @@ function generateClientRoutesFile(
 		lines.push(`    layoutPaths: ${JSON.stringify(r.layouts)},`);
 		lines.push(`    prerender: ${r.prerender},`);
 		lines.push(`    headTitle: ${!!r.headTitle},`);
+		lines.push(`    layoutTitles: ${JSON.stringify(r.layoutTitles ?? [])},`);
 		lines.push("  },");
 	}
 	lines.push("];\n");

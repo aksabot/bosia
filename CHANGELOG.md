@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The npm package now ships the MIT license; the copyright reads "Bosapi and contributors".
 - A page with no title gets the default title on client navigation too, not the last page's.
 - A title set by a component stays when the same page reloads its data.
+- A layout's own title comes back on client navigation, as on a hard load.
 
 ## [1.2.0] - 2026-10-09
 

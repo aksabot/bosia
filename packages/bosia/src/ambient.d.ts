@@ -14,6 +14,7 @@ declare module "bosia:routes" {
 		trailingSlash: TrailingSlash;
 		prerender: boolean;
 		headTitle: boolean;
+		layoutTitles: (string | boolean)[];
 	}>;
 
 	/** What client navigation titles a page that sets no title of its own. */

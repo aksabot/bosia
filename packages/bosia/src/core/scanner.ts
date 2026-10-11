@@ -19,11 +19,6 @@ import type { PageRoute, ApiRoute, RouteManifest, TrailingSlash } from "./types.
 const ROUTES_DIR = "./src/routes";
 
 /**
- * Extract `export const trailingSlash = '...'` from a server module file via
- * regex. Static-string read only — runtime expressions return null. Build-time
- * scan avoids invoking server modules during the client bundle.
- */
-/**
  * Read `export const cache` from +page.svelte's `<script module>` at scan time.
  * Conservative on purpose — the flag lets the renderer skip caching, so a wrong
  * "cacheable" answer would leak a per-user page. Returns `true` ONLY when there
@@ -58,25 +53,30 @@ export function prerenderSkipReason(src: string): string | null {
 }
 
 /** True when the page will really be prerendered — the client fetches its data as a static file. */
-function readPrerender(filePath: string): boolean {
-	try {
-		const src = readFileSync(filePath, "utf-8");
-		return wantsPrerender(src) && prerenderSkipReason(src) === null;
-	} catch {
-		return false;
-	}
+function prerenderOf(src: string | null): boolean {
+	return src !== null && wantsPrerender(src) && prerenderSkipReason(src) === null;
 }
 
-/** A `<title>` inside a `<svelte:head>` block, read from the .svelte source. A
- *  `<title>` outside one, like an inline SVG's, doesn't count. A false positive
- *  (say, one in a comment) only keeps the previous page's title on client
- *  navigation, as before. A miss sets the default title, which a freshly
- *  mounted <svelte:head> still overrides. */
-export function writesHeadTitle(src: string): boolean {
-	for (const m of src.matchAll(/<svelte:head(?:\s[^>]*?)?(?<!\/)>([\s\S]*?)<\/svelte:head\s*>/g))
-		if (/<title[\s>]/.test(m[1]!)) return true;
-	return false;
+/** The title a .svelte file's `<svelte:head>` writes: false for none, the raw
+ *  text when it is static (`<title>My Site</title>`), true when it has an
+ *  expression. A `<title>` outside `<svelte:head>`, like an inline SVG's, doesn't
+ *  count. The last one wins, as it does when the blocks mount in order. A false
+ *  positive (say, one in a comment) only keeps the current title on client
+ *  navigation; a miss sets the default, which a freshly mounted <svelte:head>
+ *  still overrides. */
+export function headTitleOf(src: string): string | boolean {
+	let found: string | boolean = false;
+	for (const block of src.matchAll(HEAD_BLOCK))
+		for (const t of block[1]!.matchAll(TITLE_TAG)) {
+			const text = t[1] ?? "";
+			found = text.includes("{") ? true : text.replace(/[\t\n\f\r ]+/g, " ").trim();
+		}
+	return found;
 }
+
+const HEAD_BLOCK = /<svelte:head(?:\s[^>]*?)?(?<!\/)>([\s\S]*?)<\/svelte:head\s*>/g;
+// An unclosed <title> is a compile error; reading to the block's end is enough.
+const TITLE_TAG = /<title(?:\s[^>]*)?>([\s\S]*?)(?:<\/title\s*>|$)/g;
 
 /** A route file's source, or null when it can't be read. */
 function readSource(filePath: string): string | null {
@@ -87,28 +87,28 @@ function readSource(filePath: string): string | null {
 	}
 }
 
-function readTrailingSlash(filePath: string): TrailingSlash | null {
-	try {
-		const src = readFileSync(filePath, "utf-8");
-		const m = src.match(
-			/export\s+const\s+trailingSlash\s*(?::\s*[^=]+)?=\s*["'](never|always|ignore)["']/,
-		);
-		return (m?.[1] ?? null) as TrailingSlash | null;
-	} catch {
-		return null;
-	}
+/**
+ * Extract `export const trailingSlash = '...'` from a server module file via
+ * regex. Static-string read only — runtime expressions return null. Build-time
+ * scan avoids invoking server modules during the client bundle.
+ */
+function trailingSlashOf(src: string | null): TrailingSlash | null {
+	const m = src?.match(
+		/export\s+const\s+trailingSlash\s*(?::\s*[^=]+)?=\s*["'](never|always|ignore)["']/,
+	);
+	return (m?.[1] ?? null) as TrailingSlash | null;
 }
 
 export function scanRoutes(): RouteManifest {
 	const pages: PageRoute[] = [];
 	const apis: ApiRoute[] = [];
 	// A layout sits above every page under it; read each file once.
-	const headTitles = new Map<string, boolean>();
-	const headTitle = (file: string) => {
-		let v = headTitles.get(file);
+	const layoutTitles = new Map<string, string | boolean>();
+	const layoutTitle = (file: string) => {
+		let v = layoutTitles.get(file);
 		if (v === undefined) {
 			const src = readSource(join(ROUTES_DIR, file));
-			headTitles.set(file, (v = src !== null && writesHeadTitle(src)));
+			layoutTitles.set(file, (v = src !== null && headTitleOf(src)));
 		}
 		return v;
 	};
@@ -152,7 +152,7 @@ export function scanRoutes(): RouteManifest {
 				path: layoutServerPath,
 				depth: currentLayouts.length - 1,
 			});
-			const ts = readTrailingSlash(join(ROUTES_DIR, layoutServerPath));
+			const ts = trailingSlashOf(readSource(join(ROUTES_DIR, layoutServerPath)));
 			if (ts) currentTrailingSlash = ts;
 		}
 		if (items.some((i) => i.isFile() && i.name === "+error.svelte")) {
@@ -179,7 +179,8 @@ export function scanRoutes(): RouteManifest {
 				? rel("+page.server.ts")
 				: null;
 
-			const pageTs = pageServerFile ? readTrailingSlash(join(ROUTES_DIR, pageServerFile)) : null;
+			const pageServerSrc = pageServerFile ? readSource(join(ROUTES_DIR, pageServerFile)) : null;
+			const pageTs = trailingSlashOf(pageServerSrc);
 			const effectiveTs: TrailingSlash = pageTs ?? currentTrailingSlash;
 
 			const pageFile = rel("+page.svelte");
@@ -195,8 +196,9 @@ export function scanRoutes(): RouteManifest {
 				errorPages: [...currentErrorPages],
 				trailingSlash: effectiveTs,
 				cache: pageCache(pageSrc),
-				prerender: pageServerFile ? readPrerender(join(ROUTES_DIR, pageServerFile)) : false,
-				headTitle: (pageSrc !== null && writesHeadTitle(pageSrc)) || currentLayouts.some(headTitle),
+				prerender: prerenderOf(pageServerSrc),
+				headTitle: pageSrc !== null && headTitleOf(pageSrc) !== false,
+				layoutTitles: currentLayouts.map(layoutTitle),
 			});
 		}
 

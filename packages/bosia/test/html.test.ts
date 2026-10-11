@@ -191,6 +191,15 @@ describe("buildHtmlTail — JSON-island loader payloads", () => {
 		expect(formIdx).toBeGreaterThan(layoutIdx);
 		expect(moduleIdx).toBeGreaterThan(formIdx);
 	});
+
+	// Client navigation may replace the title metadata() set, but not one a
+	// component set after it, so the client needs to know which it was.
+	test("hands the metadata() title to the client, escaped for a script", () => {
+		const args = [null, true, undefined, undefined, null, null, undefined] as const;
+		const tail = buildHtmlTail("", {}, [], true, ...args, "Hi </script> & co");
+		expect(tail).toContain(`window.__BOSIA_TITLE__="Hi \\u003c/script\\u003e \\u0026 co";`);
+		expect(buildHtmlTail("", {}, [], true, ...args)).not.toContain("__BOSIA_TITLE__");
+	});
 });
 
 describe("metadataTags", () => {
@@ -395,6 +404,7 @@ describe("buildHtml — metadata argument", () => {
 		);
 		expect(html).toContain("<title>Kontak</title>");
 		expect(html).toContain(`<meta name="description" content="Hubungi kami" data-bosia-meta>`);
+		expect(html).toContain(`window.__BOSIA_TITLE__="Kontak";`);
 		expect(html).not.toContain("Bosia App");
 		expect(html).toContain('lang="id"');
 	});

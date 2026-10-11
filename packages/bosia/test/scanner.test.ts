@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
-import { scanRoutes, RouteConflictError, writesHeadTitle } from "../src/core/scanner.ts";
+import { scanRoutes, RouteConflictError, headTitleOf } from "../src/core/scanner.ts";
 
 let originalCwd: string;
 let tmpDir: string;
@@ -177,36 +177,51 @@ describe("scanRoutes()", () => {
 	});
 });
 
-describe("scanRoutes() headTitle", () => {
+describe("scanRoutes() head titles", () => {
 	const HEAD = `<svelte:head>\n\t<title>Own</title>\n</svelte:head>\n<h1>x</h1>\n`;
 
-	test("true when the page or any layout above it writes a <svelte:head><title>", () => {
+	test("headTitle is the page file's own; layouts are listed one by one", () => {
 		write("+layout.svelte", "{@render children()}");
 		write("plain/+page.svelte", "<h1>plain</h1>");
 		write("own/+page.svelte", HEAD);
 		write("shell/+layout.svelte", HEAD);
 		write("shell/inner/+page.svelte", "<h1>inner</h1>");
-		const flags = Object.fromEntries(scanRoutes().pages.map((p) => [p.pattern, p.headTitle]));
-		expect(flags).toEqual({ "/plain": false, "/own": true, "/shell/inner": true });
+		write("live/+layout.svelte", `<svelte:head><title>{data.t}</title></svelte:head>`);
+		write("live/x/+page.svelte", "<h1>x</h1>");
+		const pages = Object.fromEntries(
+			scanRoutes().pages.map((p) => [p.pattern, [p.headTitle, p.layoutTitles]]),
+		);
+		expect(pages).toEqual({
+			"/plain": [false, [false]],
+			"/own": [true, [false]],
+			"/shell/inner": [false, [false, "Own"]],
+			"/live/x": [false, [false, true]],
+		});
 	});
 
-	test("a <svelte:head> with only meta tags does not count", () => {
-		expect(writesHeadTitle(`<svelte:head><meta name="x" content="y" /></svelte:head>`)).toBe(false);
-		expect(writesHeadTitle(`<svelte:head><title>{data.t}</title></svelte:head>`)).toBe(true);
-		expect(writesHeadTitle(`<svelte:head>\n  <title>T</title>\n</svelte:head>`)).toBe(true);
+	test("a static title is its raw text; an expression makes it dynamic", () => {
+		expect(headTitleOf(`<svelte:head><meta name="x" content="y" /></svelte:head>`)).toBe(false);
+		expect(headTitleOf(`<svelte:head><title>{data.t}</title></svelte:head>`)).toBe(true);
+		expect(headTitleOf(`<svelte:head><title>Blog | {name}</title></svelte:head>`)).toBe(true);
+		expect(headTitleOf(`<svelte:head>\n  <title>\n    My  Site\n  </title>\n</svelte:head>`)).toBe(
+			"My Site",
+		);
+		expect(headTitleOf(`<svelte:head><title lang="id">A &amp; B</title></svelte:head>`)).toBe(
+			"A &amp; B",
+		);
 	});
 
-	test("only a <title> inside <svelte:head> counts", () => {
+	test("only a <title> inside <svelte:head> counts, and the last one wins", () => {
 		// A logo's SVG title in the root layout must not flag every route.
 		const svg = `<svg><title>Logo</title></svg>`;
-		expect(writesHeadTitle(`<svelte:head><meta name="x" /></svelte:head>\n${svg}`)).toBe(false);
-		expect(writesHeadTitle(`<svelte:head />\n${svg}\n<svelte:head></svelte:head>`)).toBe(false);
-		expect(writesHeadTitle(`${svg}<svelte:head><title>T</title></svelte:head>`)).toBe(true);
+		expect(headTitleOf(`<svelte:head><meta name="x" /></svelte:head>\n${svg}`)).toBe(false);
+		expect(headTitleOf(`<svelte:head />\n${svg}\n<svelte:head></svelte:head>`)).toBe(false);
+		expect(headTitleOf(`${svg}<svelte:head><title>T</title></svelte:head>`)).toBe("T");
 		expect(
-			writesHeadTitle(
-				`<svelte:head></svelte:head>${svg}<svelte:head><title>T</title></svelte:head>`,
+			headTitleOf(
+				`<svelte:head><title>A</title></svelte:head>${svg}<svelte:head><title>B</title></svelte:head>`,
 			),
-		).toBe(true);
+		).toBe("B");
 	});
 });
 
