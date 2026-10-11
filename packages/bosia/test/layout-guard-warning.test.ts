@@ -56,11 +56,7 @@ beforeAll(async () => {
 
 	guarded(routes, "unsafe", EARLY);
 	guarded(routes, "safe", PARENT_FIRST);
-	guarded(
-		routes,
-		"meta",
-		`export function metadata() {\n\treturn { title: "Meta" };\n}\n` + PARENT_FIRST,
-	);
+	guarded(routes, "meta", `export function metadata() {\n\treturn { title: "Meta" };\n}\n`);
 	guarded(routes, "forbidden", EARLY, throwing(`error(403, "Forbidden")`), 403);
 	guarded(routes, "missing", EARLY, throwing(`error(404, "Not Found")`), 404);
 	// A plain function that throws before ever reaching parent().
@@ -145,7 +141,7 @@ describe("dev warns when page code runs past a layout guard", () => {
 		const lines = warningsFor("/unsafe/inner");
 		expect(lines).toHaveLength(1);
 		expect(lines[0]).toContain("threw redirect(), but the page load() ran code before");
-		expect(stderr).toContain("Guard in src/hooks.server.ts");
+		expect(stderr).toContain("If the layout is an auth guard, move it to src/hooks.server.ts.");
 	});
 
 	test("error(403) counts as a guard", () => {
@@ -162,6 +158,7 @@ describe("dev warns when page code runs past a layout guard", () => {
 		expect(warningsFor("/safe/inner")).toHaveLength(0);
 	});
 
+	// A page with metadata() and no load(): metadata() runs past the guard too.
 	test("metadata() alone stays quiet", () => {
 		expect(warningsFor("/meta/inner")).toHaveLength(0);
 	});

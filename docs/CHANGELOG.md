@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Loaders guide and routing skill: dev now warns when page code runs past a layout guard.
+- Loaders guide: reads before `parent()` are fine; lists the cases the guard warning misses.
 
 ## [0.8.23] - 2026-10-09
 

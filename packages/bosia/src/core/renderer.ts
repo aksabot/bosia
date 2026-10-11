@@ -358,13 +358,17 @@ function makeDepends(deps: LoaderDeps): (...keys: string[]) => void {
 	};
 }
 
-// Dev only: a layout guard (redirect() or error(401/403)) fired, but the page
-// load() ran code before reaching `await parent()`. Its output is dropped; its
-// side effects are not. A heuristic: load() counts as safe when it calls
-// parent() before its first await, so a plain statement before that call, or a
-// write in the same Promise.all as parent(), goes unnoticed. metadata() is left
-// out: it should only read, and having no parent(), a warning on it would fire
-// on every guarded page with no fix in the page itself.
+// Dev only: a layout threw redirect() or error(401/403), but the page load()
+// ran code before reaching `await parent()`. Its output is dropped; any writes
+// it made are not. A hint, not a check, because it can't tell:
+//   - a read from a write — reads before parent() are the advised pattern, so
+//     the message stays conditional and doesn't push parent() to the top;
+//   - an auth guard from a routing redirect (locale prefix, canonical URL);
+//   - a write it misses: one before the parent() call on the same tick, in the
+//     same Promise.all, or between `const p = parent()` and `await p`.
+// load() counts as safe when it calls parent() before its first await.
+// metadata() is left out: it should only read, and having no parent(), a
+// warning on it would fire on every guarded page with no fix in the page.
 // Once per route, so a guarded page doesn't flood the console.
 const warnedGuardRoutes = new Set<string>();
 
@@ -378,8 +382,8 @@ function warnLayoutGuard(routeId: string, depth: number, err: unknown) {
 	const thrown = isRedirect(err) ? "redirect()" : `error(${(err as HttpError).status})`;
 	console.warn(
 		`⚠️  ${routeId}: a layout (depth ${depth}) threw ${thrown}, but the page load() ran code before \`await parent()\`.\n` +
-			`   Its output is dropped, but side effects (DB writes, emails, logs) happened.\n` +
-			`   Guard in src/hooks.server.ts, or make \`await parent()\` the first line of load().`,
+			`   Its data is dropped. If that code writes (DB, email, log), the write already happened.\n` +
+			`   If the layout is an auth guard, move it to src/hooks.server.ts.`,
 	);
 }
 
@@ -490,7 +494,7 @@ export async function loadRouteData(
 				const parent = parentOf(layers.length);
 				const metadata = await metadataData;
 				let syncStart = true;
-				let parentFirst = false;
+				ranBeforeParent = isDev;
 				let loading;
 				try {
 					loading = mod.load({
@@ -501,7 +505,7 @@ export async function loadRouteData(
 						cookies: trackedCookies(cookies, deps),
 						parent: isDev
 							? () => {
-									if (syncStart) parentFirst = true;
+									if (syncStart) ranBeforeParent = false;
 									return parent();
 								}
 							: parent,
@@ -512,9 +516,8 @@ export async function loadRouteData(
 						setHeaders,
 					});
 				} finally {
-					// Also reached when a sync load() throws before parent().
+					// From here on, a parent() call no longer counts as first.
 					syncStart = false;
-					ranBeforeParent = isDev && !parentFirst;
 				}
 				const data =
 					(await withTimeout(loading, LOAD_TIMEOUT, `page load (${url.pathname})`)) ?? {};
