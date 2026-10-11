@@ -165,7 +165,8 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 
 	const port = await getEphemeralPort();
 	// No BOSIA_REUSE_PORT: the child must fail to bind rather than share a port
-	// with another server, whose pages we'd then save as ours.
+	// with another server, whose pages we'd then save as ours. The ready loop
+	// stops once the child exits, so a foreign /_health never passes for it.
 	const { BOSIA_REUSE_PORT: _, ...env } = process.env;
 	const child = Bun.spawn(["bun", "run", `${OUT_DIR}/server/index.js`], {
 		env: {
@@ -175,7 +176,8 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
 		stdout: "ignore",
-		stderr: "ignore",
+		// Show render errors (a throwing +error.svelte, a crashing loader).
+		stderr: "inherit",
 	});
 
 	const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
@@ -194,7 +196,7 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 		const base = `http://localhost:${port}${currentBase()}`;
 		let ready = false;
 		const deadline = Date.now() + 10_000;
-		while (Date.now() < deadline) {
+		while (Date.now() < deadline && child.exitCode === null) {
 			try {
 				const res = await fetch(`${base}/_health`);
 				if (res.ok) {
@@ -207,8 +209,8 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 			await Bun.sleep(50);
 		}
 
-		if (!ready) {
-			console.error("❌ Prerender server failed to start");
+		if (!ready || child.exitCode !== null) {
+			console.error(`❌ Prerender server failed to start (exit code ${child.exitCode ?? "none"})`);
 			return;
 		}
 
@@ -291,8 +293,10 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 
 		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
 		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
-		// Goes to dist/static, not prerendered/, so the Bun server never serves /404
-		// as a 200. A public/404.html overwrites it (generateStaticSite copies later).
+		// Goes to dist/static, not prerendered/, so the Bun server doesn't route /404
+		// to it. Static hosts still serve /404 and /404.html with a 200; no file name
+		// avoids that. A public/404.html overwrites it (generateStaticSite copies later).
+		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
 		try {
 			const res = await fetch(`${base}/__bosia-404-probe`, {
 				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),

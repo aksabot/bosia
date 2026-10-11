@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Deployment guide and Cloudflare skill: prerendering apps now get a `404.html` from the build.
 - The docs build gets its 404 page from the framework instead of its own script.
+- Deployment guide: the `404-page` setting is only for Cloudflare deploys without a worker.
 
 ## [0.8.24] - 2026-10-11
 

@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Apps with prerendered pages get a `404.html`, so static hosts show a real 404 page.
 
+### Fixed
+
+- Prerender stops waiting once its server dies, and shows that server's errors.
+
 ## [1.2.1] - 2026-10-11
 
 ### Added

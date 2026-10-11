@@ -10,7 +10,11 @@
 - [x] 🟡 Static hosts (Cloudflare assets) served `index.html` with a 200 for unknown paths. Prerender now saves the server's 404 as `dist/static/404.html`; docs' own copy in `post-build.ts` is gone. Test: `docs/test/not-found-page.test.ts`.
 - [x] 🟢 The prerender server no longer inherits `BOSIA_REUSE_PORT`, so another server on the port can't answer for it.
 - [ ] ⚪ SSR-only apps get no `404.html` (no server boot just for it). Add one if an SSR app ever deploys to a static host.
-- [ ] ⚪ The Bun server serves `/404.html` itself with a 200, like any `dist/static` file. Harmless; skip it in `staticManifest` if it bites.
+- [ ] ⚪ `/404.html` (and `/404` on Cloudflare/Netlify/Pages) answers with a 200 serving the 404 page. Any file name does this; add `noindex` if crawlers index it.
+- [x] 🟠 Review: the ready loop ignored the child's exit, so a foreign server's `/_health` passed. It stops once the child exits (the docs probe did this).
+- [x] 🟡 Review: prerender server stderr shows now; a failed 404 render printed only "got 500".
+- [x] 🟡 Review: the docs test skipped when `404.html` was missing; it skips only before a build now. Deploy docs: `404-page` is for assets-only deploys.
+- [ ] ⚪ One English probe: `/id/...` gets the English 404. Add per-locale probe paths when needed (see `docs/ROADMAP.md`).
 
 ---
 

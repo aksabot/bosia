@@ -2,7 +2,7 @@
 
 > Track what's done, what's next, and where we're headed for the **docs site +
 > component registry** (`docs/`, `registry/`).
-> Current version: **0.7.5**
+> Current version: **0.8.25**
 
 > Routing: docs + registry work lives here and in `docs/CHANGELOG.md`.
 > Framework (`packages/bosia`) work stays in [`../ROADMAP.md`](../ROADMAP.md).
@@ -14,14 +14,14 @@
 ## Done — Broken links + real 404 ✅
 
 - [x] 🟠 ~210 links in docs and skills used `/docs/...` (404 locally, home page on prod). Stripped the prefix; fixed a trailing-slash relative link and `/pages/blog/index` (also in the `nav.ts` sidebar).
-- [x] 🟠 Prod served `index.html` with a 200 for unknown paths (no `404.html`). `post-build.ts` now saves the server's 404 as `dist/static/404.html`.
+- [x] 🟠 Prod served `index.html` with a 200 for unknown paths (no `404.html`). `post-build.ts` saved the server's 404 as `dist/static/404.html`; moved into framework prerender in bosia 1.2.2.
 - [x] 🟡 Shop feature `public-navbar.svelte` linked "Products" to a missing `/products`; link removed (no public products page). Shop/store home button relabeled "Manage products" → `/dashboard/products`.
 - [x] ⚪ Relative guide links (`./request-deduplication`, `../reference/roadmap`) broke under a trailing slash; now absolute.
 - [x] 🟡 226 links in `id/` pages pointed at English pages; now `/id/...` when the ID page exists. `post-build` 404 probe uses a free port and shows server errors.
 - [x] 🟡 Review: two `id/` links jumped to anchors the ID server-loaders page lacks (`#cookie-forwarding`, `#caching`); back to the EN page.
 - [x] 🟡 Review: 404 probe waits for `/_health` (no foreign 404), uses `getEphemeralPort` + `NODE_PATH` + `.env.production`, and only warns on failure.
 - [x] ⚪ Review: skill links are full `https://bosia.dev/...` URLs, so agents reading SKILL.md locally can open them.
-- [ ] ⚪ `/id/...` unknown paths get the English 404 (`lang="en"`). Probe `/id/__bosia-404-probe` too and write `dist/static/id/404.html`.
+- [ ] ⚪ `/id/...` unknown paths get the English 404 (`lang="en"`). Needs per-locale probe paths in framework prerender now (`prerender.ts`); post-build no longer probes.
 
 ---
 

@@ -54,7 +54,7 @@ Halaman yang di-prerender dibuat sebagai HTML statis selama `bosia build` dan di
 
 Payload data untuk navigasi sisi klien juga di-prerender sebagai file JSON di `dist/prerendered/__bosia/data/<route>.json`. Ini berarti navigasi klien berfungsi di situs statis (GitHub Pages, Netlify, dll.) tanpa server yang berjalan.
 
-Jika aplikasi me-prerender minimal satu route, build juga menyimpan halaman 404-nya sebagai `dist/static/404.html`, sehingga host statis menjawab path yang tidak dikenal dengan 404 sungguhan, bukan halaman beranda. Di Cloudflare static assets, set `"not_found_handling": "404-page"`. File `public/404.html` akan menggantikannya.
+Jika aplikasi me-prerender minimal satu route, build juga menyimpan halaman 404-nya sebagai `dist/static/404.html`, sehingga host statis menjawab path yang tidak dikenal dengan 404 sungguhan, bukan halaman beranda. Untuk deploy Cloudflare statis saja (assets, tanpa worker), set `"not_found_handling": "404-page"`; dengan `--target=workers` worker yang menjawab path tak dikenal dan file ini tidak dipakai. File `public/404.html` akan menggantikannya.
 
 ## Caching Aset Statis
 
