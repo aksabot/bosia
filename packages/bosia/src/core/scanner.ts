@@ -31,15 +31,11 @@ const ROUTES_DIR = "./src/routes";
  * else (dynamic expression, unreadable file) returns `null` so the renderer
  * imports the module and reads the real value.
  */
-function readPageCache(filePath: string): boolean | null {
-	try {
-		const src = readFileSync(filePath, "utf-8");
-		if (!/export\s+const\s+cache\b/.test(src)) return true;
-		if (/export\s+const\s+cache\s*(?::[^=]+)?=\s*false\b/.test(src)) return false;
-		return null;
-	} catch {
-		return null;
-	}
+function pageCache(src: string | null): boolean | null {
+	if (src === null) return null;
+	if (!/export\s+const\s+cache\b/.test(src)) return true;
+	if (/export\s+const\s+cache\s*(?::[^=]+)?=\s*false\b/.test(src)) return false;
+	return null;
 }
 
 /** Literal `export const prerender = true` in a server module's source. */
@@ -71,19 +67,23 @@ function readPrerender(filePath: string): boolean {
 	}
 }
 
-/** A `<svelte:head>` with a `<title>` in it, read from the .svelte source. A
- *  false positive (say, one in a comment) only keeps the previous page's title
- *  on client navigation, as before. A miss sets the default title, which a
- *  freshly mounted <svelte:head> still overrides. */
+/** A `<title>` inside a `<svelte:head>` block, read from the .svelte source. A
+ *  `<title>` outside one, like an inline SVG's, doesn't count. A false positive
+ *  (say, one in a comment) only keeps the previous page's title on client
+ *  navigation, as before. A miss sets the default title, which a freshly
+ *  mounted <svelte:head> still overrides. */
 export function writesHeadTitle(src: string): boolean {
-	return /<svelte:head[\s>][\s\S]*?<title[\s>]/.test(src);
+	for (const m of src.matchAll(/<svelte:head(?:\s[^>]*?)?(?<!\/)>([\s\S]*?)<\/svelte:head\s*>/g))
+		if (/<title[\s>]/.test(m[1]!)) return true;
+	return false;
 }
 
-function readHeadTitle(filePath: string): boolean {
+/** A route file's source, or null when it can't be read. */
+function readSource(filePath: string): string | null {
 	try {
-		return writesHeadTitle(readFileSync(filePath, "utf-8"));
+		return readFileSync(filePath, "utf-8");
 	} catch {
-		return false;
+		return null;
 	}
 }
 
@@ -106,7 +106,10 @@ export function scanRoutes(): RouteManifest {
 	const headTitles = new Map<string, boolean>();
 	const headTitle = (file: string) => {
 		let v = headTitles.get(file);
-		if (v === undefined) headTitles.set(file, (v = readHeadTitle(join(ROUTES_DIR, file))));
+		if (v === undefined) {
+			const src = readSource(join(ROUTES_DIR, file));
+			headTitles.set(file, (v = src !== null && writesHeadTitle(src)));
+		}
 		return v;
 	};
 
@@ -180,6 +183,7 @@ export function scanRoutes(): RouteManifest {
 			const effectiveTs: TrailingSlash = pageTs ?? currentTrailingSlash;
 
 			const pageFile = rel("+page.svelte");
+			const pageSrc = readSource(join(ROUTES_DIR, pageFile));
 			pages.push({
 				pattern: toUrlPath(urlSegments),
 				id: `/${dir}`,
@@ -190,9 +194,9 @@ export function scanRoutes(): RouteManifest {
 				layoutServers: [...currentLayoutServers],
 				errorPages: [...currentErrorPages],
 				trailingSlash: effectiveTs,
-				cache: readPageCache(join(ROUTES_DIR, pageFile)),
+				cache: pageCache(pageSrc),
 				prerender: pageServerFile ? readPrerender(join(ROUTES_DIR, pageServerFile)) : false,
-				headTitle: headTitle(pageFile) || currentLayouts.some(headTitle),
+				headTitle: (pageSrc !== null && writesHeadTitle(pageSrc)) || currentLayouts.some(headTitle),
 			});
 		}
 

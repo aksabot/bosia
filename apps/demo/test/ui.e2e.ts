@@ -155,6 +155,23 @@ describe.each(["prod", "dev"] as const)("%s", (mode) => {
 		expect(errors).toEqual([]);
 	});
 
+	// A child component like <Seo> sets the title from inside the page, which no
+	// scan sees. Svelte won't set it again while the page stays mounted, so
+	// navigating to the same page must not replace it with the default.
+	test("the same page keeps a title a child component set", async () => {
+		await open("/page-url-test");
+		await waitFor(`document.title === "Bosia App"`);
+		await view.evaluate(`document.title = "Set by a child"`);
+		await view.click('a[href="/page-url-test?tab=roles"]');
+		// page.url moves at the click; the bar's "done" state means the data came
+		// back and the title code ran.
+		await waitFor(
+			`location.search === "?tab=roles" && !!document.querySelector(".bosia-bar.done")`,
+		);
+		expect(await view.evaluate("document.title")).toBe("Set by a child");
+		expect(errors).toEqual([]);
+	});
+
 	test("enhanced form action shows its success data", async () => {
 		await open("/actions-test");
 		await markSpa();

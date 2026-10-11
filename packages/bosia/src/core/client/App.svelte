@@ -39,6 +39,26 @@
 	let pageInstance = $state<any>(null);
 	if (!ssrMode) router.getPageSnapshot = () => pageInstance?.snapshot;
 
+	// The last title navigation itself wrote. Same page, same title still → the
+	// page didn't take it over, so navigation may replace it again.
+	let navTitle: string | null = null;
+	let decodedDefaultTitle: string | undefined;
+	// defaultTitle is app.html's raw <title> text; a <textarea> decodes every
+	// entity the way the browser did on a hard load. Trusted Types block the
+	// innerHTML write, so the raw text is the fallback there.
+	function readDefaultTitle(): string {
+		if (decodedDefaultTitle === undefined) {
+			try {
+				const t = document.createElement("textarea");
+				t.innerHTML = defaultTitle;
+				decodedDefaultTitle = t.value;
+			} catch {
+				decodedDefaultTitle = defaultTitle;
+			}
+		}
+		return decodedDefaultTitle;
+	}
+
 	// Call the landed-on page's snapshot.restore() once it's mounted (post-tick).
 	function settleSnapshot() {
 		const snap = router.pendingSnapshot;
@@ -316,6 +336,7 @@
 				}
 				return;
 			}
+			const pageChanged = PageComponent !== pageMod.default;
 			PageComponent = pageMod.default;
 			layoutComponents = layoutMods.map((m: any) => m.default);
 
@@ -410,11 +431,18 @@
 				document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
 				// A page with no title gets the one a hard load would give it: app.html's
 				// <title>, else "Bosia App". Set before Svelte flushes, so a freshly
-				// mounted <svelte:head><title> still wins. A route whose page or layout
-				// file writes one keeps the current title: Svelte sets it only on mount
-				// or change, so a layout that stays mounted would never set it back.
-				if (md?.title) document.title = md.title;
-				else if (!match.route.headTitle) document.title = defaultTitle;
+				// mounted <svelte:head><title> still wins. Svelte sets a title only on
+				// mount or change, so the current one is kept when nothing would set it
+				// back: a route whose page or layout file writes one, or the same page
+				// again (invalidate, a form action, ?page=2) once a child like <Seo>
+				// has replaced the title navigation wrote.
+				if (md?.title) {
+					document.title = md.title;
+					navTitle = document.title;
+				} else if (!match.route.headTitle && (pageChanged || document.title === navTitle)) {
+					document.title = readDefaultTitle();
+					navTitle = document.title;
+				}
 				if (md?.lang) document.documentElement.lang = md.lang;
 				const emit = (tag: "meta" | "link", attrs: Record<string, string | undefined>) => {
 					const el = document.createElement(tag);

@@ -8,17 +8,16 @@ import type { AppHtmlSegments } from "../src/core/appHtml.ts";
 // does. titleText has to find the same <title> hasTitle finds, or the two disagree.
 
 describe("titleText()", () => {
-	test("reads the text, trimmed, with attributes on the tag", () => {
-		expect(titleText(`<meta charset="utf-8">\n<title data-x="1">  Fisika \n</title>`)).toBe(
-			"Fisika",
+	test("reads the text, whitespace collapsed, with attributes on the tag", () => {
+		expect(titleText(`<meta charset="utf-8">\n<title data-x="1">  Fisika \n  Dasar </title>`)).toBe(
+			"Fisika Dasar",
 		);
 	});
 
-	test("decodes the entities a title uses", () => {
-		expect(titleText(`<title>Tom &amp; Jerry &#8212; &#x2603; &lt;3 &quot;hi&quot;</title>`)).toBe(
-			`Tom & Jerry — ☃ <3 "hi"`,
+	test("leaves entities for the browser to decode", () => {
+		expect(titleText(`<title>Tom &amp; Jerry &mdash; Kartun</title>`)).toBe(
+			"Tom &amp; Jerry &mdash; Kartun",
 		);
-		expect(titleText(`<title>&unknown; stays</title>`)).toBe("&unknown; stays");
 	});
 
 	test("skips a <title> in a comment, a script or an inline svg", () => {

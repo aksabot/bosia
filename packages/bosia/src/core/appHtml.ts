@@ -5,7 +5,7 @@ import { OUT_DIR } from "./paths.ts";
 import { readArtifact } from "./artifacts.ts";
 import { rebaseHtmlAttrs } from "./basePath.ts";
 import { currentBase } from "./appBase.ts";
-import { titleText } from "./headScan.ts";
+import { hasTitle, titleText } from "./headScan.ts";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -80,12 +80,32 @@ export function findHeadEnd(headClose: string): number {
 	return -1;
 }
 
-/** The text of app.html's own <title>, or null when it has none. Looks where
- *  html.ts's headSplit does: before %bosia.head%, and after it up to </head>. */
+type HeadSplit = { before: string; after: string; hasTitle: boolean };
+
+// app.html never changes after it is parsed, so split it and check it for a
+// title once per segments object instead of on every render. Kept in memory,
+// not in dist/app-html.json, so it can't go stale against headClose.
+const headSplits = new WeakMap<AppHtmlSegments, HeadSplit>();
+
+/** headClose split at the end of the head: `before` still belongs to <head>,
+ *  `after` runs on to %bosia.body%. Also whether app.html's head sets a title. */
+export function headSplit(segments: AppHtmlSegments): HeadSplit {
+	let split = headSplits.get(segments);
+	if (!split) {
+		const { headOpen, headClose } = segments;
+		const i = findHeadEnd(headClose);
+		const before = i < 0 ? "" : headClose.slice(0, i);
+		const after = i < 0 ? headClose : headClose.slice(i);
+		split = { before, after, hasTitle: hasTitle(headOpen) || hasTitle(before) };
+		headSplits.set(segments, split);
+	}
+	return split;
+}
+
+/** The raw text of app.html's own <title>, or null when it has none. Looks in
+ *  the same places as headSplit, so it finds the title SSR keeps. */
 export function appHtmlTitle(segments: AppHtmlSegments): string | null {
-	const i = findHeadEnd(segments.headClose);
-	const before = i < 0 ? "" : segments.headClose.slice(0, i);
-	return titleText(segments.headOpen) ?? titleText(before);
+	return titleText(segments.headOpen) ?? titleText(headSplit(segments).before);
 }
 
 function replaceStaticPlaceholders(template: string): string {

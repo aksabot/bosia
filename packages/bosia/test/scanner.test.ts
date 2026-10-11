@@ -195,6 +195,19 @@ describe("scanRoutes() headTitle", () => {
 		expect(writesHeadTitle(`<svelte:head><title>{data.t}</title></svelte:head>`)).toBe(true);
 		expect(writesHeadTitle(`<svelte:head>\n  <title>T</title>\n</svelte:head>`)).toBe(true);
 	});
+
+	test("only a <title> inside <svelte:head> counts", () => {
+		// A logo's SVG title in the root layout must not flag every route.
+		const svg = `<svg><title>Logo</title></svg>`;
+		expect(writesHeadTitle(`<svelte:head><meta name="x" /></svelte:head>\n${svg}`)).toBe(false);
+		expect(writesHeadTitle(`<svelte:head />\n${svg}\n<svelte:head></svelte:head>`)).toBe(false);
+		expect(writesHeadTitle(`${svg}<svelte:head><title>T</title></svelte:head>`)).toBe(true);
+		expect(
+			writesHeadTitle(
+				`<svelte:head></svelte:head>${svg}<svelte:head><title>T</title></svelte:head>`,
+			),
+		).toBe(true);
+	});
 });
 
 describe("scanRoutes() route conflicts", () => {

@@ -13,14 +13,15 @@ export function hasTitle(html: string): boolean {
 	return titleTagEnd(html) !== -1;
 }
 
-/** The text of the <title> that hasTitle finds, entities decoded and trimmed, or
- *  null when there is none. An unclosed <title> runs to the end, as in a browser. */
+/** The raw text of the <title> that hasTitle finds, or null when there is none.
+ *  Whitespace is collapsed and trimmed as document.title does; entities are left
+ *  for the browser to decode. An unclosed <title> runs to the end, as in a browser. */
 export function titleText(html: string): string | null {
 	const start = titleTagEnd(html);
 	if (start === -1) return null;
 	const m = /<\/title(?=[\t\n\f\r />])/i.exec(html.slice(start));
 	const raw = m ? html.slice(start, start + m.index) : html.slice(start);
-	return decodeEntities(raw).trim();
+	return raw.replace(/[\t\n\f\r ]+/g, " ").trim();
 }
 
 /** Index just past the `>` of the first real <title> tag, or -1. */
@@ -59,26 +60,6 @@ function titleTagEnd(html: string): number {
 		else i = gt + 1;
 	}
 	return -1;
-}
-
-const NAMED: Record<string, string> = {
-	amp: "&",
-	lt: "<",
-	gt: ">",
-	quot: '"',
-	apos: "'",
-	nbsp: "\u00a0",
-};
-
-/** The entities a hand-written <title> realistically uses. Unknown ones stay as
- *  written; a full entity table is not worth carrying for a page title. */
-function decodeEntities(s: string): string {
-	return s.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (whole, ref: string) => {
-		if (ref[0] !== "#") return NAMED[ref.toLowerCase()] ?? whole;
-		const code =
-			ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
-		return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
-	});
 }
 
 /** `</tag` followed by whitespace, `/` or `>`; the caller finds the `>` itself,

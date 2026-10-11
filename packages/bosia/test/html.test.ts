@@ -13,9 +13,9 @@ import {
 	metadataTags,
 	distManifest,
 	getPublicDynamicEnv,
-	hasTitle,
 	appHtmlHasTitle,
 } from "../src/core/html.ts";
+import { hasTitle } from "../src/core/headScan.ts";
 import type { AppHtmlSegments } from "../src/core/appHtml.ts";
 import type { Metadata } from "../src/core/hooks.ts";
 

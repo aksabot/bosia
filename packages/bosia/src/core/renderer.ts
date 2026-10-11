@@ -34,7 +34,6 @@ import {
 	compressBytes,
 	encodeForRequest,
 	appHtmlHasTitle,
-	hasTitle,
 	isDev,
 	withPreloadLink,
 	type Encoded,
@@ -46,6 +45,7 @@ import { reportDevErrorFromCatch } from "./devErrorReport.ts";
 import { dev500Response } from "./dev-500.ts";
 import type { BosiaPlugin, RenderContext } from "./types/plugin.ts";
 import { getAppHtmlSegments } from "./appHtml.ts";
+import { hasTitle } from "./headScan.ts";
 import type { AppHtmlSegments } from "./appHtml.ts";
 
 // Shared, stateless — one instance instead of a fresh allocation per stream.

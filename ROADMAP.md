@@ -15,6 +15,12 @@
 - [x] 🟡 Client nav to a page with no title kept the last page's title (seen in Chrome e2e). It now gets the SSR default: `app.html`'s `<title>`, else `Bosia App`. Demo `ui.e2e.ts` test, seen failing first.
 - [x] 🟡 Svelte sets a `<svelte:head><title>` only on mount or change, so the scanner flags routes whose page/layout file writes one (`headTitle`); those keep today's behaviour.
 - [ ] ⚪ Not caught: a title from a child component (`<Seo>`) in a layout that stays mounted is replaced by the default. Documented; use `metadata().title` or `<svelte:head>` in the layout file.
+- [x] 🟠 Review: invalidate, a form action or `?page=2` reset a title a child set (`<Seo>`). The default now goes only on a page change, or when the title is still navigation's own. Demo test, seen failing first.
+- [x] 🟠 Review: the scanner regex ran past `</svelte:head>`, so a logo's `<svg><title>` in the root layout flagged every route. It now looks inside `<svelte:head>` blocks only.
+- [x] 🟡 Review: `app.html` title entities (`&mdash;`) showed raw. Build ships the raw text; the browser decodes it (a `<textarea>`; raw text under Trusted Types).
+- [x] 🟡 Review: `bosia sync` ignored `app.html`'s title. It reads it too; the title argument is required now. `headSplit` moved to `appHtml.ts`, shared by SSR and build.
+- [ ] ⚪ A plugin `head()` `<title>` is replaced by the default on client nav. It runs per request on the server, so the client can't see it. Documented.
+- [ ] ⚪ First nav after a hard load to the same page (`/blog/a` → `/blog/b`) with no `metadata()` title keeps the SSR title: the client doesn't know who set it.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
 
 ---

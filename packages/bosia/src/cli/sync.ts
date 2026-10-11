@@ -1,5 +1,7 @@
 import { scanRoutes, RouteConflictError } from "../core/scanner.ts";
 import { generateRoutesFile } from "../core/routeFile.ts";
+import { appHtmlTitle, loadAppHtmlTemplate } from "../core/appHtml.ts";
+import { DEFAULT_TITLE } from "../core/headScan.ts";
 import { generateRouteTypes, ensureRootDirs } from "../core/routeTypes.ts";
 import { loadEnv, classifyEnvVars } from "../core/env.ts";
 import { generateEnvModules } from "../core/envCodegen.ts";
@@ -16,7 +18,7 @@ export async function runSync() {
 		console.error(`❌ ${err.message}`);
 		process.exit(1);
 	}
-	generateRoutesFile(manifest);
+	generateRoutesFile(manifest, syncDefaultTitle());
 	generateRouteTypes(manifest);
 	ensureRootDirs();
 	generateEnvModules(classifiedEnv);
@@ -30,5 +32,15 @@ export async function runSync() {
 		for (const { file, line } of brandHits) console.error(`  • ${file}:${line}`);
 		console.error(`\nReplace ${BRAND_SENTINEL} with the app's name (nav/header/footer).\n`);
 		process.exit(1);
+	}
+}
+
+/** app.html's title, as build passes it. A missing or broken app.html is the
+ *  build's error to report; sync still writes the routes. */
+function syncDefaultTitle(): string {
+	try {
+		return appHtmlTitle(loadAppHtmlTemplate()) ?? DEFAULT_TITLE;
+	} catch {
+		return DEFAULT_TITLE;
 	}
 }

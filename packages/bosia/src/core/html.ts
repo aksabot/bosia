@@ -5,11 +5,9 @@ import { nonceAttr } from "./csp.ts";
 import { rebaseHtmlAttrs } from "./basePath.ts";
 import { currentBase } from "./appBase.ts";
 import type { AppHtmlSegments } from "./appHtml.ts";
-import { findHeadEnd, interpolateSegment } from "./appHtml.ts";
+import { headSplit, interpolateSegment } from "./appHtml.ts";
 import type { Metadata } from "./hooks.ts";
 import { DEFAULT_TITLE, hasTitle } from "./headScan.ts";
-
-export { hasTitle };
 
 // Workers compresses any body sent with a Content-Encoding header — again, if it
 // already is — unless told the bytes are final. Bun ignores the key.
@@ -437,26 +435,6 @@ function closeHead(segments: AppHtmlSegments, late: string, nonce?: string): str
 		late +
 		interpolateSegment(after, { nonce })
 	);
-}
-
-type HeadSplit = { before: string; after: string; hasTitle: boolean };
-
-// app.html never changes after it is parsed, so split it and check it for a
-// title once per segments object instead of on every render. Kept in memory,
-// not in dist/app-html.json, so it can't go stale against headClose.
-const headSplits = new WeakMap<AppHtmlSegments, HeadSplit>();
-
-function headSplit(segments: AppHtmlSegments): HeadSplit {
-	let split = headSplits.get(segments);
-	if (!split) {
-		const { headOpen, headClose } = segments;
-		const i = findHeadEnd(headClose);
-		const before = i < 0 ? "" : headClose.slice(0, i);
-		const after = i < 0 ? headClose : headClose.slice(i);
-		split = { before, after, hasTitle: hasTitle(headOpen) || hasTitle(before) };
-		headSplits.set(segments, split);
-	}
-	return split;
 }
 
 /** Plugin `head` fragments, one per line, empty ones skipped. */
