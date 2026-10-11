@@ -146,7 +146,9 @@ function parseTimeout(raw: string | undefined, fallback: number): number {
 const LOAD_TIMEOUT = parseTimeout(process.env.LOAD_TIMEOUT, 5000);
 const METADATA_TIMEOUT = parseTimeout(process.env.METADATA_TIMEOUT, 3000);
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+// A plain-function load() hands back a value, not a promise; wrap it first.
+function withTimeout<T>(value: T | Promise<T>, ms: number, label: string): Promise<T> {
+	const promise = Promise.resolve(value);
 	if (ms <= 0) return promise;
 	let timer: Timer;
 	return Promise.race([

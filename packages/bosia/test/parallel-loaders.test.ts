@@ -89,6 +89,26 @@ beforeAll(async () => {
 		`export function load() {\n\treturn { secret: "leaked" };\n}\n`,
 	);
 
+	// /plain/inner: loaders written as plain functions (no async) that return
+	// an object. With LOAD_TIMEOUT set they crashed with a 500
+	// ("promise.finally is not a function").
+	const plain = join(routes, "plain");
+	const plainInner = join(plain, "inner");
+	mkdirSync(plainInner, { recursive: true });
+	writeFileSync(join(plain, "+layout.svelte"), LAYOUT);
+	writeFileSync(
+		join(plain, "+layout.server.ts"),
+		`export function load() {\n\treturn { a: "sync" };\n}\n`,
+	);
+	writeFileSync(
+		join(plainInner, "+page.svelte"),
+		`<script>let { data } = $props();</script>\n<h1>{data.b}</h1>\n`,
+	);
+	writeFileSync(
+		join(plainInner, "+page.server.ts"),
+		`export function load() {\n\treturn { b: "plain-page" };\n}\n`,
+	);
+
 	const build = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "core", "build.ts")], {
 		cwd: tmpDir,
 		env: { ...process.env, NODE_ENV: "production", NODE_PATH: BOSIA_NODE_PATH },
@@ -109,6 +129,8 @@ beforeAll(async () => {
 		env: {
 			...process.env,
 			NODE_ENV: "production",
+			// Timeouts are off by default; on, a plain-function load() used to 500.
+			LOAD_TIMEOUT: "5000",
 			PORT: String(port),
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
@@ -196,5 +218,19 @@ describe("metadata.data reaches load() on every path", () => {
 		expect(body.pageData.fromMeta).toBe("meta");
 		expect(body.metadata).toMatchObject({ title: "Lambat" });
 		expect(body.metadata.data).toBeUndefined();
+	});
+});
+
+describe("plain-function loaders", () => {
+	test("a non-async load() returning an object renders", async () => {
+		const res = await fetch(`${origin}/plain/inner${fresh()}`);
+		expect(res.status).toBe(200);
+		expect(await res.text()).toContain("plain-page");
+	});
+
+	test("the data endpoint gets both layers", async () => {
+		const body = await (await fetch(dataUrl("/plain/inner", fresh()))).json();
+		expect(body.layoutData[0]).toMatchObject({ a: "sync" });
+		expect(body.pageData).toMatchObject({ b: "plain-page" });
 	});
 });

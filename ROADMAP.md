@@ -9,6 +9,7 @@
 
 - [x] 🟡 Dev warns once per route when a layout `redirect()`/`error(401|403)` fires but page `load()` ran code before `await parent()`. `metadata()` and 404s stay quiet. Test: `layout-guard-warning.test.ts`.
 - [ ] ⚪ Heuristic: a statement before `parent()`, or a write in the same `Promise.all`, isn't caught. Only a hook guard is airtight.
+- [x] 🔴 A plain-function `load()` returning an object crashed (`promise.finally` is not a function) when `LOAD_TIMEOUT` was set. `withTimeout` wraps it in `Promise.resolve`.
 
 ---
 

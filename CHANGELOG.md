@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Dev warns when a layout guard fires but page code already ran; guard in hooks instead.
 
+### Fixed
+
+- A `load()` without `async` no longer fails with a 500 when `LOAD_TIMEOUT` is set.
+
 ## [1.2.0] - 2026-10-09
 
 ### Changed
