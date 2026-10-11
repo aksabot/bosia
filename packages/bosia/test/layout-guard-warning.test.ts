@@ -8,8 +8,8 @@ import { BOSIA_NODE_PATH } from "../src/core/paths.ts";
 // Loaders start together, so everything below a layout (nested layouts, page
 // load(), metadata()) runs even when that layout redirects. Dev warns about
 // where the guard lives when a layout throws redirect() or error(401/403) and
-// some loader below it ran. A not-found error(404), or a guard with nothing
-// below it, stays quiet.
+// some loader below it runs user code. A not-found error(404), a guard with
+// nothing below it, or a page server with only `actions` stays quiet.
 
 let tmpDir: string;
 let child: Bun.Subprocess | null = null;
@@ -22,15 +22,27 @@ const throwing = (expr: string) =>
 const REDIRECT = throwing(`redirect(303, "/login")`);
 const LOAD = `export async function load({ parent }: any) {\n\tawait parent();\n\treturn {};\n}\n`;
 
-type Case = { guard?: string; status?: number; pageServer?: string; nestedLayout?: boolean };
+type Case = {
+	guard?: string;
+	status?: number;
+	pageServer?: string;
+	nestedLayout?: boolean;
+	// Only a client-nav data request with the page masked out (`_invalidated=01`).
+	maskedOnly?: boolean;
+};
+const META = `export function metadata() {\n\treturn { title: "Meta" };\n}\n`;
 
 // Requested in this order. The quiet ones go first, so once the last (loud)
 // warning shows up, stderr is known to hold everything before it.
 const cases: Record<string, Case> = {
 	missing: { guard: throwing(`error(404, "Not Found")`), status: 404, pageServer: LOAD },
 	leaf: {},
+	actions: { pageServer: `export const actions = { default: async () => ({}) };\n` },
+	maskedload: { pageServer: LOAD, maskedOnly: true },
 	page: { pageServer: LOAD },
-	meta: { pageServer: `export function metadata() {\n\treturn { title: "Meta" };\n}\n` },
+	meta: { pageServer: META },
+	// The page load() is skipped, but metadata() still runs.
+	maskedmeta: { pageServer: META, maskedOnly: true },
 	nested: { nestedLayout: true },
 	forbidden: { guard: throwing(`error(403, "Forbidden")`), status: 403, pageServer: LOAD },
 };
@@ -121,6 +133,10 @@ beforeAll(async () => {
 
 	// Two page requests and a data request each: the warning shows once per route.
 	for (const [name, c] of Object.entries(cases)) {
+		if (c.maskedOnly) {
+			await (await fetch(`${origin}/__bosia/data/${name}/inner.json?_invalidated=01`)).text();
+			continue;
+		}
 		for (let i = 0; i < 2; i++) {
 			const res = await fetch(`${origin}/${name}/inner`, { redirect: "manual" });
 			expect(res.status).toBe(c.status ?? 303);
@@ -158,6 +174,18 @@ describe("dev warns when a layout guard has loaders below it", () => {
 		const lines = warningsFor("forbidden");
 		expect(lines).toHaveLength(1);
 		expect(lines[0]).toContain("threw error(403)");
+	});
+
+	test("a masked page still warns for its metadata()", () => {
+		expect(warningsFor("maskedmeta")).toHaveLength(1);
+	});
+
+	test("a masked page with only load() stays quiet", () => {
+		expect(warningsFor("maskedload")).toHaveLength(0);
+	});
+
+	test("a page server with only actions stays quiet", () => {
+		expect(warningsFor("actions")).toHaveLength(0);
 	});
 
 	test("a guard with no loader below it stays quiet", () => {

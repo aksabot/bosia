@@ -7,7 +7,7 @@
 
 ## bosia 1.2.1 (2026-10-11) — layout guard warning
 
-- [x] 🟡 Dev warns once per route/depth/guard when a layout `redirect()`/`error(401|403)` fires with loaders below it (nested layout, page `load()`, `metadata()`). No `parent()` tracking. Test: `layout-guard-warning.test.ts`.
+- [x] 🟡 Dev warns once per route/depth/guard when a layout `redirect()`/`error(401|403)` fires and a loader below runs user code (nested `load`, page `load` unless masked, `metadata` when started). Read from module exports. Test: `layout-guard-warning.test.ts`.
 - [ ] ⚪ Also warns for read-only pages and non-auth redirects (locale, canonical): it flags the guard's place, not the code below. Accepted.
 - [x] 🔴 A plain-function `load()` returning an object crashed (`promise.finally` is not a function) when `LOAD_TIMEOUT` was set. `withTimeout` wraps it in `Promise.resolve`.
 - [x] 🟡 npm tarball lacked LICENSE (MIT requires the notice). Copied into `packages/bosia`, added to `files`. Copyright: "Bosapi and contributors"; `AUTHORS` lists people.

@@ -73,7 +73,7 @@ Every layout and page loader for a request starts at the same time. `parent()` w
 
 If a layout throws (`redirect()`, `error()` or a crash), the response comes from the top-most layout that failed. Nothing from the page reaches the visitor. But page code that ran before `await parent()` has already run. Guard routes in [hooks](/guides/security#route-guards-in-hooks), or call `await parent()` first in a loader that must stay behind a layout's check.
 
-In dev, Bosia warns once per route when a layout throws `redirect()` or `error(401/403)` while loaders below it (nested layouts, page `load()`, `metadata()`) have already started. Their data is dropped, but any writes they made are not. The warning is about where the guard lives, not about what the code below did, so it also shows for read-only pages and for non-auth redirects such as a locale prefix. Moving an auth guard to hooks silences it.
+In dev, Bosia warns once per route and guard when a layout throws `redirect()` or `error(401/403)` while loaders below it (nested layouts, page `load()`, `metadata()`) have started. Their data is dropped, but any writes they made are not. The warning is about where the guard lives, not about what the code below did. It also shows for read-only pages, for non-auth redirects such as a locale prefix, and when `load()` awaits `parent()` first: that protects the loader, but only moving the guard to hooks silences the warning.
 
 ## Metadata
 

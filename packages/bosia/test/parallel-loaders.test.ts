@@ -129,8 +129,10 @@ beforeAll(async () => {
 		env: {
 			...process.env,
 			NODE_ENV: "production",
-			// Timeouts are off by default; on, a plain-function load() used to 500.
+			// Timeouts are off by default. On, a plain-function load() used to 500
+			// and a plain metadata() lost its title (/slow/inner has one).
 			LOAD_TIMEOUT: "5000",
+			METADATA_TIMEOUT: "5000",
 			PORT: String(port),
 			NODE_PATH: BOSIA_NODE_PATH,
 		},

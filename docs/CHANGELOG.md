@@ -10,8 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- Loaders guide and routing skill: dev now warns when page code runs past a layout guard.
-- Loaders guide: the guard warning flags where the guard lives, so read-only pages see it too.
+- Loaders guide and routing skill: dev warns about a layout guard with loaders below; use hooks.
 
 ## [0.8.23] - 2026-10-09
 

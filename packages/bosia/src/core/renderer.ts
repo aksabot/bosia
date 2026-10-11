@@ -367,12 +367,14 @@ function makeDepends(deps: LoaderDeps): (...keys: string[]) => void {
 // Once per route, depth and guard, so a guarded page doesn't flood the console.
 const warnedGuards = new Set<string>();
 
-function isGuard(err: unknown): boolean {
-	return isRedirect(err) || (isHttpError(err) && (err.status === 401 || err.status === 403));
+// "redirect()" / "error(403)" when `err` is a guard, else null.
+function guardLabel(err: unknown): string | null {
+	if (isRedirect(err)) return "redirect()";
+	if (isHttpError(err) && (err.status === 401 || err.status === 403)) return `error(${err.status})`;
+	return null;
 }
 
-function warnLayoutGuard(routeId: string, depth: number, err: unknown) {
-	const thrown = isRedirect(err) ? "redirect()" : `error(${(err as HttpError).status})`;
+function warnLayoutGuard(routeId: string, depth: number, thrown: string) {
 	const key = `${routeId}|${depth}|${thrown}`;
 	if (warnedGuards.has(key)) return;
 	warnedGuards.add(key);
@@ -512,6 +514,22 @@ export async function loadRouteData(
 		: null;
 	pageP?.catch(() => {});
 
+	// Dev only: does any loader below layer i run user code on this request?
+	// Asked of the modules (cached imports), not the route's shape: a page
+	// server with only `actions` runs nothing, while a masked page still runs
+	// metadata() when the caller started it.
+	const userCodeBelow = async (i: number) => {
+		for (const below of route.layoutServers.slice(i + 1)) {
+			if (typeof (await below.loader()).load === "function") return true;
+		}
+		if (!route.pageServer) return false;
+		const mod = await route.pageServer();
+		return (
+			(!skipPage && typeof mod.load === "function") ||
+			(metadataData !== null && typeof mod.metadata === "function")
+		);
+	};
+
 	// Settle root → leaf. The first failure wins, carrying the data of the
 	// layers above it — the same error a serial run would have produced.
 	for (let i = 0; i < route.layoutServers.length; i++) {
@@ -524,9 +542,13 @@ export async function loadRouteData(
 			layoutDeps[ls.depth] = omit ? null : deps;
 		} catch (err) {
 			// Loaders below this one already started; dev warns about the guard.
-			if (isDev && isGuard(err)) {
-				const runsBelow = i < route.layoutServers.length - 1 || (!!pageP && !skipPage);
-				if (runsBelow) warnLayoutGuard(route.id, ls.depth, err);
+			const thrown = isDev ? guardLabel(err) : null;
+			if (thrown) {
+				const depth = ls.depth;
+				userCodeBelow(i).then(
+					(ran) => ran && warnLayoutGuard(route.id, depth, thrown),
+					() => {},
+				);
 			}
 			if (isRedirect(err)) throw err;
 			if (isHttpError(err)) {

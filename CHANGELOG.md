@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - A `load()` without `async` no longer fails with a 500 when `LOAD_TIMEOUT` is set.
+- A `metadata()` without `async` keeps its title when `METADATA_TIMEOUT` is set.
 - The npm package now ships the MIT license; the copyright reads "Bosapi and contributors".
 
 ## [1.2.0] - 2026-10-09
