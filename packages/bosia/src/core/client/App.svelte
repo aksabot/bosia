@@ -57,9 +57,9 @@
 			try {
 				const t = document.createElement("textarea");
 				t.innerHTML = raw;
-				text = t.value;
+				text = collapseTitle(t.value);
 			} catch {
-				text = raw;
+				text = collapseTitle(raw);
 			}
 			decoded.set(raw, text);
 		}

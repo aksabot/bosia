@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Loaders guide and routing skill: dev warns about a layout guard with loaders below; use hooks.
 - Metadata guide and SEO skill: a page with no title gets the default on client navigation too.
+- Metadata guide and SEO skill list more title cases client navigation can't handle.
 
 ## [0.8.23] - 2026-10-09
 

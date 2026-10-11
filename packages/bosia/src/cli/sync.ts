@@ -40,7 +40,8 @@ export async function runSync() {
 function syncDefaultTitle(): string {
 	try {
 		return clientDefaultTitle(loadAppHtmlTemplate());
-	} catch {
+	} catch (err) {
+		console.warn(`⚠️  Could not read the app.html title, using "${DEFAULT_TITLE}":`, err);
 		return DEFAULT_TITLE;
 	}
 }

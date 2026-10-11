@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - After a redirect, the title of a layout that stays on screen comes back.
 - A layout that wraps its pages in `{#key}` keeps its title on client navigation.
 - A layout's own title comes back on client navigation, as on a hard load.
+- An app.html title with extra spaces matches the browser's title after the first click.
 
 ## [1.2.0] - 2026-10-09
 

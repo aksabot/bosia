@@ -35,6 +35,10 @@
 - [x] 🟢 Review 5: patch shared on `window` with a dev warning; `/title-live` really dynamic; `clientDefaultTitle()` and `sysScriptBody()` helpers.
 - [ ] ⚪ Not caught: an `{#if}` page title on one dynamic route (`/blog/a` → `/blog/b`), and a layout title set in `$effect`/`onMount`. Documented; use `metadata().title`.
 - [ ] ⚪ A layout that moves to or from the page's spot (layout count changes) remounts, since `renderLayout` uses another branch there. Title code allows for it; worth a look for state loss.
+- [x] 🟢 Review 6: the decoded default title collapses whitespace like `document.title`; `bosia sync` warns when it can't read the app.html title.
+- [ ] ⚪ Not caught: a page title from `$effect.pre`/`$:` taken for the layout's; a layout rendering children after its title (`{#if}`, `{#await}`); a changed layout title comes back stale. Documented.
+- [ ] 🟡 Next: replace the `document.title` patch with an explicit layout title (layout `metadata().title` or a title registry). The patch leans on Svelte effect order.
+- [ ] ⚪ A `+loading.svelte` chunk that loads after the nav settles shows the skeleton until the next nav. Also on main.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
 
 ---
