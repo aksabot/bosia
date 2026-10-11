@@ -13,7 +13,11 @@ declare module "bosia:routes" {
 		hasServerData: boolean;
 		trailingSlash: TrailingSlash;
 		prerender: boolean;
+		headTitle: boolean;
 	}>;
+
+	/** What client navigation titles a page that sets no title of its own. */
+	export const defaultTitle: string;
 
 	export const serverRoutes: Array<{
 		pattern: string;

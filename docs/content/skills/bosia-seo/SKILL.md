@@ -138,7 +138,7 @@ Therefore every **share-critical** tag — `<title>`, `description`, `canonical`
 
 **Never set `<title>` in both channels for the same route.** They do not merge, and the winner differs by audience: `metadata()`'s title is what ships in the SSR HTML, so scrapers and `curl` read it — but Svelte compiles `<svelte:head><title>` to a `document.title` write that runs on mount and on every reactive update, so the browser tab ends up showing the `<svelte:head>` one. A route declaring both silently advertises one title and displays another. Pick `metadata()` and delete the `<svelte:head><title>`.
 
-A route with no title anywhere ships `<title>Bosia App</title>` (last in `<head>`) — seeing that in the raw HTML means the route is missing `metadata().title`. Error pages fall back to `<status> — <message>` the same way.
+A route with no title anywhere ships `<title>Bosia App</title>` (last in `<head>`) — seeing that in the raw HTML means the route is missing `metadata().title`. Error pages fall back to `<status> — <message>` the same way. Client navigation gives such a route the same default (`app.html`'s `<title>`, else `Bosia App`); a `<svelte:head><title>` counts only when written in the route's own `+page.svelte`/`+layout.svelte`, not in a child component of a layout.
 
 Three Bosia facts that rule out the old "site-wide meta in the layout + per-page `data.seo`" pattern:
 

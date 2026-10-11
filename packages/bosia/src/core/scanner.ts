@@ -71,6 +71,22 @@ function readPrerender(filePath: string): boolean {
 	}
 }
 
+/** A `<svelte:head>` with a `<title>` in it, read from the .svelte source. A
+ *  false positive (say, one in a comment) only keeps the previous page's title
+ *  on client navigation, as before. A miss sets the default title, which a
+ *  freshly mounted <svelte:head> still overrides. */
+export function writesHeadTitle(src: string): boolean {
+	return /<svelte:head[\s>][\s\S]*?<title[\s>]/.test(src);
+}
+
+function readHeadTitle(filePath: string): boolean {
+	try {
+		return writesHeadTitle(readFileSync(filePath, "utf-8"));
+	} catch {
+		return false;
+	}
+}
+
 function readTrailingSlash(filePath: string): TrailingSlash | null {
 	try {
 		const src = readFileSync(filePath, "utf-8");
@@ -86,6 +102,13 @@ function readTrailingSlash(filePath: string): TrailingSlash | null {
 export function scanRoutes(): RouteManifest {
 	const pages: PageRoute[] = [];
 	const apis: ApiRoute[] = [];
+	// A layout sits above every page under it; read each file once.
+	const headTitles = new Map<string, boolean>();
+	const headTitle = (file: string) => {
+		let v = headTitles.get(file);
+		if (v === undefined) headTitles.set(file, (v = readHeadTitle(join(ROUTES_DIR, file))));
+		return v;
+	};
 
 	function walk(
 		dir: string,
@@ -169,6 +192,7 @@ export function scanRoutes(): RouteManifest {
 				trailingSlash: effectiveTs,
 				cache: readPageCache(join(ROUTES_DIR, pageFile)),
 				prerender: pageServerFile ? readPrerender(join(ROUTES_DIR, pageServerFile)) : false,
+				headTitle: headTitle(pageFile) || currentLayouts.some(headTitle),
 			});
 		}
 

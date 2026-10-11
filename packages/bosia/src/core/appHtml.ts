@@ -5,6 +5,7 @@ import { OUT_DIR } from "./paths.ts";
 import { readArtifact } from "./artifacts.ts";
 import { rebaseHtmlAttrs } from "./basePath.ts";
 import { currentBase } from "./appBase.ts";
+import { titleText } from "./headScan.ts";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -77,6 +78,14 @@ export function findHeadEnd(headClose: string): number {
 		return m.index;
 	}
 	return -1;
+}
+
+/** The text of app.html's own <title>, or null when it has none. Looks where
+ *  html.ts's headSplit does: before %bosia.head%, and after it up to </head>. */
+export function appHtmlTitle(segments: AppHtmlSegments): string | null {
+	const i = findHeadEnd(segments.headClose);
+	const before = i < 0 ? "" : segments.headClose.slice(0, i);
+	return titleText(segments.headOpen) ?? titleText(before);
 }
 
 function replaceStaticPlaceholders(template: string): string {

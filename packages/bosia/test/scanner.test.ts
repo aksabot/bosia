@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
-import { scanRoutes, RouteConflictError } from "../src/core/scanner.ts";
+import { scanRoutes, RouteConflictError, writesHeadTitle } from "../src/core/scanner.ts";
 
 let originalCwd: string;
 let tmpDir: string;
@@ -174,6 +174,26 @@ describe("scanRoutes()", () => {
 		expect(ids["/dashboard/[id]"]).toBe("/(private)/dashboard/[id]");
 		expect(m.apis[0].pattern).toBe("/api/users");
 		expect(m.apis[0].id).toBe("/api/(admin)/users");
+	});
+});
+
+describe("scanRoutes() headTitle", () => {
+	const HEAD = `<svelte:head>\n\t<title>Own</title>\n</svelte:head>\n<h1>x</h1>\n`;
+
+	test("true when the page or any layout above it writes a <svelte:head><title>", () => {
+		write("+layout.svelte", "{@render children()}");
+		write("plain/+page.svelte", "<h1>plain</h1>");
+		write("own/+page.svelte", HEAD);
+		write("shell/+layout.svelte", HEAD);
+		write("shell/inner/+page.svelte", "<h1>inner</h1>");
+		const flags = Object.fromEntries(scanRoutes().pages.map((p) => [p.pattern, p.headTitle]));
+		expect(flags).toEqual({ "/plain": false, "/own": true, "/shell/inner": true });
+	});
+
+	test("a <svelte:head> with only meta tags does not count", () => {
+		expect(writesHeadTitle(`<svelte:head><meta name="x" content="y" /></svelte:head>`)).toBe(false);
+		expect(writesHeadTitle(`<svelte:head><title>{data.t}</title></svelte:head>`)).toBe(true);
+		expect(writesHeadTitle(`<svelte:head>\n  <title>T</title>\n</svelte:head>`)).toBe(true);
 	});
 });
 

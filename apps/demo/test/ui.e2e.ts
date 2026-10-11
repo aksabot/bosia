@@ -135,6 +135,26 @@ describe.each(["prod", "dev"] as const)("%s", (mode) => {
 		expect(errors).toEqual([]);
 	});
 
+	// /page-url-test and /guard-test set no title, so a hard load calls them
+	// "Bosia App". Client navigation used to keep the previous page's title.
+	test("a page with no title gets the default title on client navigation", async () => {
+		await open("/loading-test");
+		await waitFor(`document.title === "Loading Test | Bosia Demo"`);
+		await markSpa();
+		await view.click('nav a[href="/page-url-test"]');
+		await waitFor(pathIs("/page-url-test"));
+		await waitFor(`document.title === "Bosia App"`);
+
+		// A <svelte:head> title still wins, and leaving it falls back again.
+		await view.click('nav a[href="/about"]');
+		await waitFor(`document.title === "About | Bosia Demo"`);
+		await view.click('nav a[href="/guard-test"]');
+		await waitFor(pathIs("/guard-test"));
+		await waitFor(`document.title === "Bosia App"`);
+		await stillSpa();
+		expect(errors).toEqual([]);
+	});
+
 	test("enhanced form action shows its success data", async () => {
 		await open("/actions-test");
 		await markSpa();

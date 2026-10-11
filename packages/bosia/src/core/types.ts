@@ -38,6 +38,12 @@ export interface PageRoute {
 	cache: boolean | null;
 	/** `export const prerender = true` in +page.server.ts — its data is a static file at runtime. */
 	prerender: boolean;
+	/**
+	 * The +page.svelte or one of its +layout.svelte files writes a
+	 * `<svelte:head><title>`. Client navigation then leaves the title to Svelte
+	 * instead of setting the default one (see client/App.svelte).
+	 */
+	headTitle: boolean;
 }
 
 /** An API route discovered from the file system */

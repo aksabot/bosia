@@ -10,8 +10,12 @@
 - [x] 🟡 Dev warns once per route/depth/guard when a layout `redirect()`/`error(401|403)` fires and a loader below runs user code (nested `load`, page `load` unless masked, `metadata` when started). Read from module exports. Test: `layout-guard-warning.test.ts`.
 - [ ] ⚪ Also warns for read-only pages and non-auth redirects (locale, canonical): it flags the guard's place, not the code below. Accepted.
 - [x] 🔴 A plain-function `load()` returning an object crashed (`promise.finally` is not a function) when `LOAD_TIMEOUT` was set. `withTimeout` wraps it in `Promise.resolve`.
-- [x] 🟡 npm tarball lacked LICENSE (MIT requires the notice). Copied into `packages/bosia`, added to `files`. Copyright: "Bosapi and contributors"; `AUTHORS` lists people.
+- [x] 🟡 npm tarball lacked LICENSE (MIT requires the notice). Copied into `packages/bosia`; npm packs it without a `files` entry. Copyright: "Bosapi and contributors"; `AUTHORS` lists people.
 - [ ] 🟢 `packages/bosia/LICENSE` is a hand copy of the root one; copy it in a `prepack` script so the two can't drift.
+- [x] 🟡 Client nav to a page with no title kept the last page's title (seen in Chrome e2e). It now gets the SSR default: `app.html`'s `<title>`, else `Bosia App`. Demo `ui.e2e.ts` test, seen failing first.
+- [x] 🟡 Svelte sets a `<svelte:head><title>` only on mount or change, so the scanner flags routes whose page/layout file writes one (`headTitle`); those keep today's behaviour.
+- [ ] ⚪ Not caught: a title from a child component (`<Seo>`) in a layout that stays mounted is replaced by the default. Documented; use `metadata().title` or `<svelte:head>` in the layout file.
+- [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
 
 ---
 
@@ -280,7 +284,7 @@
 
 - [x] 🟠 `/__bosia/data/*.json` sends `meta`, `link` and `lang` alongside `title`/`description`. Explicit whitelist, not a spread: `metadata.data` feeds `load()` server-side and may hold secrets, so it stays off the wire.
 - [x] 🟠 The router rebuilds the head from that payload instead of poking `document.title` and one description tag. `metadataTags()` stamps `data-bosia-meta` on what it owns, so `headExtras` and `<svelte:head>` output are never touched.
-- [x] 🟡 A route with no `metadata()` clears the previous page's tags rather than inheriting them — matches what a hard load of that URL renders. A failed fetch still leaves the head alone; no title means the old title stays, not `Bosia App`.
+- [x] 🟡 A route with no `metadata()` clears the previous page's tags rather than inheriting them — matches what a hard load of that URL renders. A failed fetch still leaves the head alone. No title kept the old one; 1.2.1 uses the default.
 - [x] 🟠 `test/formAction-metadata.test.ts` asserts the data endpoint carries every head field and omits `metadata.data`. Verified failing on the old server before the fix — the DOM half is straight-line `createElement`, the wire was the root cause.
 
 ## bosia 0.9.2 (2026-08-22) — `metadata()` was skipped on form-action re-renders

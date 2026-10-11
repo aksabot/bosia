@@ -2,7 +2,7 @@
 	import { tick } from "svelte";
 	import { router, scrollToHash } from "./router.svelte.ts";
 	import { findMatch } from "../matcher.ts";
-	import { clientRoutes } from "bosia:routes";
+	import { clientRoutes, defaultTitle } from "bosia:routes";
 	import { consumePrefetch, prefetchCache, dataUrl, readDataResponse } from "./prefetch.ts";
 	import { appState, clearDirty } from "./appState.svelte.ts";
 	import { captureSnapshot, liveContext, shouldRerun, type CacheEntry } from "./loaderCache.ts";
@@ -408,9 +408,13 @@
 			if (result || !match.route.hasServerData) {
 				const md = result?.metadata;
 				document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
-				// A page that declares no title keeps the previous one rather than flashing
-				// the "Bosia App" fallback. Give metadata() a title if that matters.
+				// A page with no title gets the one a hard load would give it: app.html's
+				// <title>, else "Bosia App". Set before Svelte flushes, so a freshly
+				// mounted <svelte:head><title> still wins. A route whose page or layout
+				// file writes one keeps the current title: Svelte sets it only on mount
+				// or change, so a layout that stays mounted would never set it back.
 				if (md?.title) document.title = md.title;
+				else if (!match.route.headTitle) document.title = defaultTitle;
 				if (md?.lang) document.documentElement.lang = md.lang;
 				const emit = (tag: "meta" | "link", attrs: Record<string, string | undefined>) => {
 					const el = document.createElement(tag);

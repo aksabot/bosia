@@ -79,6 +79,24 @@ describe("generateRoutesFile() — server import thunks", () => {
 		expect(client).toContain('id: "/(app)/blog"');
 	});
 
+	test("client routes carry headTitle and the default title", async () => {
+		const m = manifest(null);
+		m.pages[0]!.headTitle = true;
+		generateRoutesFile(m, "Fisika & Co");
+		const client = await import(join(tmpDir, ".bosia", "routes.client.ts") + "?title");
+		expect(client.clientRoutes[0].headTitle).toBe(true);
+		expect(client.defaultTitle).toBe("Fisika & Co");
+		const server = await import(join(tmpDir, ".bosia", "routes.ts") + "?title");
+		expect(server.defaultTitle).toBe("Fisika & Co");
+	});
+
+	test("the default title is Bosia App unless the build passes app.html's", async () => {
+		generateRoutesFile(manifest(null));
+		const client = await import(join(tmpDir, ".bosia", "routes.client.ts") + "?default");
+		expect(client.defaultTitle).toBe("Bosia App");
+		expect(client.clientRoutes[0].headTitle).toBe(false);
+	});
+
 	test("client routes keep plain import thunks", () => {
 		generateRoutesFile(manifest(null));
 		const client = readFileSync(join(tmpDir, ".bosia", "routes.client.ts"), "utf-8");
