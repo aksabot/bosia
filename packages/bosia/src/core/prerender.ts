@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, cpSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, cpSync, existsSync, readFileSync } from "fs";
 import { createServer } from "net";
 import { join } from "path";
 import type { RouteManifest, TrailingSlash } from "./types.ts";
@@ -27,6 +27,26 @@ export function getEphemeralPort(): Promise<number> {
 }
 
 const CORE_DIR = import.meta.dir;
+
+/**
+ * True when the app's wrangler config serves `404.html` for unknown paths
+ * (`not_found_handling: "404-page"`) and `public/404.html` doesn't provide one,
+ * so a failed 404 probe must fail the build. Reads the text, skipping whole-line
+ * `//` and `#` comments; a block comment around the key still counts.
+ */
+export function needsStatic404(cwd = process.cwd()): boolean {
+	if (existsSync(join(cwd, "public", "404.html"))) return false;
+	for (const name of ["wrangler.jsonc", "wrangler.json", "wrangler.toml"]) {
+		const file = join(cwd, name);
+		if (!existsSync(file)) continue;
+		const text = readFileSync(file, "utf-8")
+			.split("\n")
+			.filter((line) => !/^\s*(\/\/|#)/.test(line))
+			.join("\n");
+		return /not_found_handling"?\s*[:=]\s*"404-page"/.test(text);
+	}
+	return false;
+}
 
 const PRERENDER_TIMEOUT = Number(process.env.PRERENDER_TIMEOUT) || 5_000; // 5s default
 const PRERENDER_CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 6;
@@ -306,7 +326,15 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 			writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
 			console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
 		} catch (err) {
-			console.warn(`   ⚠️  404.html skipped: ${(err as Error).message}`);
+			// Only a deploy that serves 404.html needs it; elsewhere (an app whose
+			// hooks redirect every request) a missing one is fine, so just warn.
+			const reason = (err as Error).message;
+			if (needsStatic404())
+				throw new Error(
+					`404.html could not be built (${reason}), but wrangler sets ` +
+						`not_found_handling "404-page". Make unknown paths answer 404, or add public/404.html.`,
+				);
+			console.warn(`   ⚠️  404.html skipped: ${reason}`);
 		}
 
 		console.log("✅ Prerendering complete");

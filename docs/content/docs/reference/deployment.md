@@ -54,7 +54,7 @@ Prerendered pages are built as static HTML during `bosia build` and served from 
 
 Data payloads for client-side navigation are also prerendered as JSON files at `dist/prerendered/__bosia/data/<route>.json`. This means client navigation works on fully static sites (GitHub Pages, Netlify, etc.) without a running server.
 
-When an app prerenders at least one route, the build also saves its 404 page as `dist/static/404.html`, so static hosts answer unknown paths with a real 404 instead of the home page. For a static-only Cloudflare deploy (assets, no worker), set `"not_found_handling": "404-page"`; with `--target=workers` the worker answers unknown paths and the file goes unused. A `public/404.html` replaces it.
+When an app prerenders at least one route, the build also saves its 404 page as `dist/static/404.html`, so static hosts answer unknown paths with a real 404 instead of the home page. For a static-only Cloudflare deploy (assets, no worker), set `"not_found_handling": "404-page"`; with `--target=workers` the worker answers unknown paths and the file goes unused. With that setting, the build fails if it can't make `404.html` (an unknown path didn't answer 404) unless `public/404.html` exists; otherwise it only warns. A `public/404.html` replaces it.
 
 ## Static Asset Caching
 

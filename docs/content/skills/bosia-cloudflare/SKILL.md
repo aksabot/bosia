@@ -107,7 +107,7 @@ Each isolate renders `/` once at startup with no hooks, loaders, `metadata()` or
 
 ### R8 — Prerendered pages are static assets
 
-`prerender = true` pages are served by Cloudflare's asset server, which answers only GET/HEAD (anything else gets 405, before the worker runs). The router already fetches their data with GET, and the build refuses to prerender a page that exports `actions`. Don't POST to a prerendered URL by hand. If the app prerenders anything, the build also writes `dist/static/404.html` (the app's own 404 page; a `public/404.html` replaces it). Only an assets-only deploy with `not_found_handling: "404-page"` uses it; on Workers the worker renders 404s.
+`prerender = true` pages are served by Cloudflare's asset server, which answers only GET/HEAD (anything else gets 405, before the worker runs). The router already fetches their data with GET, and the build refuses to prerender a page that exports `actions`. Don't POST to a prerendered URL by hand. If the app prerenders anything, the build also writes `dist/static/404.html` (the app's own 404 page; a `public/404.html` replaces it). Only an assets-only deploy with `not_found_handling: "404-page"` uses it; on Workers the worker renders 404s. With that setting the build fails if an unknown path doesn't answer 404 (catch-all route, redirect-all hook); add `public/404.html` to opt out.
 
 ### R9 — Prerender pages that are the same for every visitor
 

@@ -14,6 +14,8 @@
 - [x] 🟠 Review: the ready loop ignored the child's exit, so a foreign server's `/_health` passed. It stops once the child exits (the docs probe did this).
 - [x] 🟡 Review: prerender server stderr shows now; a failed 404 render printed only "got 500".
 - [x] 🟡 Review: the docs test skipped when `404.html` was missing; it skips only before a build now. Deploy docs: `404-page` is for assets-only deploys.
+- [x] 🟡 A failed 404 probe fails the build when `wrangler.*` sets `not_found_handling: "404-page"` and there's no `public/404.html` (`needsStatic404`); else it warns. Test: `needsStatic404.test.ts`.
+- [ ] ⚪ `needsStatic404` reads wrangler text by regex: a key inside a `/* */` block comment still counts. Parse JSONC/TOML if it bites.
 - [ ] ⚪ One English probe: `/id/...` gets the English 404. Add per-locale probe paths when needed (see `docs/ROADMAP.md`).
 
 ---
