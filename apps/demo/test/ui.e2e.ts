@@ -187,14 +187,44 @@ describe.each(["prod", "dev"] as const)("%s", (mode) => {
 		expect(errors).toEqual([]);
 	});
 
-	// A layout title built from an expression can't be read at build time, so
-	// it gets the default rather than keeping the last page's title.
-	test("a dynamic layout title gives the default, not the last page's", async () => {
+	test("a page title that doesn't render leaves the layout's", async () => {
+		await open("/title-test/named");
+		await waitFor(`document.title === "Named | Title Test"`);
+		await view.click('[data-title-nav] a[href="/title-test/cond"]');
+		await waitFor(settled("/title-test/cond"));
+		expect(await view.evaluate("document.title")).toBe(LAYOUT_TITLE);
+		expect(errors).toEqual([]);
+	});
+
+	// Titles the build can't read — an expression, a child component — are
+	// remembered at run time from what the layout wrote.
+	test("a dynamic layout title comes back, not the last page's", async () => {
 		await open("/title-live/named");
 		await waitFor(`document.title === "Named | Live Title"`);
 		await view.click('[data-title-live-nav] a[href="/title-live"]');
 		await waitFor(settled("/title-live"));
-		expect(await view.evaluate("document.title")).toBe("Bosia App");
+		expect(await view.evaluate("document.title")).toBe("Live · Bosia Demo");
+		expect(errors).toEqual([]);
+	});
+
+	test("a layout title from a child component comes back", async () => {
+		await open("/title-seo/named");
+		await waitFor(`document.title === "Named | Seo Title"`);
+		await view.click('[data-title-seo-nav] a[href="/title-seo"]');
+		await waitFor(settled("/title-seo"));
+		expect(await view.evaluate("document.title")).toBe("Seo · Bosia Demo");
+		await view.click('[data-title-seo-nav] a[href="/title-seo/named"]');
+		await waitFor(`${settled("/title-seo/named")} && document.title === "Named | Seo Title"`);
+		expect(errors).toEqual([]);
+	});
+
+	// The redirect leaves /title-seo's layout mounted; it must still count as kept.
+	test("a redirect keeps the layout title of what stays mounted", async () => {
+		await open("/title-seo/named");
+		await waitFor(`document.title === "Named | Seo Title"`);
+		await view.click('[data-title-seo-nav] a[href="/title-redirect"]');
+		await waitFor(settled("/title-seo"));
+		expect(await view.evaluate("document.title")).toBe("Seo · Bosia Demo");
 		expect(errors).toEqual([]);
 	});
 

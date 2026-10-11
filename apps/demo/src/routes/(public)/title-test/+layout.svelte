@@ -10,6 +10,7 @@
 <nav class="flex gap-3 text-sm mb-4" data-title-nav>
 	<a class="underline" href="/title-test">plain</a>
 	<a class="underline" href="/title-test/named">named</a>
+	<a class="underline" href="/title-test/cond">cond</a>
 </nav>
 
 {@render children()}

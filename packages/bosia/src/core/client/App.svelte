@@ -9,6 +9,9 @@
 	import { pickErrorPage } from "../errorMatch.ts";
 	import { fireAfterNavigate, type Navigation } from "./navListeners.ts";
 	import { drainNavResolvers } from "./navigation.ts";
+	import { collapseTitle } from "../headScan.ts";
+	import { chainTitles, takeTitleWrite, titleNav } from "./titleMemory.svelte.ts";
+	import TitleProbe from "./TitleProbe.svelte";
 
 	let {
 		ssrMode = false,
@@ -43,7 +46,6 @@
 	// reads it. Same page, same title still → no component took it over, so
 	// navigation may replace it again.
 	let navTitle: string | null = null;
-	const asDocumentTitle = (s: string) => s.replace(/[\t\n\f\r ]+/g, " ").trim();
 
 	// Build-time titles are raw HTML text; a <textarea> decodes every entity the
 	// way the browser did on a hard load. Trusted Types block the innerHTML
@@ -64,21 +66,10 @@
 		return text;
 	}
 
-	/** The title a route has when metadata() gives none: what its deepest titled
-	 *  layout writes, or app.html's default when no layout writes one or that
-	 *  layout's is dynamic. null when the page file writes one, so Svelte owns it.
-	 *  `depth` is that layout's index, -1 when no layout writes one. */
-	function routeTitle(route: (typeof clientRoutes)[number]): {
-		title: string | null;
-		depth: number;
-	} {
-		if (route.headTitle) return { title: null, depth: route.layoutTitles.length };
-		let depth = route.layoutTitles.length - 1;
-		while (depth >= 0 && route.layoutTitles[depth] === false) depth--;
-		const t = depth < 0 ? defaultTitle : route.layoutTitles[depth];
-		// A dynamic layout title can't be known here, so it gets the default too;
-		// a value that changed is written again by Svelte after this.
-		return { title: decodeTitle(typeof t === "string" ? t : defaultTitle), depth };
+	/** The title a page with none of its own shows under the first `depth`
+	 *  layouts: the deepest one's that wrote one (TitleProbe), else app.html's. */
+	function baseTitle(depth: number): string {
+		return (depth > 0 ? chainTitles[depth - 1] : null) ?? decodeTitle(defaultTitle);
 	}
 
 	/** How many leading layouts two routes share, by file path. */
@@ -173,9 +164,11 @@
 		firstNav = false;
 		if (isFirst) {
 			currentLayoutPaths = (match.route as any).layoutPaths ?? [];
+			// The probes ran during hydration, before this effect. A title other than
+			// metadata()'s or the layouts' was a component's, so navigation keeps it.
 			const ssrTitle: string | undefined = (window as any).__BOSIA_TITLE__;
-			const own = ssrTitle ?? routeTitle(match.route).title;
-			navTitle = own === null ? null : asDocumentTitle(own);
+			const base = baseTitle(currentLayoutPaths.length);
+			navTitle = ssrTitle ? collapseTitle(ssrTitle) : document.title === base ? base : null;
 			lastSettledPath = pathname;
 			lastNavKey = navKey;
 			lastTick = currentTick;
@@ -305,24 +298,11 @@
 			// Tear down the loading skeleton and record identity for the next nav.
 			// Superseded navs have cancelled === true and never reach here, so they
 			// can't clobber a newer nav's loader.
-			// Layouts that stay mounted through this nav. The skeleton and the error
-			// page render in their own {#if} branch, so leaving either remounts every
-			// layout and the page. Otherwise the shared ones stay, except the one
-			// that moves to or from the leaf spot (renderLayout's other branch).
-			// Read before both are cleared below.
+			// The skeleton and the error page render in their own {#if} branch, so
+			// leaving either remounts the page. Read before both are cleared below.
 			const pageShown = !showLoading && !appState.errorComponent;
-			let keptLayouts = 0;
-			if (pageShown) {
-				keptLayouts = sharedDepth(currentLayoutPaths, destLayoutPaths);
-				if (currentLayoutPaths.length !== destLayoutPaths.length)
-					keptLayouts = Math.max(
-						0,
-						Math.min(keptLayouts, Math.min(currentLayoutPaths.length, destLayoutPaths.length) - 1),
-					);
-			}
 			showLoading = false;
 			LoadingComponent = null;
-			currentLayoutPaths = destLayoutPaths;
 			lastSettledPath = pathname;
 			lastNavKey = navKey;
 			navDoneTimer = setTimeout(() => {
@@ -362,6 +342,9 @@
 					]);
 					if (cancelled) return;
 					layoutComponents = layoutModsForError.map((m: any) => m.default);
+					currentLayoutPaths = destLayoutPaths.slice(0, K);
+					// The error branch remounts the layouts; a page's write is no layout's.
+					takeTitleWrite();
 					const newLayoutData: Record<string, any>[] = [];
 					for (let i = 0; i < K; i++) newLayoutData.push({});
 					appState.layoutData = newLayoutData;
@@ -377,6 +360,10 @@
 				}
 				return;
 			}
+			// Layout paths are recorded only once they render: a redirect above
+			// leaves the mounted ones in place.
+			const shared = sharedDepth(currentLayoutPaths, destLayoutPaths);
+			currentLayoutPaths = destLayoutPaths;
 			const pageChanged = !pageShown || PageComponent !== pageMod.default;
 			PageComponent = pageMod.default;
 			layoutComponents = layoutMods.map((m: any) => m.default);
@@ -471,26 +458,17 @@
 				const md = result?.metadata;
 				document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
 				// With no metadata() title, a page gets the one a hard load would give
-				// it: its layout's static <svelte:head><title>, else app.html's <title>,
-				// else "Bosia App". Svelte sets a title only on mount or change, so a
-				// layout that stays mounted never writes its own back. Set before Svelte
-				// flushes, so a freshly mounted <svelte:head><title> still wins. Left
-				// alone when Svelte will set it (the page file writes one, or the layout
-				// that does is freshly mounted), and on the same page
-				// (invalidate, a form action, ?page=2) once a child like <Seo> took over.
+				// it: the layouts' (baseTitle), else app.html's <title>, else "Bosia
+				// App". A layout that stays mounted never writes its title again, so it
+				// is put back here. Set before Svelte flushes, so a freshly mounted
+				// <svelte:head><title> still wins. On the same page (invalidate, a form
+				// action, ?page=2) it stays once a component like <Seo> took it over.
 				if (md?.title) {
 					document.title = md.title;
 					navTitle = document.title;
-				} else {
-					const own = routeTitle(match.route);
-					if (
-						own.title !== null &&
-						own.depth < keptLayouts &&
-						(pageChanged || document.title === navTitle)
-					) {
-						document.title = own.title;
-						navTitle = document.title;
-					}
+				} else if (pageChanged || document.title === navTitle) {
+					document.title = baseTitle(shared);
+					navTitle = document.title;
 				}
 				if (md?.lang) document.documentElement.lang = md.lang;
 				const emit = (tag: "meta" | "link", attrs: Record<string, string | undefined>) => {
@@ -505,6 +483,9 @@
 				for (const l of md?.link ?? [])
 					emit("link", { rel: l.rel, href: l.href, hreflang: l.hreflang });
 			}
+			// Navigation's own write is no layout's; the probes read again as this flushes.
+			takeTitleWrite();
+			titleNav.seq++;
 
 			settle({ url, params: match.params });
 		});
@@ -561,10 +542,12 @@
 
 	{#if index < leafDepth - 1}
 		<Layout {data} {params}>
+			<TitleProbe depth={index} />
 			{@render renderLayout(index + 1, leafDepth)}
 		</Layout>
 	{:else}
 		<Layout {data} {params}>
+			<TitleProbe depth={index} />
 			{#if ErrorComponent}
 				<ErrorComponent {...errorProps ?? {}} {params} />
 			{:else if PageComponent}

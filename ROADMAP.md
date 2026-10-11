@@ -13,8 +13,8 @@
 - [x] 🟡 npm tarball lacked LICENSE (MIT requires the notice). Copied into `packages/bosia`; npm packs it without a `files` entry. Copyright: "Bosapi and contributors"; `AUTHORS` lists people.
 - [ ] 🟢 `packages/bosia/LICENSE` is a hand copy of the root one; copy it in a `prepack` script so the two can't drift.
 - [x] 🟡 Client nav to a page with no title kept the last page's title (seen in Chrome e2e). It now gets the SSR default: `app.html`'s `<title>`, else `Bosia App`. Demo `ui.e2e.ts` test, seen failing first.
-- [x] 🟡 Svelte sets a `<svelte:head><title>` only on mount or change. The scanner records the page file's (`headTitle`) and each layout's (`layoutTitles`: static text, dynamic, none).
-- [ ] ⚪ Not caught: a dynamic layout title, or one from a child component (`<Seo>`) in a layout that stays mounted, is replaced by the default. Documented.
+- [x] 🟡 Svelte sets a `<svelte:head><title>` only on mount or change. Review 4: a `<TitleProbe>` after each layout remembers what it wrote (`titleMemory.svelte.ts`); the build-time `headTitle`/`layoutTitles` scan is gone.
+- [ ] ⚪ Not caught: a title written by a component after a layout's `{@render children()}`, or one a layout changes between navigations. Documented in part.
 - [x] 🟠 Review: invalidate, a form action or `?page=2` reset a title a child set (`<Seo>`). The default now goes only on a page change, or when the title is still navigation's own. Demo test, seen failing first.
 - [x] 🟠 Review: the scanner regex ran past `</svelte:head>`, so a logo's `<svg><title>` in the root layout flagged every route. It now looks inside `<svelte:head>` blocks only.
 - [x] 🟡 Review: `app.html` title entities (`&mdash;`) showed raw. Build ships the raw text; the browser decodes it (a `<textarea>`; raw text under Trusted Types).
@@ -27,6 +27,9 @@
 - [x] 🟠 Review 3: an app with no root layout kept the old title when the layout count went to or from zero (`keptLayouts` was -1). Clamped at 0. Checked with a temp demo copy, seen failing first.
 - [x] 🟡 Review 3: a dynamic layout title kept the last page's title, unlike the docs. It gets the default now. Demo `/title-live`, seen failing first.
 - [x] 🟡 Review 3: the scanner read a `<title>` in an HTML comment, and took one under `{#if}` as always shown. It drops comments, uses `titleText`, and calls a head with `{#…}` dynamic.
+- [x] 🟠 Review 4: a dynamic or `<Seo>` layout title gave way to the default on every page change; it worked before this branch. Remembered at run time now. Demo `/title-live`, `/title-seo`.
+- [x] 🟡 Review 4: after a redirect, `currentLayoutPaths` named layouts not mounted. Set only once they render. Demo `/title-redirect`, seen failing alone.
+- [x] 🟡 Review 4: a page whose `{#if}` title didn't render kept the last title. A page change always writes the layouts' title first. Demo `/title-test/cond`.
 - [ ] ⚪ A layout that moves to or from the page's spot (layout count changes) remounts, since `renderLayout` uses another branch there. Title code allows for it; worth a look for state loss.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
 

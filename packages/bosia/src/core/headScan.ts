@@ -21,7 +21,13 @@ export function titleText(html: string): string | null {
 	if (start === -1) return null;
 	const m = /<\/title(?=[\t\n\f\r />])/i.exec(html.slice(start));
 	const raw = m ? html.slice(start, start + m.index) : html.slice(start);
-	return raw.replace(/[\t\n\f\r ]+/g, " ").trim();
+	return collapseTitle(raw);
+}
+
+/** A title as document.title reads it back: HTML whitespace runs collapsed to
+ *  one space, and trimmed. */
+export function collapseTitle(text: string): string {
+	return text.replace(/[\t\n\f\r ]+/g, " ").trim();
 }
 
 /** Index just past the `>` of the first real <title> tag, or -1. */

@@ -1,7 +1,6 @@
 import { readdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { PageRoute, ApiRoute, RouteManifest, TrailingSlash } from "./types.ts";
-import { titleText } from "./headScan.ts";
 
 // ─── Route Scanner ───────────────────────────────────────
 // Walks src/routes/ and produces a RouteManifest.
@@ -58,27 +57,6 @@ function prerenderOf(src: string | null): boolean {
 	return src !== null && wantsPrerender(src) && prerenderSkipReason(src) === null;
 }
 
-/** The title a .svelte file's `<svelte:head>` writes: false for none, the raw
- *  text when it is static (`<title>My Site</title>`), true when it has an
- *  expression or sits in a block whose `{#if}`/`{#each}` may not render it. A
- *  `<title>` outside `<svelte:head>` or in a comment, like an inline SVG's,
- *  doesn't count. The last block wins, as it does when the blocks mount in order.
- *  A heuristic: a block with any `{#…}` counts as dynamic, even when the title
- *  sits outside it, which only means the client leaves the title alone. */
-export function headTitleOf(src: string): string | boolean {
-	let found: string | boolean = false;
-	for (const block of src.replace(COMMENT, "").matchAll(HEAD_BLOCK)) {
-		const body = block[1]!;
-		const text = titleText(body);
-		if (text === null) continue;
-		found = text.includes("{") || /\{[#:]/.test(body) ? true : text;
-	}
-	return found;
-}
-
-const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
-const HEAD_BLOCK = /<svelte:head(?:\s[^>]*?)?(?<!\/)>([\s\S]*?)<\/svelte:head\s*>/g;
-
 /** A route file's source, or null when it can't be read. */
 function readSource(filePath: string): string | null {
 	try {
@@ -103,16 +81,6 @@ function trailingSlashOf(src: string | null): TrailingSlash | null {
 export function scanRoutes(): RouteManifest {
 	const pages: PageRoute[] = [];
 	const apis: ApiRoute[] = [];
-	// A layout sits above every page under it; read each file once.
-	const layoutTitles = new Map<string, string | boolean>();
-	const layoutTitle = (file: string) => {
-		let v = layoutTitles.get(file);
-		if (v === undefined) {
-			const src = readSource(join(ROUTES_DIR, file));
-			layoutTitles.set(file, (v = src !== null && headTitleOf(src)));
-		}
-		return v;
-	};
 
 	function walk(
 		dir: string,
@@ -198,8 +166,6 @@ export function scanRoutes(): RouteManifest {
 				trailingSlash: effectiveTs,
 				cache: pageCache(pageSrc),
 				prerender: prerenderOf(pageServerSrc),
-				headTitle: pageSrc !== null && headTitleOf(pageSrc) !== false,
-				layoutTitles: currentLayouts.map(layoutTitle),
 			});
 		}
 
