@@ -1,9 +1,10 @@
 <script lang="ts">
 	let { children } = $props();
-	const site = "Live";
+	// State, so the title compiles to an expression, not static text.
+	let site = $state("Live");
 </script>
 
-<!-- A dynamic layout title: client navigation can't know it, so it uses the default. -->
+<!-- A layout title from an expression: client navigation remembers what it wrote. -->
 <svelte:head>
 	<title>{site} · Bosia Demo</title>
 </svelte:head>

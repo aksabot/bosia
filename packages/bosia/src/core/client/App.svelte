@@ -144,6 +144,15 @@
 		settleSnapshot();
 	}
 
+	// Each flush a navigation starts begins here, before any head effect: what
+	// was written since — navigation's own title, an afterNavigate listener's,
+	// the last page's — is no layout's, so the probes must not take it.
+	$effect.pre(() => {
+		if (ssrMode) return;
+		titleNav.seq;
+		takeTitleWrite();
+	});
+
 	$effect(() => {
 		if (ssrMode) return;
 
@@ -343,8 +352,7 @@
 					if (cancelled) return;
 					layoutComponents = layoutModsForError.map((m: any) => m.default);
 					currentLayoutPaths = destLayoutPaths.slice(0, K);
-					// The error branch remounts the layouts; a page's write is no layout's.
-					takeTitleWrite();
+					titleNav.seq++; // the error branch remounts the layouts
 					const newLayoutData: Record<string, any>[] = [];
 					for (let i = 0; i < K; i++) newLayoutData.push({});
 					appState.layoutData = newLayoutData;
@@ -483,9 +491,7 @@
 				for (const l of md?.link ?? [])
 					emit("link", { rel: l.rel, href: l.href, hreflang: l.hreflang });
 			}
-			// Navigation's own write is no layout's; the probes read again as this flushes.
-			takeTitleWrite();
-			titleNav.seq++;
+			titleNav.seq++; // the probes read again as this flushes
 
 			settle({ url, params: match.params });
 		});
@@ -542,12 +548,12 @@
 
 	{#if index < leafDepth - 1}
 		<Layout {data} {params}>
-			<TitleProbe depth={index} />
+			<TitleProbe depth={index} layout={Layout} />
 			{@render renderLayout(index + 1, leafDepth)}
 		</Layout>
 	{:else}
 		<Layout {data} {params}>
-			<TitleProbe depth={index} />
+			<TitleProbe depth={index} layout={Layout} />
 			{#if ErrorComponent}
 				<ErrorComponent {...errorProps ?? {}} {params} />
 			{:else if PageComponent}

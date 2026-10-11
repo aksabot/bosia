@@ -27,8 +27,7 @@ import { currentBase } from "./appBase.ts";
 import { finalizeTailwindCss, TW_TEMP_BASENAME } from "./twHash.ts";
 import { loadBosiaConfig, loadPlugins } from "./config.ts";
 import type { BuildContext, RuntimeTarget } from "./types/plugin.ts";
-import { appHtmlTitle, loadAppHtmlTemplate, writeAppHtmlSegments } from "./appHtml.ts";
-import { DEFAULT_TITLE } from "./headScan.ts";
+import { clientDefaultTitle, loadAppHtmlTemplate, writeAppHtmlSegments } from "./appHtml.ts";
 import {
 	generateArtifactsModule,
 	generateWorkersRuntime,
@@ -192,7 +191,7 @@ for (const p of userPlugins) {
 
 // 2. Generate .bosia/routes.ts (single file replaces all old code generators).
 // The client names a page with no title after app.html, as SSR does.
-generateRoutesFile(manifest, appHtmlTitle(appHtml) ?? DEFAULT_TITLE);
+generateRoutesFile(manifest, clientDefaultTitle(appHtml));
 
 // 2b. Generate .bosia/types/src/routes/**/$types.d.ts for IDE type inference
 generateRouteTypes(manifest);

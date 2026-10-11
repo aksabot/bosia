@@ -5,7 +5,7 @@ import { OUT_DIR } from "./paths.ts";
 import { readArtifact } from "./artifacts.ts";
 import { rebaseHtmlAttrs } from "./basePath.ts";
 import { currentBase } from "./appBase.ts";
-import { hasTitle, titleText } from "./headScan.ts";
+import { DEFAULT_TITLE, hasTitle, titleText } from "./headScan.ts";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -106,6 +106,12 @@ export function headSplit(segments: AppHtmlSegments): HeadSplit {
  *  the same places as headSplit, so it finds the title SSR keeps. */
 export function appHtmlTitle(segments: AppHtmlSegments): string | null {
 	return titleText(segments.headOpen) ?? titleText(headSplit(segments).before);
+}
+
+/** What client navigation calls a page with no title anywhere: app.html's
+ *  <title>, else "Bosia App" — as SSR does. Raw text; the browser decodes it. */
+export function clientDefaultTitle(segments: AppHtmlSegments): string {
+	return appHtmlTitle(segments) ?? DEFAULT_TITLE;
 }
 
 function replaceStaticPlaceholders(template: string): string {

@@ -274,18 +274,8 @@ export function buildHtml(
 			? `\n  <script${n}>window.__BOSIA_ENV__=${safeJsonStringify(publicEnv)};</script>`
 			: "";
 
-	const ssrFlag = ssr ? "" : "window.__BOSIA_SSR__=false;";
-	const titleFlag = ssrTitleScript(metadata?.title);
-
-	const depsScript =
-		pageDeps !== null || layoutDeps !== null
-			? `window.__BOSIA_PAGE_DEPS__=${safeJsonStringify(pageDeps)};window.__BOSIA_LAYOUT_DEPS__=${safeJsonStringify(layoutDeps ?? [])};`
-			: "";
-
-	const sysScript =
-		ssrFlag || titleFlag || depsScript
-			? `\n  <script${n}>${ssrFlag}${titleFlag}${depsScript}</script>`
-			: "";
+	const sys = sysScriptBody(ssr, metadata?.title, pageDeps, layoutDeps);
+	const sysScript = sys ? `\n  <script${n}>${sys}</script>` : "";
 
 	const dataIslands = csr
 		? `\n  <script${n} type="application/json" id="__bosia-page-data__">${safeJsonForScript(pageData)}</script>` +
@@ -523,10 +513,20 @@ export function escapeAttr(s: string): string {
 		.replace(/>/g, "&gt;");
 }
 
-/** The title metadata() gave this page, for the client: navigation may replace
- *  it, but not a title a component set after it (client/App.svelte). */
-function ssrTitleScript(title: string | undefined): string {
-	return title ? `window.__BOSIA_TITLE__=${safeJsonStringify(title)};` : "";
+/** The window flags hydration reads, shared by buildHtml and buildHtmlTail.
+ *  `__BOSIA_TITLE__` is the title metadata() gave: navigation may replace it,
+ *  but not a title a component set after it (client/App.svelte). */
+function sysScriptBody(
+	ssr: boolean,
+	title: string | undefined,
+	pageDeps: any,
+	layoutDeps: any[] | null,
+): string {
+	let js = ssr ? "" : "window.__BOSIA_SSR__=false;";
+	if (title) js += `window.__BOSIA_TITLE__=${safeJsonStringify(title)};`;
+	if (pageDeps !== null || layoutDeps !== null)
+		js += `window.__BOSIA_PAGE_DEPS__=${safeJsonStringify(pageDeps)};window.__BOSIA_LAYOUT_DEPS__=${safeJsonStringify(layoutDeps ?? [])};`;
+	return js;
 }
 
 export function buildHtmlTail(
@@ -560,15 +560,8 @@ export function buildHtmlTail(
 		if (formData != null) {
 			out += `\n<script${n} type="application/json" id="__bosia-form-data__">${safeJsonForScript(formData)}</script>`;
 		}
-		const ssrFlag = ssr ? "" : "window.__BOSIA_SSR__=false;";
-		const titleFlag = ssrTitleScript(ssrTitle);
-		const depsInject =
-			pageDeps !== null || layoutDeps !== null
-				? `window.__BOSIA_PAGE_DEPS__=${safeJsonStringify(pageDeps)};window.__BOSIA_LAYOUT_DEPS__=${safeJsonStringify(layoutDeps ?? [])};`
-				: "";
-		if (ssrFlag || titleFlag || depsInject) {
-			out += `\n<script${n}>${ssrFlag}${titleFlag}${depsInject}</script>`;
-		}
+		const sys = sysScriptBody(ssr, ssrTitle, pageDeps, layoutDeps);
+		if (sys) out += `\n<script${n}>${sys}</script>`;
 		out += `\n<script${n} type="module" src="${ENTRY}"></script>`;
 	} else if (isDev) {
 		out += `\n<script${n}>!function r(){var e=new EventSource("${SSE}");e.addEventListener("reload",()=>location.reload());e.onopen=()=>r._ok||(r._ok=1);e.onerror=()=>{e.close();setTimeout(r,2000)}}()</script>`;

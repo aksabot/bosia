@@ -30,6 +30,10 @@
 - [x] 🟠 Review 4: a dynamic or `<Seo>` layout title gave way to the default on every page change; it worked before this branch. Remembered at run time now. Demo `/title-live`, `/title-seo`.
 - [x] 🟡 Review 4: after a redirect, `currentLayoutPaths` named layouts not mounted. Set only once they render. Demo `/title-redirect`, seen failing alone.
 - [x] 🟡 Review 4: a page whose `{#if}` title didn't render kept the last title. A page change always writes the layouts' title first. Demo `/title-test/cond`.
+- [x] 🟠 Review 5: a layout with `{#key}` around its children lost its title (memory sat in the probe). Kept per layout component now; a write lives one microtask. Demo `/title-test`.
+- [x] 🟡 Review 5: an `afterNavigate` that wrote the title passed for the root layout's. Writes are dropped as each flush starts (`$effect.pre`). Demo test, seen failing alone.
+- [x] 🟢 Review 5: patch shared on `window` with a dev warning; `/title-live` really dynamic; `clientDefaultTitle()` and `sysScriptBody()` helpers.
+- [ ] ⚪ Not caught: an `{#if}` page title on one dynamic route (`/blog/a` → `/blog/b`), and a layout title set in `$effect`/`onMount`. Documented; use `metadata().title`.
 - [ ] ⚪ A layout that moves to or from the page's spot (layout count changes) remounts, since `renderLayout` uses another branch there. Title code allows for it; worth a look for state loss.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
 

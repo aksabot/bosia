@@ -112,6 +112,7 @@ export function generateRoutesFile(manifest: RouteManifest, defaultTitle: string
 		lines.push("  },");
 	}
 	lines.push("];\n");
+	// Unread on the server, but App.svelte imports it and is rendered there too.
 	lines.push(defaultTitleExport(defaultTitle));
 
 	// serverRoutes

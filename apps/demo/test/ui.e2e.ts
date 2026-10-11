@@ -178,12 +178,31 @@ describe.each(["prod", "dev"] as const)("%s", (mode) => {
 	const settled = (path: string) =>
 		`${pathIs(path)} && !!document.querySelector(".bosia-bar.done")`;
 
+	// The layout wraps its children in {#key}, so its probe remounts each time;
+	// the title is remembered by layout, not by probe.
 	test("a layout's static title comes back after a page's own title", async () => {
+		await open("/title-test/named");
+		await waitFor(`document.title === "Named | Title Test"`);
+		for (const _ of [1, 2]) {
+			await view.click('[data-title-nav] a[href="/title-test"]');
+			await waitFor(settled("/title-test"));
+			expect(await view.evaluate("document.title")).toBe(LAYOUT_TITLE);
+			await view.click('[data-title-nav] a[href="/title-test/named"]');
+			await waitFor(`${settled("/title-test/named")} && document.title === "Named | Title Test"`);
+		}
+		expect(errors).toEqual([]);
+	});
+
+	// The layout's afterNavigate writes the title before Svelte flushes; the root
+	// layout must not take that for its own, or every untitled page gets it.
+	test("a title written by afterNavigate isn't taken for a layout's", async () => {
 		await open("/title-test/named");
 		await waitFor(`document.title === "Named | Title Test"`);
 		await view.click('[data-title-nav] a[href="/title-test"]');
 		await waitFor(settled("/title-test"));
-		expect(await view.evaluate("document.title")).toBe(LAYOUT_TITLE);
+		await view.click('[data-title-nav] a[href="/page-url-test"]');
+		await waitFor(settled("/page-url-test"));
+		expect(await view.evaluate("document.title")).toBe("Bosia App");
 		expect(errors).toEqual([]);
 	});
 

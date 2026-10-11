@@ -1,6 +1,6 @@
 import { scanRoutes, RouteConflictError } from "../core/scanner.ts";
 import { generateRoutesFile } from "../core/routeFile.ts";
-import { appHtmlTitle, loadAppHtmlTemplate } from "../core/appHtml.ts";
+import { clientDefaultTitle, loadAppHtmlTemplate } from "../core/appHtml.ts";
 import { DEFAULT_TITLE } from "../core/headScan.ts";
 import { generateRouteTypes, ensureRootDirs } from "../core/routeTypes.ts";
 import { loadEnv, classifyEnvVars } from "../core/env.ts";
@@ -39,7 +39,7 @@ export async function runSync() {
  *  build's error to report; sync still writes the routes. */
 function syncDefaultTitle(): string {
 	try {
-		return appHtmlTitle(loadAppHtmlTemplate()) ?? DEFAULT_TITLE;
+		return clientDefaultTitle(loadAppHtmlTemplate());
 	} catch {
 		return DEFAULT_TITLE;
 	}
