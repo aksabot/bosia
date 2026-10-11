@@ -32,7 +32,7 @@ bosia add block docks/<name>
 ```
 
 Files land at `src/lib/blocks/docks/<name>/block.svelte`. Each pulls the
-[`@lucide/svelte`](/components/ui/icon/) npm package for icons.
+[`@lucide/svelte`](https://bosia.dev/components/ui/icon) npm package for icons.
 
 This is the bottom counterpart to [[bosia-navbars]] (top bars). Drop a dock at the bottom of a
 mobile layout; pairs naturally with [[bosia-mobile-screen]] for a full app frame.
@@ -55,7 +55,7 @@ center FAB are the brand action — paint them with `primary`:
 - **`fab`** — an edge bar split left/right around a raised circular center action button.
 
 All live on one page with previews and install lines:
-[Docks](/blocks/docks) — under **Blocks → Docks** in the sidebar.
+[Docks](https://bosia.dev/blocks/docks) — under **Blocks → Docks** in the sidebar.
 
 ## Usage
 

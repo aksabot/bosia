@@ -41,6 +41,7 @@
 - [ ] 🟡 Next: replace the `document.title` patch with an explicit layout title (layout `metadata().title` or a title registry). The patch leans on Svelte effect order.
 - [ ] ⚪ A `+loading.svelte` chunk that loads after the nav settles shows the skeleton until the next nav. Also on main.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
+- [ ] 🟡 Static hosts (Cloudflare assets) serve `index.html` with a 200 for unknown paths. `prerenderStaticRoutes` could save one 404 response as `404.html` for every app; docs does it in `post-build.ts` for now.
 
 ---
 

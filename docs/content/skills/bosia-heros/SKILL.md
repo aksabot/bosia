@@ -32,7 +32,7 @@ bosia add block heros/<name>
 ```
 
 Files land at `src/lib/blocks/heros/<name>/block.svelte`. Each pulls the
-[`@lucide/svelte`](/components/ui/icon/) npm package for icons.
+[`@lucide/svelte`](https://bosia.dev/components/ui/icon) npm package for icons.
 
 ## The golden rule — brand is `primary`, never `accent`
 
@@ -76,7 +76,7 @@ grid), `home-goods` (lifestyle photo + product card), `apparel` (color/size pick
 **SaaS** (2) — `app` (feature list + phone mock), `product` (email capture + browser mock).
 
 Each hero has its own page with a live preview and install line, e.g.
-[Heros — Shop Split](/blocks/heros/shop-split); browse the rest under **Blocks → Heros** in
+[Heros — Shop Split](https://bosia.dev/blocks/heros/shop-split); browse the rest under **Blocks → Heros** in
 the sidebar.
 
 ## Usage

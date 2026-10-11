@@ -5,6 +5,9 @@
 
 import { readdirSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { loadEnv } from "../../packages/bosia/src/core/env.ts";
+import { BOSIA_NODE_PATH } from "../../packages/bosia/src/core/paths.ts";
+import { getEphemeralPort } from "../../packages/bosia/src/core/prerender.ts";
 
 const BASE_URL = "https://bosia.dev";
 const contentDir = join(process.cwd(), "content", "docs");
@@ -100,33 +103,35 @@ console.log(`✓ sitemap.xml written (${enPages.size + idPages.size} URLs)`);
 
 // 404.html — without it Cloudflare serves index.html with a 200 for every unknown
 // path, so broken links land on the home page silently. Capture the server's own
-// 404 response so it matches what the dev and prod servers render.
-// A free port from the OS. Small race until the server binds it, but a lost race
-// makes the server refuse the busy port and exit, which the loop below catches.
-const probe = Bun.serve({ port: 0, fetch: () => new Response() });
-const port = probe.port;
-probe.stop(true);
+// 404 response so it matches what the dev and prod servers render. Starts the built
+// server the way prerender does (free port, NODE_PATH, /_health). A failure only warns:
+// the site still deploys, just without a real 404 page.
+loadEnv("production");
+const port = await getEphemeralPort();
 // The server entry directly, not `bun run start`: the start CLI ignores SIGTERM.
 // No BOSIA_REUSE_PORT, so it can't silently share a port with another server.
 const { BOSIA_REUSE_PORT: _, ...env } = process.env;
 const server = Bun.spawn(["bun", "run", "./dist/server/index.js"], {
-	env: { ...env, NODE_ENV: "production", PORT: String(port) },
+	env: { ...env, NODE_ENV: "production", PORT: String(port), NODE_PATH: BOSIA_NODE_PATH },
 	stdout: "ignore",
 	stderr: "inherit",
 });
 try {
-	let res: Response | null = null;
-	for (let i = 0; i < 100 && !res && server.exitCode === null; i++) {
-		res = await fetch(`http://localhost:${port}/__bosia-404-probe`).catch(() => null);
-		if (!res) await Bun.sleep(100);
+	// Wait for our server's /_health before trusting any 404: another process that
+	// grabbed the port first would fail this, or the exit check if ours couldn't bind.
+	let ready = false;
+	for (let i = 0; i < 200 && !ready && server.exitCode === null; i++) {
+		ready = (await fetch(`http://localhost:${port}/_health`).catch(() => null))?.ok ?? false;
+		if (!ready) await Bun.sleep(100);
 	}
-	// Only trust the answer while our own server is still alive.
-	if (server.exitCode !== null)
-		throw new Error(`docs server exited with code ${server.exitCode}; see its error above`);
-	if (res?.status !== 404)
-		throw new Error(`expected a 404 page, got ${res?.status ?? "no server"}`);
+	if (!ready || server.exitCode !== null)
+		throw new Error(`docs server not ready (exit code ${server.exitCode ?? "none"})`);
+	const res = await fetch(`http://localhost:${port}/__bosia-404-probe`);
+	if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
 	writeFileSync(join(outDir, "404.html"), await res.text());
 	console.log("✓ 404.html written");
+} catch (err) {
+	console.warn(`⚠️  404.html skipped: ${(err as Error).message}`);
 } finally {
 	server.kill();
 	await server.exited;

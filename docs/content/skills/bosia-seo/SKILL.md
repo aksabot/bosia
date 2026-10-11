@@ -64,7 +64,7 @@ Production-standard SEO and link-preview hygiene for a Bosia app:
 
 Shortcut for the route plumbing: `bun x bosia@latest feat seo` installs ready-made
 `/sitemap.xml`, `/robots.txt` and `/rss.xml` routes fed by one `src/features/seo/config.ts`
-(see the [SEO routes guide](/guides/seo/)) — then this skill covers the meta/OG/JSON-LD layers
+(see the [SEO routes guide](https://bosia.dev/guides/seo)) — then this skill covers the meta/OG/JSON-LD layers
 on top.
 
 ## When to use

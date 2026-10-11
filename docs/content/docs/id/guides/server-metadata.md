@@ -90,13 +90,13 @@ Objek `data` dari `metadata()` menjadi `event.metadata` di `load()`. Jika tidak 
 
 ## Properti MetadataEvent
 
-| Properti  | Tipe                     | Deskripsi                                                                                                                                       |
-| --------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `params`  | `Record<string, string>` | Parameter route dinamis                                                                                                                         |
-| `url`     | `URL`                    | URL request                                                                                                                                     |
-| `locals`  | `Record<string, any>`    | Data yang diset oleh middleware hooks                                                                                                           |
-| `cookies` | `Cookies`                | Baca/tulis cookie                                                                                                                               |
-| `fetch`   | `Function`               | Helper fetch (cookie hanya diteruskan ke same-origin — lihat [Server Loaders → Cookie Forwarding](/id/guides/server-loaders#cookie-forwarding)) |
+| Properti  | Tipe                     | Deskripsi                                                                                                                                    |
+| --------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `params`  | `Record<string, string>` | Parameter route dinamis                                                                                                                      |
+| `url`     | `URL`                    | URL request                                                                                                                                  |
+| `locals`  | `Record<string, any>`    | Data yang diset oleh middleware hooks                                                                                                        |
+| `cookies` | `Cookies`                | Baca/tulis cookie                                                                                                                            |
+| `fetch`   | `Function`               | Helper fetch (cookie hanya diteruskan ke same-origin — lihat [Server Loaders → Cookie Forwarding](/guides/server-loaders#cookie-forwarding)) |
 
 ## Tipe Return Metadata
 
@@ -162,4 +162,4 @@ Fungsi `metadata()` punya timeout yang bisa dikonfigurasi melalui variabel envir
 
 ## Interaksi dengan Caching
 
-Jika `metadata()` memanggil `cookies.get()` atau `cookies.getAll()`, respons data otomatis ditandai dengan `Cache-Control: private, no-cache`. Lihat [Server Loaders](/id/guides/server-loaders#caching) untuk detailnya.
+Jika `metadata()` memanggil `cookies.get()` atau `cookies.getAll()`, respons data otomatis ditandai dengan `Cache-Control: private, no-cache`. Lihat [Server Loaders](/guides/server-loaders#caching) untuk detailnya.

@@ -30,7 +30,7 @@ bosia add block footers/<name>
 ```
 
 Files land at `src/lib/blocks/footers/<name>/block.svelte`. Some pull the
-[`@lucide/svelte`](/components/ui/icon/) npm package for icons.
+[`@lucide/svelte`](https://bosia.dev/components/ui/icon) npm package for icons.
 
 This is the **design catalog** of pre-built site footers — the bookend to [[bosia-navbars]] and the
 closing section of [[bosia-landing]] / [[bosia-sections]]. A footer goes in `+layout.svelte` per
@@ -83,7 +83,7 @@ thick borders, boxed mono link cells, © stamp), `editorial` (oversized serif wo
 rules, small-caps links), `terminal` (mono on foreground, `>`-prefixed links, blinking cursor).
 
 Each group has its own page with live previews and install lines:
-[Standard](/blocks/footers/standard), [Themes](/blocks/footers/themes) — browse them
+[Standard](https://bosia.dev/blocks/footers/standard), [Themes](https://bosia.dev/blocks/footers/themes) — browse them
 under **Blocks → Footers** in the sidebar.
 
 ## Usage

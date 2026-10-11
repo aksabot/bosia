@@ -33,7 +33,7 @@ bosia add block cards/<name>
 ```
 
 Files land at `src/lib/blocks/cards/<name>/block.svelte`. Each pulls the
-[`@lucide/svelte`](/components/ui/icon/) npm package for icons.
+[`@lucide/svelte`](https://bosia.dev/components/ui/icon) npm package for icons.
 
 ## The golden rule — brand is `primary`, never `accent`
 
@@ -82,8 +82,8 @@ variants so they read in both modes:
 `poll` (animated bars), `stepper`, `chat`.
 **Auth & marketing** — `login`, `feature` (props: `title`, `body`, `icon`, `cta`).
 
-Sample galleries: [Cards — Commerce](/blocks/cards/commerce) and
-[Cards — Auth & Marketing](/blocks/cards/auth); the four other category pages cover the rest.
+Sample galleries: [Cards — Commerce](https://bosia.dev/blocks/cards/commerce) and
+[Cards — Auth & Marketing](https://bosia.dev/blocks/cards/auth); the four other category pages cover the rest.
 
 ## Usage
 

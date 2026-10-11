@@ -32,7 +32,7 @@ bosia add block navbars/<name>
 ```
 
 Files land at `src/lib/blocks/navbars/<name>/block.svelte`. Most pull the
-[`@lucide/svelte`](/components/ui/icon/) npm package for icons.
+[`@lucide/svelte`](https://bosia.dev/components/ui/icon) npm package for icons.
 
 This is the **design catalog** of pre-built marketing/app top bars. For wiring client-side
 navigation (active link state, route transitions, the framework's own nav primitives) see
@@ -84,8 +84,8 @@ toggle + repo), `mega-menu` (catalog opens a 3-column panel), `announcement` (di
 strip + nav), `mobile` (hamburger toggles a full overlay menu).
 
 Each group has its own page with live previews and install lines:
-[Standard](/blocks/navbars/standard), [Themes](/blocks/navbars/themes),
-[App & Interactive](/blocks/navbars/app) — browse them under **Blocks → Navbars** in the
+[Standard](https://bosia.dev/blocks/navbars/standard), [Themes](https://bosia.dev/blocks/navbars/themes),
+[App & Interactive](https://bosia.dev/blocks/navbars/app) — browse them under **Blocks → Navbars** in the
 sidebar.
 
 ## Usage

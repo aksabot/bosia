@@ -48,7 +48,7 @@ bosia add block <family>/<name>
 ```
 
 Files land at `src/lib/blocks/<family>/<name>/block.svelte`. Most pull the
-[`@lucide/svelte`](/components/ui/icon/) npm package for icons.
+[`@lucide/svelte`](https://bosia.dev/components/ui/icon) npm package for icons.
 
 Prefer composing these over hand-rolling sections inline. For a whole page already stitched
 together, install a landing page instead: `bosia add page landing/saas` or `bosia add page
@@ -88,11 +88,11 @@ those to match your product.
 | `consent`      | `banner`                          | fixed bottom cookie bar, choice persisted in localStorage, `onDecision` hook  |
 
 Each family has its own page with live previews and install lines under **Blocks → Sections** in the
-sidebar: [Pricing](/blocks/pricing), [Testimonials](/blocks/testimonials),
-[FAQ](/blocks/faq), [CTA](/blocks/cta), [Features](/blocks/features),
-[Stats](/blocks/stats), [Logos](/blocks/logos), [Contact](/blocks/contact),
-[Team](/blocks/team), [Gallery](/blocks/gallery), [Process](/blocks/process),
-[Newsletter](/blocks/newsletter), [Consent](/blocks/consent).
+sidebar: [Pricing](https://bosia.dev/blocks/pricing), [Testimonials](https://bosia.dev/blocks/testimonials),
+[FAQ](https://bosia.dev/blocks/faq), [CTA](https://bosia.dev/blocks/cta), [Features](https://bosia.dev/blocks/features),
+[Stats](https://bosia.dev/blocks/stats), [Logos](https://bosia.dev/blocks/logos), [Contact](https://bosia.dev/blocks/contact),
+[Team](https://bosia.dev/blocks/team), [Gallery](https://bosia.dev/blocks/gallery), [Process](https://bosia.dev/blocks/process),
+[Newsletter](https://bosia.dev/blocks/newsletter), [Consent](https://bosia.dev/blocks/consent).
 
 The `contact` forms post JSON to `/api/contact`; install the `contact-form` feature
 (`bosia feat contact-form`) for the validated, Drizzle-backed endpoint, or point the block's

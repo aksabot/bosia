@@ -18,6 +18,10 @@
 - [x] 🟡 Shop feature `public-navbar.svelte` linked "Products" to a missing `/products`; link removed (no public products page). Shop/store home button relabeled "Manage products" → `/dashboard/products`.
 - [x] ⚪ Relative guide links (`./request-deduplication`, `../reference/roadmap`) broke under a trailing slash; now absolute.
 - [x] 🟡 226 links in `id/` pages pointed at English pages; now `/id/...` when the ID page exists. `post-build` 404 probe uses a free port and shows server errors.
+- [x] 🟡 Review: two `id/` links jumped to anchors the ID server-loaders page lacks (`#cookie-forwarding`, `#caching`); back to the EN page.
+- [x] 🟡 Review: 404 probe waits for `/_health` (no foreign 404), uses `getEphemeralPort` + `NODE_PATH` + `.env.production`, and only warns on failure.
+- [x] ⚪ Review: skill links are full `https://bosia.dev/...` URLs, so agents reading SKILL.md locally can open them.
+- [ ] ⚪ `/id/...` unknown paths get the English 404 (`lang="en"`). Probe `/id/__bosia-404-probe` too and write `dist/static/id/404.html`.
 
 ---
 

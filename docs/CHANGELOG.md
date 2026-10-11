@@ -24,6 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Guide links between pages keep working when the address ends with a slash.
 - Indonesian pages link to the Indonesian version of other pages, not the English one.
 - Theme tokens skill says nineteen themes ship, not twelve.
+- Two Indonesian links to cookie and caching sections now land on the right section.
+- Skill links use the full bosia.dev address, so they open from a local project too.
+- The docs build no longer fails if the 404 page can't be made; it only warns.
 
 ## [0.8.23] - 2026-10-09
 
