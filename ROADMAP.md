@@ -10,6 +10,7 @@
 - [x] 🟡 Dev warns once per route when a layout `redirect()`/`error(401|403)` fires but page `load()` ran code before `await parent()`. `metadata()` and 404s stay quiet. Test: `layout-guard-warning.test.ts`.
 - [ ] ⚪ Heuristic: misses a write before `parent()`, in its `Promise.all`, or before `await p`; warns on reads and locale redirects. Message stays conditional.
 - [x] 🔴 A plain-function `load()` returning an object crashed (`promise.finally` is not a function) when `LOAD_TIMEOUT` was set. `withTimeout` wraps it in `Promise.resolve`.
+- [x] 🟡 npm tarball lacked LICENSE (MIT requires the notice). Copied into `packages/bosia`, added to `files`. Copyright: "Bosapi and contributors"; `AUTHORS` lists people.
 
 ---
 

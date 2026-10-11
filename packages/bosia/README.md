@@ -194,4 +194,4 @@ my-app/
 
 ## License
 
-MIT
+[MIT](https://github.com/bosapi/bosia/blob/main/LICENSE) © 2026 Bosapi and contributors. See [AUTHORS](https://github.com/bosapi/bosia/blob/main/AUTHORS).

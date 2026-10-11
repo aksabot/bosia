@@ -107,4 +107,4 @@ See [ROADMAP.md](ROADMAP.md) for what's done, what's next, and the full plan tow
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Bosapi and contributors. See [AUTHORS](AUTHORS).

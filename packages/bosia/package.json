@@ -30,6 +30,7 @@
 		"src",
 		"templates",
 		"README.md",
+		"LICENSE",
 		"package.json"
 	],
 	"exports": {
