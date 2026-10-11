@@ -211,6 +211,21 @@ describe("scanRoutes() head titles", () => {
 		);
 	});
 
+	test("a commented-out title doesn't count; one under {#if} is dynamic", () => {
+		expect(
+			headTitleOf(`<svelte:head><!-- <title>Old Brand</title> --><meta name="x" /></svelte:head>`),
+		).toBe(false);
+		expect(headTitleOf(`<!-- <svelte:head><title>Old</title></svelte:head> -->\n<h1>x</h1>`)).toBe(
+			false,
+		);
+		expect(
+			headTitleOf(`<svelte:head>{#if data.admin}<title>Admin</title>{/if}</svelte:head>`),
+		).toBe(true);
+		expect(
+			headTitleOf(`<svelte:head>{#if a}<title>A</title>{:else}<title>B</title>{/if}</svelte:head>`),
+		).toBe(true);
+	});
+
 	test("only a <title> inside <svelte:head> counts, and the last one wins", () => {
 		// A logo's SVG title in the root layout must not flag every route.
 		const svg = `<svg><title>Logo</title></svg>`;

@@ -65,9 +65,9 @@
 	}
 
 	/** The title a route has when metadata() gives none: what its deepest titled
-	 *  layout writes, or app.html's default when no layout writes one. null when
-	 *  Svelte owns it: the page file writes one, or that layout's is dynamic.
-	 *  `depth` is that layout's index, -1 for the default. */
+	 *  layout writes, or app.html's default when no layout writes one or that
+	 *  layout's is dynamic. null when the page file writes one, so Svelte owns it.
+	 *  `depth` is that layout's index, -1 when no layout writes one. */
 	function routeTitle(route: (typeof clientRoutes)[number]): {
 		title: string | null;
 		depth: number;
@@ -75,9 +75,10 @@
 		if (route.headTitle) return { title: null, depth: route.layoutTitles.length };
 		let depth = route.layoutTitles.length - 1;
 		while (depth >= 0 && route.layoutTitles[depth] === false) depth--;
-		if (depth < 0) return { title: decodeTitle(defaultTitle), depth };
-		const t = route.layoutTitles[depth];
-		return { title: typeof t === "string" ? decodeTitle(t) : null, depth };
+		const t = depth < 0 ? defaultTitle : route.layoutTitles[depth];
+		// A dynamic layout title can't be known here, so it gets the default too;
+		// a value that changed is written again by Svelte after this.
+		return { title: decodeTitle(typeof t === "string" ? t : defaultTitle), depth };
 	}
 
 	/** How many leading layouts two routes share, by file path. */
@@ -314,9 +315,9 @@
 			if (pageShown) {
 				keptLayouts = sharedDepth(currentLayoutPaths, destLayoutPaths);
 				if (currentLayoutPaths.length !== destLayoutPaths.length)
-					keptLayouts = Math.min(
-						keptLayouts,
-						Math.min(currentLayoutPaths.length, destLayoutPaths.length) - 1,
+					keptLayouts = Math.max(
+						0,
+						Math.min(keptLayouts, Math.min(currentLayoutPaths.length, destLayoutPaths.length) - 1),
 					);
 			}
 			showLoading = false;
@@ -475,7 +476,7 @@
 				// layout that stays mounted never writes its own back. Set before Svelte
 				// flushes, so a freshly mounted <svelte:head><title> still wins. Left
 				// alone when Svelte will set it (the page file writes one, or the layout
-				// that does is freshly mounted), when it is dynamic, and on the same page
+				// that does is freshly mounted), and on the same page
 				// (invalidate, a form action, ?page=2) once a child like <Seo> took over.
 				if (md?.title) {
 					document.title = md.title;

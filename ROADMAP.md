@@ -24,6 +24,9 @@
 - [x] 🟡 Review 2: back from an error page to the same page kept the error's title. The error and skeleton branches remount everything, so it counts as a new page. Demo `/title-error`.
 - [x] 🟡 Review 2: the first same-page nav after a hard load kept the `metadata()` title. SSR hands it to the client (`__BOSIA_TITLE__`). Demo `/title-meta`; all three seen failing first.
 - [x] 🟢 Review 2: the scanner reads each `+page.server.ts` once (`readSource`), not once for prerender and again for `trailingSlash`.
+- [x] 🟠 Review 3: an app with no root layout kept the old title when the layout count went to or from zero (`keptLayouts` was -1). Clamped at 0. Checked with a temp demo copy, seen failing first.
+- [x] 🟡 Review 3: a dynamic layout title kept the last page's title, unlike the docs. It gets the default now. Demo `/title-live`, seen failing first.
+- [x] 🟡 Review 3: the scanner read a `<title>` in an HTML comment, and took one under `{#if}` as always shown. It drops comments, uses `titleText`, and calls a head with `{#…}` dynamic.
 - [ ] ⚪ A layout that moves to or from the page's spot (layout count changes) remounts, since `renderLayout` uses another branch there. Title code allows for it; worth a look for state loss.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
 

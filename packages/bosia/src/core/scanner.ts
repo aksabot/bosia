@@ -1,6 +1,7 @@
 import { readdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { PageRoute, ApiRoute, RouteManifest, TrailingSlash } from "./types.ts";
+import { titleText } from "./headScan.ts";
 
 // ─── Route Scanner ───────────────────────────────────────
 // Walks src/routes/ and produces a RouteManifest.
@@ -59,24 +60,24 @@ function prerenderOf(src: string | null): boolean {
 
 /** The title a .svelte file's `<svelte:head>` writes: false for none, the raw
  *  text when it is static (`<title>My Site</title>`), true when it has an
- *  expression. A `<title>` outside `<svelte:head>`, like an inline SVG's, doesn't
- *  count. The last one wins, as it does when the blocks mount in order. A false
- *  positive (say, one in a comment) only keeps the current title on client
- *  navigation; a miss sets the default, which a freshly mounted <svelte:head>
- *  still overrides. */
+ *  expression or sits in a block whose `{#if}`/`{#each}` may not render it. A
+ *  `<title>` outside `<svelte:head>` or in a comment, like an inline SVG's,
+ *  doesn't count. The last block wins, as it does when the blocks mount in order.
+ *  A heuristic: a block with any `{#…}` counts as dynamic, even when the title
+ *  sits outside it, which only means the client leaves the title alone. */
 export function headTitleOf(src: string): string | boolean {
 	let found: string | boolean = false;
-	for (const block of src.matchAll(HEAD_BLOCK))
-		for (const t of block[1]!.matchAll(TITLE_TAG)) {
-			const text = t[1] ?? "";
-			found = text.includes("{") ? true : text.replace(/[\t\n\f\r ]+/g, " ").trim();
-		}
+	for (const block of src.replace(COMMENT, "").matchAll(HEAD_BLOCK)) {
+		const body = block[1]!;
+		const text = titleText(body);
+		if (text === null) continue;
+		found = text.includes("{") || /\{[#:]/.test(body) ? true : text;
+	}
 	return found;
 }
 
+const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 const HEAD_BLOCK = /<svelte:head(?:\s[^>]*?)?(?<!\/)>([\s\S]*?)<\/svelte:head\s*>/g;
-// An unclosed <title> is a compile error; reading to the block's end is enough.
-const TITLE_TAG = /<title(?:\s[^>]*)?>([\s\S]*?)(?:<\/title\s*>|$)/g;
 
 /** A route file's source, or null when it can't be read. */
 function readSource(filePath: string): string | null {

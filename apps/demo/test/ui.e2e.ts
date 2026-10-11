@@ -187,6 +187,17 @@ describe.each(["prod", "dev"] as const)("%s", (mode) => {
 		expect(errors).toEqual([]);
 	});
 
+	// A layout title built from an expression can't be read at build time, so
+	// it gets the default rather than keeping the last page's title.
+	test("a dynamic layout title gives the default, not the last page's", async () => {
+		await open("/title-live/named");
+		await waitFor(`document.title === "Named | Live Title"`);
+		await view.click('[data-title-live-nav] a[href="/title-live"]');
+		await waitFor(settled("/title-live"));
+		expect(await view.evaluate("document.title")).toBe("Bosia App");
+		expect(errors).toEqual([]);
+	});
+
 	test("the first same-page navigation drops the metadata title of a hard load", async () => {
 		await open("/title-meta");
 		await waitFor(`document.title === "Named by metadata"`);
