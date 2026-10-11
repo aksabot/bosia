@@ -20,7 +20,7 @@
 			href="/dashboard/products"
 			class="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition-colors"
 		>
-			Browse products
+			Manage products
 		</a>
 		<a
 			href="/login"

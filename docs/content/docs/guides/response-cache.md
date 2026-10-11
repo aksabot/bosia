@@ -14,7 +14,7 @@ The cache is **safe for logged-in users** because the key includes a hash of coo
 3. **Miss** → the **first** miss on a key becomes the leader: it runs `metadata()`, runs `load()`, renders, builds the HTML, and sends it compressed. Building the cached gzip + brotli copies runs after the response has gone out.
 4. **Concurrent misses** on the same key wait for the leader, then re-check the cache — a hit is served from cache, so N simultaneous misses build the page once instead of N times. If the leader skipped the write (e.g. it set cookies or the response wasn't cacheable), each waiter builds independently.
 
-The identity hash here is the same one [request deduplication](./request-deduplication) uses — one `CACHE_KEYS` contract isolates users across both mechanisms.
+The identity hash here is the same one [request deduplication](/guides/request-deduplication) uses — one `CACHE_KEYS` contract isolates users across both mechanisms.
 
 ## Per-user isolation
 

@@ -20,7 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Block skills link to the right docs pages.
 - The sidebar "Index" link under Pages → Blog opens the page on bosia.dev.
 - A page that doesn't exist now shows a 404 instead of the home page on bosia.dev.
-- Shop feature navbar: "Products" opens the products dashboard instead of a 404.
+- Shop feature navbar drops its "Products" link, which led to a page that doesn't exist.
+- Guide links between pages keep working when the address ends with a slash.
 - Indonesian pages link to the Indonesian version of other pages, not the English one.
 - Theme tokens skill says nineteen themes ship, not twelve.
 

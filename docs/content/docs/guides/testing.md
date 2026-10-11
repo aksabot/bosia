@@ -110,7 +110,7 @@ Focus on pure logic that doesn't depend on the request lifecycle:
 - Server-side business logic extracted from `load()` / actions
 - Component logic (state machines, derived values)
 
-Bosia-specific helpers for testing `load()`, form actions, API routes, and full SSR rendering are on the [roadmap](../reference/roadmap) but not yet shipped. For now, extract logic into plain functions and test those.
+Bosia-specific helpers for testing `load()`, form actions, API routes, and full SSR rendering are on the [roadmap](/reference/roadmap) but not yet shipped. For now, extract logic into plain functions and test those.
 
 ## Watch Mode
 

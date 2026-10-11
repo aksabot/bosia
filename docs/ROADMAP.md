@@ -15,7 +15,8 @@
 
 - [x] 🟠 ~210 links in docs and skills used `/docs/...` (404 locally, home page on prod). Stripped the prefix; fixed a trailing-slash relative link and `/pages/blog/index` (also in the `nav.ts` sidebar).
 - [x] 🟠 Prod served `index.html` with a 200 for unknown paths (no `404.html`). `post-build.ts` now saves the server's 404 as `dist/static/404.html`.
-- [x] 🟡 Shop feature `public-navbar.svelte` linked "Products" to a missing `/products`; now `/dashboard/products`, like the shop/store home button.
+- [x] 🟡 Shop feature `public-navbar.svelte` linked "Products" to a missing `/products`; link removed (no public products page). Shop/store home button relabeled "Manage products" → `/dashboard/products`.
+- [x] ⚪ Relative guide links (`./request-deduplication`, `../reference/roadmap`) broke under a trailing slash; now absolute.
 - [x] 🟡 226 links in `id/` pages pointed at English pages; now `/id/...` when the ID page exists. `post-build` 404 probe uses a free port and shows server errors.
 
 ---

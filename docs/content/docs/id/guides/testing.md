@@ -110,7 +110,7 @@ Fokus pada logika murni yang tidak bergantung pada siklus request:
 - Logika bisnis sisi server yang diekstrak dari `load()` / actions
 - Logika komponen (state machine, derived values)
 
-Helper khusus Bosia untuk menguji `load()`, form actions, API routes, dan rendering SSR penuh ada di [roadmap](../reference/roadmap) tetapi belum dirilis. Untuk saat ini, ekstrak logika ke fungsi biasa dan uji fungsi tersebut.
+Helper khusus Bosia untuk menguji `load()`, form actions, API routes, dan rendering SSR penuh ada di [roadmap](/id/reference/roadmap) tetapi belum dirilis. Untuk saat ini, ekstrak logika ke fungsi biasa dan uji fungsi tersebut.
 
 ## Mode Watch
 
