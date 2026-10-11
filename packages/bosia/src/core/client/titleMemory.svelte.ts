@@ -39,7 +39,7 @@ export function takeTitleWrite(): string | null {
 // own flush, never a page's from an earlier one.
 if (typeof document !== "undefined" && !store.patched) {
 	const native = Object.getOwnPropertyDescriptor(Document.prototype, "title");
-	if (native?.get && native.set && !Object.hasOwn(document, "title")) {
+	if (native?.get && native.set && !Object.prototype.hasOwnProperty.call(document, "title")) {
 		const { get, set } = native;
 		Object.defineProperty(document, "title", {
 			configurable: true,
