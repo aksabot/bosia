@@ -1,7 +1,16 @@
 # Bosia — Roadmap
 
 > Track what's done, what's next, and where we're headed.
-> Current version: **1.2.1**
+> Current version: **1.2.2**
+
+---
+
+## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
+
+- [x] 🟡 Static hosts (Cloudflare assets) served `index.html` with a 200 for unknown paths. Prerender now saves the server's 404 as `dist/static/404.html`; docs' own copy in `post-build.ts` is gone. Test: `docs/test/not-found-page.test.ts`.
+- [x] 🟢 The prerender server no longer inherits `BOSIA_REUSE_PORT`, so another server on the port can't answer for it.
+- [ ] ⚪ SSR-only apps get no `404.html` (no server boot just for it). Add one if an SSR app ever deploys to a static host.
+- [ ] ⚪ The Bun server serves `/404.html` itself with a 200, like any `dist/static` file. Harmless; skip it in `staticManifest` if it bites.
 
 ---
 
@@ -41,7 +50,6 @@
 - [ ] 🟡 Next: replace the `document.title` patch with an explicit layout title (layout `metadata().title` or a title registry). The patch leans on Svelte effect order.
 - [ ] ⚪ A `+loading.svelte` chunk that loads after the nav settles shows the skeleton until the next nav. Also on main.
 - [ ] ⚪ Client-nav error pages leave the title alone; a hard load titles them `404 — Not Found`. Seen while fixing the default title, not changed.
-- [ ] 🟡 Static hosts (Cloudflare assets) serve `index.html` with a 200 for unknown paths. `prerenderStaticRoutes` could save one 404 response as `404.html` for every app; docs does it in `post-build.ts` for now.
 
 ---
 

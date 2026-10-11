@@ -164,9 +164,12 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 	console.log(`\n🖨️  Prerendering ${targets.length} route(s)...`);
 
 	const port = await getEphemeralPort();
+	// No BOSIA_REUSE_PORT: the child must fail to bind rather than share a port
+	// with another server, whose pages we'd then save as ours.
+	const { BOSIA_REUSE_PORT: _, ...env } = process.env;
 	const child = Bun.spawn(["bun", "run", `${OUT_DIR}/server/index.js`], {
 		env: {
-			...process.env,
+			...env,
 			NODE_ENV: "production",
 			PORT: String(port),
 			NODE_PATH: BOSIA_NODE_PATH,
@@ -285,6 +288,22 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 		await Promise.all(
 			Array.from({ length: Math.min(PRERENDER_CONCURRENCY, targets.length) }, worker),
 		);
+
+		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
+		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
+		// Goes to dist/static, not prerendered/, so the Bun server never serves /404
+		// as a 200. A public/404.html overwrites it (generateStaticSite copies later).
+		try {
+			const res = await fetch(`${base}/__bosia-404-probe`, {
+				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
+			});
+			if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
+			mkdirSync(`${OUT_DIR}/static`, { recursive: true });
+			writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
+			console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
+		} catch (err) {
+			console.warn(`   ⚠️  404.html skipped: ${(err as Error).message}`);
+		}
 
 		console.log("✅ Prerendering complete");
 	} finally {
