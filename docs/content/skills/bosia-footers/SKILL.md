@@ -83,7 +83,7 @@ thick borders, boxed mono link cells, © stamp), `editorial` (oversized serif wo
 rules, small-caps links), `terminal` (mono on foreground, `>`-prefixed links, blinking cursor).
 
 Each group has its own page with live previews and install lines:
-[Standard](/docs/blocks/footers/standard/), [Themes](/docs/blocks/footers/themes/) — browse them
+[Standard](/blocks/footers/standard), [Themes](/blocks/footers/themes) — browse them
 under **Blocks → Footers** in the sidebar.
 
 ## Usage

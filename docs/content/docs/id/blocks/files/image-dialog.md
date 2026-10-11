@@ -18,7 +18,7 @@ Dialog modal yang menyatukan tiga jalur input yang sebenarnya dipakai pengguna s
 bun x bosia@latest add block files/image-dialog
 ```
 
-Menarik `ui/button`, `ui/dialog`, `ui/input`, `ui/label`, `ui/sonner`, `ui/tabs`, block [`files/upload-area`](/docs/blocks/files/upload-area/), dan paket npm [`@lucide/svelte`](/components/ui/icon/). Block ini menggunakan kembali rute [fitur `file-upload`](/docs/guides/file-upload) (`POST /api/files`, `GET /api/files`) — instal itu lebih dulu.
+Menarik `ui/button`, `ui/dialog`, `ui/input`, `ui/label`, `ui/sonner`, `ui/tabs`, block [`files/upload-area`](/blocks/files/upload-area), dan paket npm [`@lucide/svelte`](/components/ui/icon/). Block ini menggunakan kembali rute [fitur `file-upload`](/guides/file-upload) (`POST /api/files`, `GET /api/files`) — instal itu lebih dulu.
 
 ## Usage
 
@@ -73,7 +73,7 @@ Saat dialog terbuka, `existingImages` **terpilih lebih dulu** sehingga Confirm t
 
 ## Tiga jalur input
 
-- **Tab Upload** — menyematkan [`UploadArea`](/docs/blocks/files/upload-area/) yang diarahkan ke `/api/files`. Saat berhasil, `record.url` didorong ke dalam pilihan.
+- **Tab Upload** — menyematkan [`UploadArea`](/blocks/files/upload-area) yang diarahkan ke `/api/files`. Saat berhasil, `record.url` didorong ke dalam pilihan.
 - **Tab External URL** — hanya `http(s)://` yang divalidasi klien. Lolos-langsung ke entitas induk — tidak ada ingest backend. Jika host jarak jauh merotasi gambarnya, field induk merujuk URL mati.
 - **Galeri yang ada** — baris atas menampilkan `existingImages` lewat `resolveUrl()` (terpilih lebih dulu saat dibuka; klik untuk menghapus). Di bawahnya, pustaka penuh pengguna yang masuk diambil sekali saat mount dari `GET /api/files`. Tiap thumbnail adalah toggle multi-pilih.
 
@@ -94,7 +94,7 @@ Resolver default mengembalikan entri berbentuk URL apa adanya dan **melempar** p
 
 ## Komposabilitas
 
-`image-dialog` menggunakan kembali `upload-area`, tetapi untuk alur gambar tunggal (avatar, sampul tunggal) Anda sebaiknya memasang `upload-area` langsung — modal bertab adalah gesekan tanpa imbalan pada skala itu. Lihat [Upload Area](/docs/blocks/files/upload-area/) untuk primitif yang lebih ramping.
+`image-dialog` menggunakan kembali `upload-area`, tetapi untuk alur gambar tunggal (avatar, sampul tunggal) Anda sebaiknya memasang `upload-area` langsung — modal bertab adalah gesekan tanpa imbalan pada skala itu. Lihat [Upload Area](/blocks/files/upload-area) untuk primitif yang lebih ramping.
 
 ## Source
 

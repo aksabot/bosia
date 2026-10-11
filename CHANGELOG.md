@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A layout that wraps its pages in `{#key}` keeps its title on client navigation.
 - A layout's own title comes back on client navigation, as on a hard load.
 - An app.html title with extra spaces matches the browser's title after the first click.
+- The shop and store home "Browse products" button opens the products dashboard, not a 404.
 
 ## [1.2.0] - 2026-10-09
 

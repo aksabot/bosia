@@ -104,7 +104,7 @@ General-purpose site pages for an about and a contact route:
 
 An editorial blog index and post page, sample posts included:
 
-- [Index](/pages/blog/index) — post-list card stack between navbar and footer
+- [Index](/pages/blog) — post-list card stack between navbar and footer
 - [Post](/pages/blog/post) — post header, 70ch prose body and related-posts row; pair with the
   [`blog` feature](/guides/blog/) for database-backed posts and ready-made loaders
 

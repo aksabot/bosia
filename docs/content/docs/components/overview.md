@@ -62,7 +62,7 @@ Import from the component's barrel export:
 
 ## Available Components
 
-Sixty primitives, all installed the same way. Higher-level [blocks](/docs/blocks/overview/) and [pages](/docs/pages/overview/) compose these.
+Sixty primitives, all installed the same way. Higher-level [blocks](/blocks/overview) and [pages](/pages/overview) compose these.
 
 | Component                                          | Description                                                                             |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------- |

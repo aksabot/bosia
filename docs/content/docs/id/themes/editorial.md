@@ -7,7 +7,7 @@ description: Palet krem hangat dengan display Instrument Serif. Nuansa majalah u
 bun x bosia@latest add theme editorial
 ```
 
-Latar krem, foreground tinta, aksen terracotta. Display dengan **Instrument Serif** (dimuat dari Google Fonts), body dengan **Inter**. Cocok terutama dengan kartu [Commerce](/docs/blocks/cards/commerce/) dan [Auth & Marketing](/docs/blocks/cards/auth/).
+Latar krem, foreground tinta, aksen terracotta. Display dengan **Instrument Serif** (dimuat dari Google Fonts), body dengan **Inter**. Cocok terutama dengan kartu [Commerce](/blocks/cards/commerce) dan [Auth & Marketing](/blocks/cards/auth).
 
 ## Tokens
 

@@ -4,7 +4,7 @@ description: A contact form backend — POST /api/contact validates submissions 
 ---
 
 The `contact-form` feature gives you the backend for the [`contact/split` and `contact/simple`
-blocks](/docs/blocks/contact): a `POST /api/contact` endpoint that validates `name`, `email` and
+blocks](/blocks/contact): a `POST /api/contact` endpoint that validates `name`, `email` and
 `message`, then stores the submission via Drizzle.
 
 ## Install

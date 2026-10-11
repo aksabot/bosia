@@ -3,7 +3,7 @@ title: File Upload
 description: Server-side image uploads with Bun.Image compression and pluggable storage (local FS or S3).
 ---
 
-The `file-upload` feature gives you a complete backend for the [`files/upload-area`](/docs/blocks/files/upload-area) block: a `POST /api/files` endpoint that accepts `multipart/form-data`, compresses images with `Bun.Image`, persists metadata via Drizzle, and stores the binary on local disk or S3.
+The `file-upload` feature gives you a complete backend for the [`files/upload-area`](/blocks/files/upload-area) block: a `POST /api/files` endpoint that accepts `multipart/form-data`, compresses images with `Bun.Image`, persists metadata via Drizzle, and stores the binary on local disk or S3.
 
 ## Install
 
@@ -98,4 +98,4 @@ Restart the server. Both drivers return app-relative `/uploads/<key>` URLs and s
 ## Notes
 
 - The `uploads/[...path]` route streams from the active driver (local FS or S3) behind an auth + ownership check, with a path-traversal guard. For high-traffic public assets you can instead front a public bucket with a CDN and have the S3 adapter return direct URLs — but the default keeps every object private.
-- Cropping is client-side via the [`files/crop-image`](/docs/blocks/files/crop-image) block — wire it through `upload-area`'s `onCropRequest` prop.
+- Cropping is client-side via the [`files/crop-image`](/blocks/files/crop-image) block — wire it through `upload-area`'s `onCropRequest` prop.

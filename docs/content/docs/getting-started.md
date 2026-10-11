@@ -88,6 +88,6 @@ Access the data in your page:
 
 - [Project Structure](/project-structure/) — understand the file layout
 - [Routing](/guides/routing/) — dynamic routes, groups, layouts
-- [Server Loaders](/guides/server-loaders/) — load data, metadata, parent threading
+- [Server Loaders](/guides/server-loaders) — load data, metadata, parent threading
 - [API Routes](/guides/api-routes/) — build REST endpoints
 - [Components](/components/overview/) — add UI components from the registry

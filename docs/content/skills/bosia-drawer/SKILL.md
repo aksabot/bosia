@@ -132,5 +132,5 @@ bosia add ui/drawer ui/button
 
 ## References
 
-- Docs: `/docs/components/ui/drawer`
+- Docs: `/components/ui/drawer`
 - Related: `bosia-dialog` (when present) for desktop modals

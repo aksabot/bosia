@@ -88,11 +88,11 @@ those to match your product.
 | `consent`      | `banner`                          | fixed bottom cookie bar, choice persisted in localStorage, `onDecision` hook  |
 
 Each family has its own page with live previews and install lines under **Blocks → Sections** in the
-sidebar: [Pricing](/docs/blocks/pricing/), [Testimonials](/docs/blocks/testimonials/),
-[FAQ](/docs/blocks/faq/), [CTA](/docs/blocks/cta/), [Features](/docs/blocks/features/),
-[Stats](/docs/blocks/stats/), [Logos](/docs/blocks/logos/), [Contact](/docs/blocks/contact/),
-[Team](/docs/blocks/team/), [Gallery](/docs/blocks/gallery/), [Process](/docs/blocks/process/),
-[Newsletter](/docs/blocks/newsletter/), [Consent](/docs/blocks/consent/).
+sidebar: [Pricing](/blocks/pricing), [Testimonials](/blocks/testimonials),
+[FAQ](/blocks/faq), [CTA](/blocks/cta), [Features](/blocks/features),
+[Stats](/blocks/stats), [Logos](/blocks/logos), [Contact](/blocks/contact),
+[Team](/blocks/team), [Gallery](/blocks/gallery), [Process](/blocks/process),
+[Newsletter](/blocks/newsletter), [Consent](/blocks/consent).
 
 The `contact` forms post JSON to `/api/contact`; install the `contact-form` feature
 (`bosia feat contact-form`) for the validated, Drizzle-backed endpoint, or point the block's

@@ -17,26 +17,26 @@ The CLI copies tokens to `src/lib/themes/<name>.css` and rewrites the active imp
 
 ## Available themes
 
-- [neutral](/docs/themes/neutral/) — default shadcn-inspired palette + system stack
-- [editorial](/docs/themes/editorial/) — warm cream + Instrument Serif display
-- [zinc](/docs/themes/zinc/) — cool blue-gray, developer-tool aesthetic
-- [stone](/docs/themes/stone/) — warm gray, document and publishing aesthetic
-- [claude](/docs/themes/claude/) — violet palette, AI assistant and productivity aesthetic
-- [ocean](/docs/themes/ocean/) — deep navy + teal, SaaS and data app aesthetic
-- [forest](/docs/themes/forest/) — earthy green + amber, nature and sustainability aesthetic
-- [rose](/docs/themes/rose/) — rose palette, creative and lifestyle aesthetic
-- [sunset](/docs/themes/sunset/) — warm orange + pink accent, consumer and marketing aesthetic
-- [midnight](/docs/themes/midnight/) — indigo, dark-first dashboard and analytics aesthetic
-- [mono](/docs/themes/mono/) — brutalist monochrome, sharp corners + monospace stack
-- [amber](/docs/themes/amber/) — amber + yellow, cozy hospitality and food aesthetic
-- [paper](/docs/themes/paper/) — warm cardstock neutrals + ink-blue brand, clean editorial feel
-- [carbon](/docs/themes/carbon/) — brutalist mono, hard offset shadows + orange brand
-- [bloom](/docs/themes/bloom/) — soft pastel pink, big radius + diffuse tinted shadows
-- [terminal](/docs/themes/terminal/) — dark green phosphor, mono display + accent glow
-- [sage](/docs/themes/sage/) — calm muted green, small radius + quiet shadows
-- [grape](/docs/themes/grape/) — dark lilac/purple with a soft accent glow
-- [clay](/docs/themes/clay/) — warm paper neutrals + terracotta brand, general-store storefront feel
+- [neutral](/themes/neutral) — default shadcn-inspired palette + system stack
+- [editorial](/themes/editorial) — warm cream + Instrument Serif display
+- [zinc](/themes/zinc) — cool blue-gray, developer-tool aesthetic
+- [stone](/themes/stone) — warm gray, document and publishing aesthetic
+- [claude](/themes/claude) — violet palette, AI assistant and productivity aesthetic
+- [ocean](/themes/ocean) — deep navy + teal, SaaS and data app aesthetic
+- [forest](/themes/forest) — earthy green + amber, nature and sustainability aesthetic
+- [rose](/themes/rose) — rose palette, creative and lifestyle aesthetic
+- [sunset](/themes/sunset) — warm orange + pink accent, consumer and marketing aesthetic
+- [midnight](/themes/midnight) — indigo, dark-first dashboard and analytics aesthetic
+- [mono](/themes/mono) — brutalist monochrome, sharp corners + monospace stack
+- [amber](/themes/amber) — amber + yellow, cozy hospitality and food aesthetic
+- [paper](/themes/paper) — warm cardstock neutrals + ink-blue brand, clean editorial feel
+- [carbon](/themes/carbon) — brutalist mono, hard offset shadows + orange brand
+- [bloom](/themes/bloom) — soft pastel pink, big radius + diffuse tinted shadows
+- [terminal](/themes/terminal) — dark green phosphor, mono display + accent glow
+- [sage](/themes/sage) — calm muted green, small radius + quiet shadows
+- [grape](/themes/grape) — dark lilac/purple with a soft accent glow
+- [clay](/themes/clay) — warm paper neutrals + terracotta brand, general-store storefront feel
 
 ## Authoring a theme
 
-See [Creating themes](/docs/themes/creating-themes/).
+See [Creating themes](/themes/creating-themes).

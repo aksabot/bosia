@@ -30,7 +30,7 @@ Menarik `ui/button`, `ui/label`, `ui/progress`, `ui/sonner`, dan paket npm [`@lu
 <UploadArea uploadUrl="/api/upload" onUploaded={(res) => console.log(res.url)} />
 ```
 
-Server diharapkan mengembalikan JSON berbentuk seperti `{ "url": "https://...", ... }`. Butuh backend siap pakai? Instal [fitur `file-upload`](/docs/guides/file-upload) — ia menyediakan `/api/files` dengan kompresi `Bun.Image` dan penyimpanan lokal/S3 serta cocok dengan bentuk respons ini.
+Server diharapkan mengembalikan JSON berbentuk seperti `{ "url": "https://...", ... }`. Butuh backend siap pakai? Instal [fitur `file-upload`](/guides/file-upload) — ia menyediakan `/api/files` dengan kompresi `Bun.Image` dan penyimpanan lokal/S3 serta cocok dengan bentuk respons ini.
 
 ## Props
 
@@ -50,7 +50,7 @@ Server diharapkan mengembalikan JSON berbentuk seperti `{ "url": "https://...", 
 
 ## Komposabilitas
 
-`upload-area` dan `crop-image` adalah block independen. Untuk menambahkan langkah pemotongan, instal keduanya dan rangkai lewat `onCropRequest`. Lihat [Crop Image](/docs/blocks/files/crop-image/) untuk sisi penerima.
+`upload-area` dan `crop-image` adalah block independen. Untuk menambahkan langkah pemotongan, instal keduanya dan rangkai lewat `onCropRequest`. Lihat [Crop Image](/blocks/files/crop-image) untuk sisi penerima.
 
 ## Source
 

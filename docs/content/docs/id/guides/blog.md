@@ -3,8 +3,8 @@ title: Blog
 description: Backend blog — tabel post Drizzle dengan server loader untuk /blog dan /blog/[slug], plus seed contoh.
 ---
 
-Feature `blog` memberi kamu backend untuk [blok blog](/docs/blocks/blog) dan
-[halaman blog](/pages/blog/index): tabel `posts`, repository dan service, server loader untuk
+Feature `blog` memberi kamu backend untuk [blok blog](/blocks/blog) dan
+[halaman blog](/pages/blog): tabel `posts`, repository dan service, server loader untuk
 `/blog` dan `/blog/[slug]`, serta seed berisi tiga post contoh.
 
 ## Install

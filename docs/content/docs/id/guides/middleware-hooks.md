@@ -161,7 +161,7 @@ seharusnya tidak peduli. Lihat [Keamanan › Penjaga Rute di Hook](/id/guides/se
 
 `throw redirect()` lebih disarankan daripada mengembalikan `Response.redirect(...)`:
 bosia mengubahnya menjadi bentuk yang tepat untuk kedua jenis permintaan, dan
-[`BASE_PATH`](/docs/id/reference/deployment) diterapkan otomatis. `Response.redirect`
+[`BASE_PATH`](/id/reference/deployment) diterapkan otomatis. `Response.redirect`
 yang di-`return` tetap bekerja, tapi `Location`-nya diteruskan apa adanya — di bawah
 base path, prefiksnya harus kamu tulis sendiri.
 

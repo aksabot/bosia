@@ -1,6 +1,6 @@
 /**
- * Post-build script: generates sitemap.xml from content/docs/ markdown files.
- * Run after the main build to write dist/static/sitemap.xml.
+ * Post-build script: generates sitemap.xml from content/docs/ markdown files
+ * and 404.html from the built server. Writes both into dist/static.
  */
 
 import { readdirSync, writeFileSync, mkdirSync } from "fs";
@@ -97,3 +97,28 @@ xml += `</urlset>\n`;
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, "sitemap.xml"), xml);
 console.log(`✓ sitemap.xml written (${enPages.size + idPages.size} URLs)`);
+
+// 404.html — without it Cloudflare serves index.html with a 200 for every unknown
+// path, so broken links land on the home page silently. Capture the server's own
+// 404 response so it matches what the dev and prod servers render.
+const port = 4399;
+// The server entry directly, not `bun run start`: the start CLI ignores SIGTERM.
+const server = Bun.spawn(["bun", "run", "./dist/server/index.js"], {
+	env: { ...process.env, NODE_ENV: "production", PORT: String(port) },
+	stdout: "ignore",
+	stderr: "ignore",
+});
+try {
+	let res: Response | null = null;
+	for (let i = 0; i < 100 && !res; i++) {
+		res = await fetch(`http://localhost:${port}/__bosia-404-probe`).catch(() => null);
+		if (!res) await Bun.sleep(100);
+	}
+	if (res?.status !== 404)
+		throw new Error(`expected a 404 page, got ${res?.status ?? "no server"}`);
+	writeFileSync(join(outDir, "404.html"), await res.text());
+	console.log("✓ 404.html written");
+} finally {
+	server.kill();
+	await server.exited;
+}

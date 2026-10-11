@@ -84,8 +84,8 @@ toggle + repo), `mega-menu` (catalog opens a 3-column panel), `announcement` (di
 strip + nav), `mobile` (hamburger toggles a full overlay menu).
 
 Each group has its own page with live previews and install lines:
-[Standard](/docs/blocks/navbars/standard/), [Themes](/docs/blocks/navbars/themes/),
-[App & Interactive](/docs/blocks/navbars/app/) — browse them under **Blocks → Navbars** in the
+[Standard](/blocks/navbars/standard), [Themes](/blocks/navbars/themes),
+[App & Interactive](/blocks/navbars/app) — browse them under **Blocks → Navbars** in the
 sidebar.
 
 ## Usage

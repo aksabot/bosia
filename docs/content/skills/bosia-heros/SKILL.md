@@ -76,7 +76,7 @@ grid), `home-goods` (lifestyle photo + product card), `apparel` (color/size pick
 **SaaS** (2) — `app` (feature list + phone mock), `product` (email capture + browser mock).
 
 Each hero has its own page with a live preview and install line, e.g.
-[Heros — Shop Split](/docs/blocks/heros/shop-split/); browse the rest under **Blocks → Heros** in
+[Heros — Shop Split](/blocks/heros/shop-split); browse the rest under **Blocks → Heros** in
 the sidebar.
 
 ## Usage

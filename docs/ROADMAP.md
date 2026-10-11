@@ -11,6 +11,14 @@
 
 ---
 
+## Done — Broken links + real 404 ✅
+
+- [x] 🟠 ~210 links in docs and skills used `/docs/...` (404 locally, home page on prod). Stripped the prefix; fixed a trailing-slash relative link and `/pages/blog/index` (also in the `nav.ts` sidebar).
+- [x] 🟠 Prod served `index.html` with a 200 for unknown paths (no `404.html`). `post-build.ts` now saves the server's 404 as `dist/static/404.html`.
+- [x] 🟡 Shop feature `public-navbar.svelte` linked "Products" to a missing `/products`; now `/dashboard/products`, like the shop/store home button.
+
+---
+
 ## Done — Docs search (⌘K) ✅
 
 - [x] 🟡 Search palette over page titles + H2 sections, per locale. Build-time `public/search-index.json` (`gen-search-index.ts`) + registry `command`/`dialog` in `DocsSearch.svelte`; section hits jump to `#anchor`.

@@ -4,7 +4,7 @@ description: A newsletter backend — POST /api/newsletter validates emails and 
 ---
 
 The `newsletter` feature gives you the backend for the [`newsletter/centered` and
-`newsletter/split` blocks](/docs/blocks/newsletter): a `POST /api/newsletter` endpoint that
+`newsletter/split` blocks](/blocks/newsletter): a `POST /api/newsletter` endpoint that
 validates the email and stores the subscriber via Drizzle. Subscribing twice with the same email
 is a success, not an error — safe to expose on a public page.
 

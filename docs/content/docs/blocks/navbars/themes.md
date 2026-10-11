@@ -52,7 +52,7 @@ copy.
 
 `overlay` is the exception to the layout-level rule: it's `position: absolute`, so instead of
 sitting above your content it **floats over the first section**. Render it as the first child of a
-`relative` hero `<section>` (the photo heroes in [Blocks → Heros](/docs/blocks/heros/restaurant/)
+`relative` hero `<section>` (the photo heroes in [Blocks → Heros](/blocks/heros/restaurant)
 are built for exactly this), not in `+layout.svelte`. Its light text is tuned for a dark photo or
 scrim:
 

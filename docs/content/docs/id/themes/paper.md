@@ -7,7 +7,7 @@ description: Netral cardstock hangat dengan brand ink-blue. Nuansa editorial ber
 bun x bosia@latest add theme paper
 ```
 
-Netral "cardstock" putih-pudar hangat dengan brand ink-blue yang percaya diri. Display dengan **Bricolage Grotesque**, body dengan **Plus Jakarta Sans** (keduanya dari Google Fonts), angka dengan **JetBrains Mono**. Diporting dari sistem desain Cardstock — permukaan default untuk kartu [Commerce](/docs/blocks/cards/commerce/) dan [Auth & Marketing](/docs/blocks/cards/auth/).
+Netral "cardstock" putih-pudar hangat dengan brand ink-blue yang percaya diri. Display dengan **Bricolage Grotesque**, body dengan **Plus Jakarta Sans** (keduanya dari Google Fonts), angka dengan **JetBrains Mono**. Diporting dari sistem desain Cardstock — permukaan default untuk kartu [Commerce](/blocks/cards/commerce) dan [Auth & Marketing](/blocks/cards/auth).
 
 ## Tokens
 

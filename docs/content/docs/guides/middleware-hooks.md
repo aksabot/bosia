@@ -159,7 +159,7 @@ care. See [Security › Route Guards in Hooks](/guides/security/#route-guards-in
 
 `throw redirect()` is preferred over returning `Response.redirect(...)`: it is
 turned into the right thing for both request kinds, and it applies your
-[`BASE_PATH`](/docs/reference/deployment) for you. A returned `Response.redirect`
+[`BASE_PATH`](/reference/deployment) for you. A returned `Response.redirect`
 also works, but its `Location` is passed through untouched — under a base path you
 have to write the prefix yourself.
 

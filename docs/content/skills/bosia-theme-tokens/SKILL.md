@@ -72,7 +72,7 @@ Exception: brand-locked illustrations / SVGs embedded as data — and even then,
 
 ## Theme swap
 
-Twelve themes ship in the registry — see [Themes overview](/docs/themes/overview/) for the full list. Default is `theme/neutral`.
+Twelve themes ship in the registry — see [Themes overview](/themes/overview) for the full list. Default is `theme/neutral`.
 
 ```bash
 # inside a Bosia project

@@ -88,5 +88,5 @@ Akses data di halaman Anda:
 
 - [Struktur Proyek](/id/project-structure/) — pahami tata letak file
 - [Routing](/id/guides/routing/) — rute dinamis, grup, layout
-- [Server Loaders](/id/guides/server-loaders/) — muat data, metadata, pengaliran parent
+- [Server Loaders](/id/guides/server-loaders) — muat data, metadata, pengaliran parent
 - [API Routes](/id/guides/api-routes/) — bangun endpoint REST

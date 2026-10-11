@@ -14,6 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Metadata guide and SEO skill: a page with no title gets the default on client navigation too.
 - Metadata guide and SEO skill list more title cases client navigation can't handle.
 
+### Fixed
+
+- Links in the blocks, themes and guide pages now open the right page instead of a 404.
+- Block skills link to the right docs pages.
+- The sidebar "Index" link under Pages → Blog opens the page on bosia.dev.
+- A page that doesn't exist now shows a 404 instead of the home page on bosia.dev.
+- Shop feature navbar: "Products" opens the products dashboard instead of a 404.
+
 ## [0.8.23] - 2026-10-09
 
 ### Changed

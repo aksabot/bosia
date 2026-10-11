@@ -156,7 +156,7 @@ interface Navigation {
 
 ## Loading indicators
 
-Bosia shows a thin progress bar at the top of the page during every client navigation. For a richer transition, drop a `+loading.svelte` into a route folder and Bosia renders that skeleton automatically while the destination loads — nested inside the shared layouts, no `beforeNavigate` wiring needed. See [Loading Skeletons](/docs/guides/routing/#loading-skeletons).
+Bosia shows a thin progress bar at the top of the page during every client navigation. For a richer transition, drop a `+loading.svelte` into a route folder and Bosia renders that skeleton automatically while the destination loads — nested inside the shared layouts, no `beforeNavigate` wiring needed. See [Loading Skeletons](/guides/routing#loading-skeletons).
 
 ## Form actions
 
@@ -168,7 +168,7 @@ Form actions that throw `redirect(303, "/x")` navigate via the router automatica
 </form>
 ```
 
-See [Form Actions](/docs/guides/form-actions/) for the full story.
+See [Form Actions](/guides/form-actions) for the full story.
 
 ## `window.location.href` — full reload
 

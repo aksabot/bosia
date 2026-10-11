@@ -3,8 +3,8 @@ title: Blog
 description: A blog backend — a Drizzle posts table with server loaders for /blog and /blog/[slug], plus a sample seed.
 ---
 
-The `blog` feature gives you the backend for the [blog blocks](/docs/blocks/blog) and
-[blog pages](/pages/blog/index): a `posts` table, a repository and service, server loaders for
+The `blog` feature gives you the backend for the [blog blocks](/blocks/blog) and
+[blog pages](/pages/blog): a `posts` table, a repository and service, server loaders for
 `/blog` and `/blog/[slug]`, and a seed with three sample posts.
 
 ## Install

@@ -18,7 +18,7 @@ A modal dialog that bundles the three input paths users actually reach for when 
 bun x bosia@latest add block files/image-dialog
 ```
 
-Pulls `ui/button`, `ui/dialog`, `ui/input`, `ui/label`, `ui/sonner`, `ui/tabs`, the [`files/upload-area`](/docs/blocks/files/upload-area/) block, and the [`@lucide/svelte`](/components/ui/icon/) npm package. The block reuses the [`file-upload` feature](/docs/guides/file-upload) routes (`POST /api/files`, `GET /api/files`) — install that first.
+Pulls `ui/button`, `ui/dialog`, `ui/input`, `ui/label`, `ui/sonner`, `ui/tabs`, the [`files/upload-area`](/blocks/files/upload-area) block, and the [`@lucide/svelte`](/components/ui/icon/) npm package. The block reuses the [`file-upload` feature](/guides/file-upload) routes (`POST /api/files`, `GET /api/files`) — install that first.
 
 ## Usage
 
@@ -73,7 +73,7 @@ When the dialog opens, `existingImages` are **pre-selected** so Confirm without 
 
 ## Three input paths
 
-- **Upload tab** — embeds [`UploadArea`](/docs/blocks/files/upload-area/) pointed at `/api/files`. On success, `record.url` is pushed into the selection.
+- **Upload tab** — embeds [`UploadArea`](/blocks/files/upload-area) pointed at `/api/files`. On success, `record.url` is pushed into the selection.
 - **External URL tab** — client-validated `http(s)://` only. Pass-through to the parent entity — there is no backend ingest. If the remote host rotates the image, the parent field references a dead URL.
 - **Existing gallery** — top row shows `existingImages` via `resolveUrl()` (pre-selected on open; click to remove). Below, the signed-in user's full library is fetched once on mount from `GET /api/files`. Each thumbnail is a multi-select toggle.
 
@@ -94,7 +94,7 @@ The default resolver returns URL-shaped entries as-is and **throws** on bare ids
 
 ## Composability
 
-`image-dialog` reuses `upload-area`, but for single-image flows (avatars, single cover) you should mount `upload-area` directly — the tabbed modal is friction without payoff at that scale. See [Upload Area](/docs/blocks/files/upload-area/) for the leaner primitive.
+`image-dialog` reuses `upload-area`, but for single-image flows (avatars, single cover) you should mount `upload-area` directly — the tabbed modal is friction without payoff at that scale. See [Upload Area](/blocks/files/upload-area) for the leaner primitive.
 
 ## Source
 

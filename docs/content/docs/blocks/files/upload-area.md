@@ -30,7 +30,7 @@ Pulls `ui/button`, `ui/label`, `ui/progress`, `ui/sonner`, and the [`@lucide/sve
 <UploadArea uploadUrl="/api/upload" onUploaded={(res) => console.log(res.url)} />
 ```
 
-The server is expected to return JSON shaped like `{ "url": "https://...", ... }`. Need a ready-made backend? Install the [`file-upload` feature](/docs/guides/file-upload) — it ships `/api/files` with `Bun.Image` compression and local/S3 storage and matches this response shape.
+The server is expected to return JSON shaped like `{ "url": "https://...", ... }`. Need a ready-made backend? Install the [`file-upload` feature](/guides/file-upload) — it ships `/api/files` with `Bun.Image` compression and local/S3 storage and matches this response shape.
 
 ## Props
 
@@ -50,7 +50,7 @@ The server is expected to return JSON shaped like `{ "url": "https://...", ... }
 
 ## Composability
 
-`upload-area` and `crop-image` are independent blocks. To add a cropping step, install both and wire them via `onCropRequest`. See [Crop Image](/docs/blocks/files/crop-image/) for the receiving side.
+`upload-area` and `crop-image` are independent blocks. To add a cropping step, install both and wire them via `onCropRequest`. See [Crop Image](/blocks/files/crop-image) for the receiving side.
 
 ## Source
 

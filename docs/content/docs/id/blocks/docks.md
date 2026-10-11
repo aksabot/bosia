@@ -41,7 +41,7 @@ Masing-masing menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk i
 ```
 
 Letakkan dock di bagian bawah layout mobile Anda — padukan dengan
-[shell layar mobile](/docs/blocks/navbars/app/) untuk kerangka aplikasi penuh. Tab aktif hanyalah
+[shell layar mobile](/blocks/navbars/app) untuk kerangka aplikasi penuh. Tab aktif hanyalah
 `$state` lokal kosmetik; sambungkan klik tombol ke router Anda sendiri dan jumlah badge ke data Anda
 sendiri. Sunting daftar item di setiap `block.svelte` untuk mengganti tab, ikon, dan label.
 

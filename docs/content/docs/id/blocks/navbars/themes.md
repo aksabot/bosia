@@ -51,7 +51,7 @@ mengikuti tema mana pun yang aktif. Sunting `block.svelte` untuk mengganti wordm
 
 `overlay` adalah pengecualian dari aturan tingkat-layout: ia `position: absolute`, sehingga alih-alih
 berada di atas konten Anda, ia **mengambang di atas bagian pertama**. Render sebagai anak pertama dari
-`<section>` hero `relative` (hero foto di [Blocks → Heros](/docs/blocks/heros/restaurant/) dibuat
+`<section>` hero `relative` (hero foto di [Blocks → Heros](/blocks/heros/restaurant) dibuat
 tepat untuk ini), bukan di `+layout.svelte`. Teks terangnya disetel untuk foto gelap atau scrim:
 
 ```svelte

@@ -310,7 +310,7 @@ export const sidebar: NavGroup[] = [
 			{
 				label: "Blog",
 				children: [
-					{ label: "Index", labelId: "Indeks", slug: "pages/blog/index" },
+					{ label: "Index", labelId: "Indeks", slug: "pages/blog" },
 					{ label: "Post", slug: "pages/blog/post" },
 				],
 			},

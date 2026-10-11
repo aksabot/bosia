@@ -82,8 +82,8 @@ variants so they read in both modes:
 `poll` (animated bars), `stepper`, `chat`.
 **Auth & marketing** — `login`, `feature` (props: `title`, `body`, `icon`, `cta`).
 
-Sample galleries: [Cards — Commerce](/docs/blocks/cards/commerce/) and
-[Cards — Auth & Marketing](/docs/blocks/cards/auth/); the four other category pages cover the rest.
+Sample galleries: [Cards — Commerce](/blocks/cards/commerce) and
+[Cards — Auth & Marketing](/blocks/cards/auth); the four other category pages cover the rest.
 
 ## Usage
 

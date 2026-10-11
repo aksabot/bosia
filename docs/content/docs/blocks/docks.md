@@ -41,7 +41,7 @@ Each pulls the [`@lucide/svelte`](/components/ui/icon/) npm package for icons.
 ```
 
 Drop a dock at the bottom of your mobile layout — pair it with the
-[mobile screen shell](/docs/blocks/navbars/app/) for a full app frame. The active tab is a
+[mobile screen shell](/blocks/navbars/app) for a full app frame. The active tab is a
 cosmetic local `$state`; wire the button clicks to your own router and the badge counts to your own
 data. Edit the item list in each `block.svelte` to change tabs, icons and labels.
 

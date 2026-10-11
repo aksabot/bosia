@@ -55,7 +55,7 @@ center FAB are the brand action — paint them with `primary`:
 - **`fab`** — an edge bar split left/right around a raised circular center action button.
 
 All live on one page with previews and install lines:
-[Docks](/docs/blocks/docks/) — under **Blocks → Docks** in the sidebar.
+[Docks](/blocks/docks) — under **Blocks → Docks** in the sidebar.
 
 ## Usage
 
