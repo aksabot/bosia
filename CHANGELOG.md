@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- Dev warns when a layout guard fires after page code ran; matters only if that code writes.
+- Dev warns when a layout guard fires while loaders below it already ran; use hooks for auth.
 
 ### Fixed
 

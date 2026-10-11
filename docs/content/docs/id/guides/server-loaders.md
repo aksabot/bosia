@@ -73,7 +73,7 @@ Semua loader layout dan halaman untuk satu request mulai bersamaan. `parent()` m
 
 Jika sebuah layout melempar (`redirect()`, `error()`, atau crash), respons berasal dari layout paling atas yang gagal. Tidak ada data halaman yang sampai ke pengunjung. Tetapi kode halaman sebelum `await parent()` sudah terlanjur berjalan. Jaga rute di [hook](/guides/security#penjaga-rute-di-hook), atau panggil `await parent()` lebih dulu di loader yang harus tetap di belakang pengecekan layout.
 
-Saat dev, Bosia memberi peringatan sekali per rute jika layout melempar `redirect()` atau `error(401/403)` dan `load()` halaman menjalankan kode sebelum `await parent()`. Membaca data sebelum `parent()` tidak masalah; peringatan ini hanya penting jika kode itu menulis. Ini petunjuk, bukan pemeriksaan: penulisan di baris sebelum `parent()`, dalam `Promise.all` yang sama, atau di antara `const p = parent()` dan `await p` tidak terdeteksi, dan redirect non-auth (seperti prefix locale) juga memicu peringatan. `metadata()` juga tetap berjalan melewati guard layout dan tidak punya `parent()`, jadi biarkan ia hanya membaca.
+Saat dev, Bosia memberi peringatan sekali per rute jika layout melempar `redirect()` atau `error(401/403)` sementara loader di bawahnya (layout bersarang, `load()` halaman, `metadata()`) sudah berjalan. Datanya dibuang, tetapi penulisan yang sudah terjadi tidak. Peringatan ini soal letak guard, bukan soal apa yang dilakukan kode di bawahnya, jadi tetap muncul untuk halaman yang hanya membaca dan untuk redirect non-auth seperti prefix locale. Memindahkan guard auth ke hook akan menghilangkannya.
 
 ## Metadata
 

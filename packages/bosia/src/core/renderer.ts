@@ -358,32 +358,28 @@ function makeDepends(deps: LoaderDeps): (...keys: string[]) => void {
 	};
 }
 
-// Dev only: a layout threw redirect() or error(401/403), but the page load()
-// ran code before reaching `await parent()`. Its output is dropped; any writes
-// it made are not. A hint, not a check, because it can't tell:
-//   - a read from a write — reads before parent() are the advised pattern, so
-//     the message stays conditional and doesn't push parent() to the top;
-//   - an auth guard from a routing redirect (locale prefix, canonical URL);
-//   - a write it misses: one before the parent() call on the same tick, in the
-//     same Promise.all, or between `const p = parent()` and `await p`.
-// load() counts as safe when it calls parent() before its first await.
-// metadata() is left out: it should only read, and having no parent(), a
-// warning on it would fire on every guarded page with no fix in the page.
-// Once per route, so a guarded page doesn't flood the console.
-const warnedGuardRoutes = new Set<string>();
+// Dev only: a layout threw redirect() or error(401/403) — a guard — while
+// loaders below it (nested layouts, page load(), metadata()) had already
+// started, since they all run in parallel. Their data is dropped; anything they
+// wrote is not. This warns about where the guard lives, not about what the
+// code below did: telling a read from a write, or an auth guard from a locale
+// redirect, isn't possible from here. Hooks run before any loader.
+// Once per route, depth and guard, so a guarded page doesn't flood the console.
+const warnedGuards = new Set<string>();
 
 function isGuard(err: unknown): boolean {
 	return isRedirect(err) || (isHttpError(err) && (err.status === 401 || err.status === 403));
 }
 
 function warnLayoutGuard(routeId: string, depth: number, err: unknown) {
-	if (warnedGuardRoutes.has(routeId)) return;
-	warnedGuardRoutes.add(routeId);
 	const thrown = isRedirect(err) ? "redirect()" : `error(${(err as HttpError).status})`;
+	const key = `${routeId}|${depth}|${thrown}`;
+	if (warnedGuards.has(key)) return;
+	warnedGuards.add(key);
 	console.warn(
-		`⚠️  ${routeId}: a layout (depth ${depth}) threw ${thrown}, but the page load() ran code before \`await parent()\`.\n` +
-			`   Its data is dropped. If that code writes (DB, email, log), the write already happened.\n` +
-			`   If the layout is an auth guard, move it to src/hooks.server.ts.`,
+		`⚠️  ${routeId}: a layout (depth ${depth}) threw ${thrown} as a guard, but the loaders below it\n` +
+			`   (nested layouts, page load(), metadata()) start in parallel and ran anyway.\n` +
+			`   Their data is dropped; any writes they made are not. For an auth guard, use src/hooks.server.ts.`,
 	);
 }
 
@@ -480,8 +476,6 @@ export async function loadRouteData(
 		layers.push(layer);
 	}
 
-	// Dev only, for warnLayoutGuard: did load() run code before parent()?
-	let ranBeforeParent = false;
 	const skipPage = mask && mask.page === false;
 	const pageP = route.pageServer
 		? (async () => {
@@ -491,36 +485,24 @@ export async function loadRouteData(
 				if (typeof mod.load !== "function" || warmingUp)
 					return { ...flags, data: {}, deps: emptyDeps() };
 				const deps = emptyDeps();
-				const parent = parentOf(layers.length);
-				const metadata = await metadataData;
-				let syncStart = true;
-				ranBeforeParent = isDev;
-				let loading;
-				try {
-					loading = mod.load({
-						params: trackedParams(params, deps),
-						route: { id: route.id },
-						url: trackedUrl(url, deps),
-						locals,
-						cookies: trackedCookies(cookies, deps),
-						parent: isDev
-							? () => {
-									if (syncStart) ranBeforeParent = false;
-									return parent();
-								}
-							: parent,
-						fetch: trackedFetch(fetch, origin, deps),
-						metadata,
-						depends: makeDepends(deps),
-						platform: getPlatform(),
-						setHeaders,
-					});
-				} finally {
-					// From here on, a parent() call no longer counts as first.
-					syncStart = false;
-				}
 				const data =
-					(await withTimeout(loading, LOAD_TIMEOUT, `page load (${url.pathname})`)) ?? {};
+					(await withTimeout(
+						mod.load({
+							params: trackedParams(params, deps),
+							route: { id: route.id },
+							url: trackedUrl(url, deps),
+							locals,
+							cookies: trackedCookies(cookies, deps),
+							parent: parentOf(layers.length),
+							fetch: trackedFetch(fetch, origin, deps),
+							metadata: await metadataData,
+							depends: makeDepends(deps),
+							platform: getPlatform(),
+							setHeaders,
+						}),
+						LOAD_TIMEOUT,
+						`page load (${url.pathname})`,
+					)) ?? {};
 				return {
 					...flags,
 					data: data as Record<string, any> | null,
@@ -541,10 +523,10 @@ export async function loadRouteData(
 			layoutData[ls.depth] = omit ? null : data;
 			layoutDeps[ls.depth] = omit ? null : deps;
 		} catch (err) {
-			// The page keeps running after a layout throws; warn once it is done.
-			if (isDev && pageP && isGuard(err)) {
-				const warn = () => ranBeforeParent && warnLayoutGuard(route.id, ls.depth, err);
-				pageP.then(warn, warn);
+			// Loaders below this one already started; dev warns about the guard.
+			if (isDev && isGuard(err)) {
+				const runsBelow = i < route.layoutServers.length - 1 || (!!pageP && !skipPage);
+				if (runsBelow) warnLayoutGuard(route.id, ls.depth, err);
 			}
 			if (isRedirect(err)) throw err;
 			if (isHttpError(err)) {
