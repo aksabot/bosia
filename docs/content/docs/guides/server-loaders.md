@@ -73,6 +73,8 @@ Every layout and page loader for a request starts at the same time. `parent()` w
 
 If a layout throws (`redirect()`, `error()` or a crash), the response comes from the top-most layout that failed. Nothing from the page reaches the visitor. But page code that ran before `await parent()` has already run. Guard routes in [hooks](/guides/security#route-guards-in-hooks), or call `await parent()` first in a loader that must stay behind a layout's check.
 
+In dev, Bosia warns once per route when a layout throws `redirect()` or `error(401/403)` and the page `load()` ran code before `await parent()`. It is a hint, not a check: a line before `parent()`, or a write in the same `Promise.all`, is not caught. `metadata()` also runs past a layout guard and has no `parent()`, so keep it read-only.
+
 ## Metadata
 
 Export a `metadata` function to set page title and meta tags:

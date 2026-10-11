@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.8.24] - 2026-10-11
+
+### Changed
+
+- Loaders guide and routing skill: dev now warns when page code runs past a layout guard.
+
 ## [0.8.23] - 2026-10-09
 
 ### Changed

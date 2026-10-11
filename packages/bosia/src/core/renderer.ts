@@ -356,6 +356,31 @@ function makeDepends(deps: LoaderDeps): (...keys: string[]) => void {
 	};
 }
 
+// Dev only: a layout guard (redirect() or error(401/403)) fired, but the page
+// load() ran code before reaching `await parent()`. Its output is dropped; its
+// side effects are not. A heuristic: load() counts as safe when it calls
+// parent() before its first await, so a plain statement before that call, or a
+// write in the same Promise.all as parent(), goes unnoticed. metadata() is left
+// out: it should only read, and having no parent(), a warning on it would fire
+// on every guarded page with no fix in the page itself.
+// Once per route, so a guarded page doesn't flood the console.
+const warnedGuardRoutes = new Set<string>();
+
+function isGuard(err: unknown): boolean {
+	return isRedirect(err) || (isHttpError(err) && (err.status === 401 || err.status === 403));
+}
+
+function warnLayoutGuard(routeId: string, depth: number, err: unknown) {
+	if (warnedGuardRoutes.has(routeId)) return;
+	warnedGuardRoutes.add(routeId);
+	const thrown = isRedirect(err) ? "redirect()" : `error(${(err as HttpError).status})`;
+	console.warn(
+		`⚠️  ${routeId}: a layout (depth ${depth}) threw ${thrown}, but the page load() ran code before \`await parent()\`.\n` +
+			`   Its output is dropped, but side effects (DB writes, emails, logs) happened.\n` +
+			`   Guard in src/hooks.server.ts, or make \`await parent()\` the first line of load().`,
+	);
+}
+
 // ─── Route Data Loader ───────────────────────────────────
 // Runs layout + page server loaders for a given URL.
 // Used by both SSR and the /__bosia/data JSON endpoint.
@@ -449,6 +474,8 @@ export async function loadRouteData(
 		layers.push(layer);
 	}
 
+	// Dev only, for warnLayoutGuard: did load() run code before parent()?
+	let ranBeforeParent = false;
 	const skipPage = mask && mask.page === false;
 	const pageP = route.pageServer
 		? (async () => {
@@ -458,24 +485,37 @@ export async function loadRouteData(
 				if (typeof mod.load !== "function" || warmingUp)
 					return { ...flags, data: {}, deps: emptyDeps() };
 				const deps = emptyDeps();
+				const parent = parentOf(layers.length);
+				const metadata = await metadataData;
+				let syncStart = true;
+				let parentFirst = false;
+				let loading;
+				try {
+					loading = mod.load({
+						params: trackedParams(params, deps),
+						route: { id: route.id },
+						url: trackedUrl(url, deps),
+						locals,
+						cookies: trackedCookies(cookies, deps),
+						parent: isDev
+							? () => {
+									if (syncStart) parentFirst = true;
+									return parent();
+								}
+							: parent,
+						fetch: trackedFetch(fetch, origin, deps),
+						metadata,
+						depends: makeDepends(deps),
+						platform: getPlatform(),
+						setHeaders,
+					});
+				} finally {
+					// Also reached when a sync load() throws before parent().
+					syncStart = false;
+					ranBeforeParent = isDev && !parentFirst;
+				}
 				const data =
-					(await withTimeout(
-						mod.load({
-							params: trackedParams(params, deps),
-							route: { id: route.id },
-							url: trackedUrl(url, deps),
-							locals,
-							cookies: trackedCookies(cookies, deps),
-							parent: parentOf(layers.length),
-							fetch: trackedFetch(fetch, origin, deps),
-							metadata: await metadataData,
-							depends: makeDepends(deps),
-							platform: getPlatform(),
-							setHeaders,
-						}),
-						LOAD_TIMEOUT,
-						`page load (${url.pathname})`,
-					)) ?? {};
+					(await withTimeout(loading, LOAD_TIMEOUT, `page load (${url.pathname})`)) ?? {};
 				return {
 					...flags,
 					data: data as Record<string, any> | null,
@@ -496,6 +536,11 @@ export async function loadRouteData(
 			layoutData[ls.depth] = omit ? null : data;
 			layoutDeps[ls.depth] = omit ? null : deps;
 		} catch (err) {
+			// The page keeps running after a layout throws; warn once it is done.
+			if (isDev && pageP && isGuard(err)) {
+				const warn = () => ranBeforeParent && warnLayoutGuard(route.id, ls.depth, err);
+				pageP.then(warn, warn);
+			}
 			if (isRedirect(err)) throw err;
 			if (isHttpError(err)) {
 				stampErrorContext(

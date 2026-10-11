@@ -1,7 +1,14 @@
 # Bosia — Roadmap
 
 > Track what's done, what's next, and where we're headed.
-> Current version: **1.2.0**
+> Current version: **1.2.1**
+
+---
+
+## bosia 1.2.1 (2026-10-11) — layout guard warning
+
+- [x] 🟡 Dev warns once per route when a layout `redirect()`/`error(401|403)` fires but page `load()` ran code before `await parent()`. `metadata()` and 404s stay quiet. Test: `layout-guard-warning.test.ts`.
+- [ ] ⚪ Heuristic: a statement before `parent()`, or a write in the same `Promise.all`, isn't caught. Only a hook guard is airtight.
 
 ---
 
@@ -12,7 +19,6 @@
 - [x] ⚪ Hook-thrown `redirect()`/`error()` now go through `finalizeResponse` (security headers, CSP, CORS, cookies). 4 new cases in `hooks-redirect.test.ts`.
 - [x] ⚪ Registry auth drops `secure:` on the session cookie. Shop/store templates get stub pages for every admin-sidebar link.
 - [x] Docs (en/id): loaders guide "Loaders run in parallel", security note; routing skill R3a. Test: `parallel-loaders.test.ts`.
-- [ ] 🟡 Page code before `await parent()` runs even when a layout guard redirects (SvelteKit's model). Docs say guard in hooks; consider a dev warning if a layout throws redirect while the page loader ran.
 - [ ] ⚪ Cross-loader duplicate `setHeaders()` still throws, but which loader throws now depends on timing, not depth.
 - [x] 🟡 Fresh scaffolds fail `check` (Prettier mismatch) — repo and all 4 templates pin `prettier 3.9.9` + `prettier-plugin-svelte 3.5.2` exactly; repo reformatted. Bump all five together.
 - [x] 🟠 `<svelte:head>` SSR output goes in the raw `<head>` via `buildMetadataChunk`. The `insertAdjacentHTML` script and `buildHtmlTail`'s `head` param are gone, so JSON-LD and icons reach non-JS crawlers. Its scripts now run, without a nonce.

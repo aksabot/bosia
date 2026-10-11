@@ -54,7 +54,7 @@ export async function load({ parent }) {
 
 Don't use `parent()` for scope identifiers (`farmId`/`orgId`/`userId`) — read those from `locals`, populated in `hooks.server.ts`. `parent()` is fine for view-layer data, but `locals` is the source of truth for cross-loader scope and authz.
 
-R3a — All loaders (layouts + page) start at once; `parent()` waits for the layouts above. Do independent queries BEFORE `await parent()`. Code before `await parent()` runs even if a layout redirects (response still the layout's) — guard in hooks, or `await parent()` first.
+R3a — All loaders (layouts + page) start at once; `parent()` waits for the layouts above. Do independent queries BEFORE `await parent()`. Code before `await parent()` runs even if a layout redirects (response still the layout's) — guard in hooks, or `await parent()` first. Dev warns (once per route) when a layout `redirect()`/`error(401|403)` fires and page `load()` ran code before `parent()`; a heuristic, not a check.
 
 R3b — Loader event fields: `url`, `params`, `locals`, `cookies`, `fetch`, `parent`, `metadata`, `depends`, `setHeaders`. `setHeaders({ "cache-control": "..." })` sets response headers from any loader — same header twice throws, `set-cookie` forbidden (use `cookies`), no-op during prerender.
 
