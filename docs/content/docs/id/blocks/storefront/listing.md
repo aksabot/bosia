@@ -5,7 +5,7 @@ demo: StorefrontListingDemo
 ---
 
 Kontrol untuk halaman daftar kategori / produk (PLP). Gabungkan dengan `product-grid` untuk membangun
-daftar lengkap — lihat [halaman listing](/pages/storefront/listing).
+daftar lengkap — lihat [halaman listing](/id/pages/storefront/listing).
 
 ## Preview
 
@@ -16,7 +16,7 @@ bun x bosia@latest add block storefront/filter-sidebar
 bun x bosia@latest add block storefront/sort-bar
 ```
 
-`sort-bar` menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+`sort-bar` menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

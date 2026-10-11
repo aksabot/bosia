@@ -18,7 +18,7 @@ Hero obral full-bleed dengan timer hitung mundur di atas foto yang digelapkan. S
 bun x bosia@latest add block heros/sale
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

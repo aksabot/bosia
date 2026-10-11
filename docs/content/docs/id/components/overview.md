@@ -67,20 +67,20 @@ Impor dari barrel export komponen:
 
 ### UI
 
-| Komponen                                       | Deskripsi                                            |
-| ---------------------------------------------- | ---------------------------------------------------- |
-| [Avatar](/components/ui/avatar/)               | Avatar gambar dengan fallback                        |
-| [Badge](/components/ui/badge/)                 | Label status kecil                                   |
-| [Button](/components/ui/button/)               | Button aksesibel dengan varian dan ukuran            |
-| [Card](/components/ui/card/)                   | Card komposabel dengan header, konten, footer        |
-| [Chart](/components/ui/chart/)                 | Grafik garis dan batang SVG dengan tooltip           |
-| [Data Table](/components/ui/data-table/)       | Tabel dengan sorting, filtering, paginasi            |
-| [Dropdown Menu](/components/ui/dropdown-menu/) | Dropdown yang dikelola konteks                       |
-| [Icons](/components/ui/icon/)                  | Panduan memakai `@lucide/svelte`                     |
-| [Input](/components/ui/input/)                 | Input teks bergaya dengan value yang bindable        |
-| [Navbar](/components/ui/navbar/)               | Navbar responsif dengan menu mobile dan toggle tema  |
-| [Separator](/components/ui/separator/)         | Pembatas horizontal atau vertikal                    |
-| [Sidebar](/components/ui/sidebar/)             | Sidebar komposabel dengan mode ikon yang collapsible |
+| Komponen                                          | Deskripsi                                            |
+| ------------------------------------------------- | ---------------------------------------------------- |
+| [Avatar](/id/components/ui/avatar/)               | Avatar gambar dengan fallback                        |
+| [Badge](/id/components/ui/badge/)                 | Label status kecil                                   |
+| [Button](/id/components/ui/button/)               | Button aksesibel dengan varian dan ukuran            |
+| [Card](/id/components/ui/card/)                   | Card komposabel dengan header, konten, footer        |
+| [Chart](/id/components/ui/chart/)                 | Grafik garis dan batang SVG dengan tooltip           |
+| [Data Table](/id/components/ui/data-table/)       | Tabel dengan sorting, filtering, paginasi            |
+| [Dropdown Menu](/id/components/ui/dropdown-menu/) | Dropdown yang dikelola konteks                       |
+| [Icons](/id/components/ui/icon/)                  | Panduan memakai `@lucide/svelte`                     |
+| [Input](/id/components/ui/input/)                 | Input teks bergaya dengan value yang bindable        |
+| [Navbar](/id/components/ui/navbar/)               | Navbar responsif dengan menu mobile dan toggle tema  |
+| [Separator](/id/components/ui/separator/)         | Pembatas horizontal atau vertikal                    |
+| [Sidebar](/id/components/ui/sidebar/)             | Sidebar komposabel dengan mode ikon yang collapsible |
 
 ## Kustomisasi
 

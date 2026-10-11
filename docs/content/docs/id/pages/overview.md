@@ -42,32 +42,32 @@ const purpose = purposes.fashion; // clay · fashion · grocery · tech · beaut
 Setiap purpose dipasangkan dengan tema Bosia yang ada. Set tema pada aplikasi (atau wrapper apa pun)
 sebagaimana biasa Anda lakukan; storefront memakai token semantik, jadi ia mengikuti.
 
-| Purpose | Store type                   | Theme                            |
-| ------- | ---------------------------- | -------------------------------- |
-| clay    | Toko umum                    | [`clay`](/themes/clay) _(baru)_  |
-| fashion | Fashion & pakaian            | [`editorial`](/themes/editorial) |
-| grocery | Bahan makanan & segar        | [`forest`](/themes/forest)       |
-| tech    | Elektronik & teknologi       | [`paper`](/themes/paper)         |
-| beauty  | Kecantikan & perawatan kulit | [`bloom`](/themes/bloom)         |
-| garden  | Tanaman & kebun              | [`sage`](/themes/sage)           |
+| Purpose | Store type                   | Theme                               |
+| ------- | ---------------------------- | ----------------------------------- |
+| clay    | Toko umum                    | [`clay`](/id/themes/clay) _(baru)_  |
+| fashion | Fashion & pakaian            | [`editorial`](/id/themes/editorial) |
+| grocery | Bahan makanan & segar        | [`forest`](/id/themes/forest)       |
+| tech    | Elektronik & teknologi       | [`paper`](/id/themes/paper)         |
+| beauty  | Kecantikan & perawatan kulit | [`bloom`](/id/themes/bloom)         |
+| garden  | Tanaman & kebun              | [`sage`](/id/themes/sage)           |
 
 ## Halaman-halamannya
 
-- [Home](/pages/storefront/home) — hero, kategori, koleksi unggulan, editorial, dan lainnya
-- [Listing](/pages/storefront/listing) — filter, urut, dan grid produk (PLP)
-- [Search](/pages/storefront/search) — overlay command-palette, hasil yang bisa diurut, keadaan tanpa-hasil
-- [Product](/pages/storefront/product) — galeri, buy box, kepercayaan, detail, dan ulasan (PDP)
-- [Cart](/pages/storefront/cart) — baris item, stepper kuantitas, ringkasan, dan empty state
-- [Wishlist](/pages/storefront/wishlist) — produk favorit dengan pindah-ke-tas
-- [Checkout](/pages/storefront/checkout) — form multi-langkah, ringkasan, dan konfirmasi
-- [Account](/pages/storefront/account) — riwayat pesanan, pelacakan, alamat, dan pengaturan
+- [Home](/id/pages/storefront/home) — hero, kategori, koleksi unggulan, editorial, dan lainnya
+- [Listing](/id/pages/storefront/listing) — filter, urut, dan grid produk (PLP)
+- [Search](/id/pages/storefront/search) — overlay command-palette, hasil yang bisa diurut, keadaan tanpa-hasil
+- [Product](/id/pages/storefront/product) — galeri, buy box, kepercayaan, detail, dan ulasan (PDP)
+- [Cart](/id/pages/storefront/cart) — baris item, stepper kuantitas, ringkasan, dan empty state
+- [Wishlist](/id/pages/storefront/wishlist) — produk favorit dengan pindah-ke-tas
+- [Checkout](/id/pages/storefront/checkout) — form multi-langkah, ringkasan, dan konfirmasi
+- [Account](/id/pages/storefront/account) — riwayat pesanan, pelacakan, alamat, dan pengaturan
 
 Untuk UI yang menghadap pelanggan di sini plus backend, pasangkan dengan scaffold template shop
 (`bun x bosia@latest create my-shop --template shop`).
 
 ## Halaman auth
 
-Keluarga kedua — enam layar login/auth yang disusun dari [block auth](/blocks/auth) bersama.
+Keluarga kedua — enam layar login/auth yang disusun dari [block auth](/id/blocks/auth) bersama.
 Masing-masing default ke kartu terpusat dan beralih ke panel brand/foto terbagi dengan satu prop
 (`variant="split"`). Instal satu dan Anda mendapatkan `page.svelte` plus setiap block auth yang
 disusunnya:
@@ -76,12 +76,12 @@ disusunnya:
 bun x bosia@latest add page auth/login
 ```
 
-- [Login](/pages/auth/login) — baris sosial, email + kata sandi, ingat saya
-- [Register](/pages/auth/register) — grid sosial, nama/email/kata sandi, meter kekuatan
-- [Forgot Password](/pages/auth/forgot) — field email, catatan tautan reset
-- [Magic Link](/pages/auth/magic-link) — konfirmasi periksa-kotak-masuk
-- [OTP / 2FA](/pages/auth/otp) — input kode 6 digit bersegmen
-- [SSO](/pages/auth/sso) — email kerja / domain perusahaan
+- [Login](/id/pages/auth/login) — baris sosial, email + kata sandi, ingat saya
+- [Register](/id/pages/auth/register) — grid sosial, nama/email/kata sandi, meter kekuatan
+- [Forgot Password](/id/pages/auth/forgot) — field email, catatan tautan reset
+- [Magic Link](/id/pages/auth/magic-link) — konfirmasi periksa-kotak-masuk
+- [OTP / 2FA](/id/pages/auth/otp) — input kode 6 digit bersegmen
+- [SSO](/id/pages/auth/sso) — email kerja / domain perusahaan
 
 Ini hanya lapisan visual — tanpa sesi atau hashing kata sandi. Untuk autentikasi sungguhan,
 pasangkan dengan rangkaian server `bosia-auth-flow`.
@@ -90,28 +90,28 @@ pasangkan dengan rangkaian server `bosia-auth-flow`.
 
 Dua landing marketing yang dirangkai ujung-ke-ujung dari block section — termasuk navbar dan footer:
 
-- [SaaS Landing](/pages/landing/saas) — hero, logos, features, stats, pricing, testimonials, FAQ, CTA
-- [Simple Landing](/pages/landing/simple) — layout satu-produk yang ramping: hero, split features, spotlight testimonial, panel CTA
+- [SaaS Landing](/id/pages/landing/saas) — hero, logos, features, stats, pricing, testimonials, FAQ, CTA
+- [Simple Landing](/id/pages/landing/simple) — layout satu-produk yang ramping: hero, split features, spotlight testimonial, panel CTA
 
 ## Halaman perusahaan
 
 Halaman situs serbaguna untuk rute about dan kontak:
 
-- [Tentang](/pages/company/about) — hero konsultan, pita statistik, grid tim, panel CTA
-- [Kontak](/pages/company/contact) — form kontak split di samping detail perusahaan; pasangkan dengan
-  [feature `contact-form`](/guides/contact-form/) untuk endpoint tervalidasi yang didukung database
+- [Tentang](/id/pages/company/about) — hero konsultan, pita statistik, grid tim, panel CTA
+- [Kontak](/id/pages/company/contact) — form kontak split di samping detail perusahaan; pasangkan dengan
+  [feature `contact-form`](/id/guides/contact-form/) untuk endpoint tervalidasi yang didukung database
 
 ## Halaman blog
 
 Indeks blog editorial dan halaman post, lengkap dengan post contoh:
 
-- [Indeks](/pages/blog) — tumpukan kartu post-list di antara navbar dan footer
-- [Post](/pages/blog/post) — header post, isi prosa 70ch dan baris post terkait; pasangkan dengan
-  [feature `blog`](/guides/blog/) untuk post berbasis database dan loader siap pakai
+- [Indeks](/id/pages/blog) — tumpukan kartu post-list di antara navbar dan footer
+- [Post](/id/pages/blog/post) — header post, isi prosa 70ch dan baris post terkait; pasangkan dengan
+  [feature `blog`](/id/guides/blog/) untuk post berbasis database dan loader siap pakai
 
 ## Halaman error
 
-Tiga [layar error mandiri](/pages/errors) — berbeda dari yang lain, ketiganya tidak menyusun blok
+Tiga [layar error mandiri](/id/pages/errors) — berbeda dari yang lain, ketiganya tidak menyusun blok
 dan tanpa dependensi, satu file per halaman:
 
 - **Not Found** — 404 besar, pesan singkat, tautan kembali ke beranda

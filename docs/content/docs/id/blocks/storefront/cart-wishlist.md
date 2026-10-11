@@ -19,7 +19,7 @@ bun x bosia@latest add block storefront/wishlist-grid
 ```
 
 `cart-lines` dan `wishlist-grid` menarik `storefront/store` dan `storefront/empty-state`; semuanya
-menarik [`@lucide/svelte`](/components/ui/icon/).
+menarik [`@lucide/svelte`](/id/components/ui/icon/).
 
 ## Usage
 

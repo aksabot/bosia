@@ -20,7 +20,7 @@ Pemotong gambar mandiri. Berikan `imageSrc`, dapatkan kembali `Blob` melalui `on
 bun x bosia@latest add block files/crop-image
 ```
 
-Menarik `ui/button`, `ui/label`, `ui/slider`, `ui/sonner`, serta paket npm `svelte-easy-crop` dan [`@lucide/svelte`](/components/ui/icon/).
+Menarik `ui/button`, `ui/label`, `ui/slider`, `ui/sonner`, serta paket npm `svelte-easy-crop` dan [`@lucide/svelte`](/id/components/ui/icon/).
 
 ## Usage
 

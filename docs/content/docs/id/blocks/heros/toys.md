@@ -18,7 +18,7 @@ Hero mainan anak yang ceria dengan filter usia dan grid ubin kategori. Sebuah `<
 bun x bosia@latest add block heros/toys
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

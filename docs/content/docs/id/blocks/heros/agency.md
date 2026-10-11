@@ -18,7 +18,7 @@ Hero agensi gelap berani dengan aksen cahaya dan logo klien. Sebuah `<section>` 
 bun x bosia@latest add block heros/agency
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

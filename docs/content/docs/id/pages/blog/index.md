@@ -28,7 +28,7 @@ Memasang `page.svelte` beserta setiap blok yang dirangkainya.
 ```
 
 Tanpa props halaman menampilkan post contoh bawaan `blog/post-list`. Untuk konten asli, pasang
-[feature `blog`](/guides/blog/) — loader untuk `/blog` mengembalikan `posts` persis dalam bentuk
+[feature `blog`](/id/guides/blog/) — loader untuk `/blog` mengembalikan `posts` persis dalam bentuk
 yang diterima halaman:
 
 ```svelte

@@ -4,7 +4,7 @@ description: Backend form kontak — POST /api/contact memvalidasi kiriman dan m
 ---
 
 Feature `contact-form` memberi backend untuk [blok `contact/split` dan
-`contact/simple`](/blocks/contact): endpoint `POST /api/contact` yang memvalidasi `name`,
+`contact/simple`](/id/blocks/contact): endpoint `POST /api/contact` yang memvalidasi `name`,
 `email` dan `message`, lalu menyimpan kirimannya lewat Drizzle.
 
 ## Install

@@ -23,7 +23,7 @@ bun x bosia@latest add block navbars/announcement
 bun x bosia@latest add block navbars/mobile
 ```
 
-Masing-masing menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Masing-masing menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Blok-bloknya
 

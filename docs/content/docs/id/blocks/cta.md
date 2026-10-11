@@ -17,7 +17,7 @@ bun x bosia@latest add block cta/banner
 bun x bosia@latest add block cta/panel
 ```
 
-`banner` menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikonnya.
+`banner` menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikonnya.
 
 ## Blok-bloknya
 

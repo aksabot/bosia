@@ -4,9 +4,9 @@ description: UI auth bersama — brand, shell, card, baris sosial, pembatas, fie
 demo: AuthBlocksDemo
 ---
 
-Blok penyusun yang dapat dipakai ulang di balik [halaman auth](/pages/overview). Masing-masing
+Blok penyusun yang dapat dipakai ulang di balik [halaman auth](/id/pages/overview). Masing-masing
 mandiri, digerakkan prop, dan hanya memakai token semantik, sehingga gayanya menyesuaikan di setiap
-tema. Susun sendiri, atau instal satu [halaman auth](/pages/overview) utuh yang merangkainya.
+tema. Susun sendiri, atau instal satu [halaman auth](/id/pages/overview) utuh yang merangkainya.
 
 ## Preview
 
@@ -24,7 +24,7 @@ bun x bosia@latest add block auth/otp-input
 bun x bosia@latest add block auth/form-message
 ```
 
-Beberapa di antaranya menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Beberapa di antaranya menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Blok-bloknya
 
@@ -66,7 +66,7 @@ Aksi brand selalu `primary` (tidak pernah `accent`); meter kata sandi memakai wa
 ## Backend
 
 Ini hanya lapisan visual — tanpa sesi, hashing, atau server action. Pasangkan dengan rangkaian
-[`bosia-auth-flow`](/guides/security) untuk autentikasi sungguhan.
+[`bosia-auth-flow`](/id/guides/security) untuk autentikasi sungguhan.
 
 ## Source
 

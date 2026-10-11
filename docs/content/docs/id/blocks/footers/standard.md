@@ -23,7 +23,7 @@ bun x bosia@latest add block footers/mega
 bun x bosia@latest add block footers/split-brand
 ```
 
-Sebagian menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Sebagian menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Blok-bloknya
 

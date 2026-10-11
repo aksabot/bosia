@@ -18,7 +18,7 @@ Hero produk premium gelap dengan callout spesifikasi dan badge edisi. Sebuah `<s
 bun x bosia@latest add block heros/bags
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

@@ -18,7 +18,7 @@ Hero toko buku dengan sampul berkipas dan kartu pilihan staf mengambang. Sebuah 
 bun x bosia@latest add block heros/bookstore
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

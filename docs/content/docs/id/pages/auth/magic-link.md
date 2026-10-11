@@ -17,7 +17,7 @@ bun x bosia@latest add page auth/magic-link
 ```
 
 Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

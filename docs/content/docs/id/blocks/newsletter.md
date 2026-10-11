@@ -33,7 +33,7 @@ bun x bosia@latest add block newsletter/split
 ```
 
 Kedua blok mem-POST `{ email }` sebagai JSON ke `/api/newsletter` — pasang
-[feature `newsletter`](/guides/newsletter/) untuk endpoint tervalidasi yang aman dari duplikat,
+[feature `newsletter`](/id/guides/newsletter/) untuk endpoint tervalidasi yang aman dari duplikat,
 atau arahkan prop `action` ke route-mu sendiri. Teks bisa diganti lewat `kicker`, `heading`,
 `copy` (dan `note` pada `split`).
 

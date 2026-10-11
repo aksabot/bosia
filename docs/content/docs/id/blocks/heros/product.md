@@ -18,7 +18,7 @@ Hero peluncuran produk SaaS terpusat dengan penangkapan email dan mock browser. 
 bun x bosia@latest add block heros/product
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

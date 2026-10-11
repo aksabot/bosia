@@ -17,7 +17,7 @@ bun x bosia@latest add block stats/band
 bun x bosia@latest add block stats/cards
 ```
 
-`cards` menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikonnya.
+`cards` menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikonnya.
 
 ## Blok-bloknya
 

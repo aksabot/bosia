@@ -17,7 +17,7 @@ bun x bosia@latest add page landing/saas
 ```
 
 Menginstal `page.svelte` plus setiap blok yang disusunnya. Beberapa blok itu menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

@@ -16,7 +16,7 @@ bun x bosia@latest add page storefront/product
 ```
 
 Menginstal `page.svelte` plus block storefront yang disusunnya. Menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

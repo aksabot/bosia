@@ -17,7 +17,7 @@ bun x bosia@latest add block testimonials/grid
 bun x bosia@latest add block testimonials/spotlight
 ```
 
-Semuanya menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Semuanya menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Blok-bloknya
 

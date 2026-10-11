@@ -16,7 +16,7 @@ bun x bosia@latest add page storefront/home
 ```
 
 Menginstal `page.svelte` plus setiap block storefront yang disusunnya. Menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 
@@ -29,7 +29,7 @@ Menginstal `page.svelte` plus setiap block storefront yang disusunnya. Menarik
 ```
 
 Ubah purpose toko dengan menyunting konstanta `purpose` di bagian atas `page.svelte` (lihat
-[ringkasan](/pages/overview)); pasangkan dengan tema yang sesuai. Satu `createCart()` dibagi oleh
+[ringkasan](/id/pages/overview)); pasangkan dengan tema yang sesuai. Satu `createCart()` dibagi oleh
 header, koleksi unggulan, dan drawer keranjang.
 
 ## Source

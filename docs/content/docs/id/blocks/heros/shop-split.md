@@ -18,7 +18,7 @@ Hero produk terbagi dengan teks, harga, rating, dan badge pengiriman mengambang.
 bun x bosia@latest add block heros/shop-split
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

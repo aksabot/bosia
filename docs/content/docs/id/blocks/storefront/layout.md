@@ -20,7 +20,7 @@ bun x bosia@latest add block storefront/mega-menu
 ```
 
 Header dan overlay pencarian bergantung pada `storefront/store`. Semuanya menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

@@ -49,11 +49,11 @@ Jika aplikasi [dipasang di sub-path](/id/reference/deployment/#memasang-di-sub-p
 ## Mengisi feed RSS
 
 `rssItems` adalah daftar statis `{ title, link, description?, pubDate? }`. Jika kamu memasang
-[feature `blog`](/guides/blog/), petakan post-mu ke dalamnya di `config.ts` — atau ganti daftarnya
+[feature `blog`](/id/guides/blog/), petakan post-mu ke dalamnya di `config.ts` — atau ganti daftarnya
 dengan panggilan `PostRepository` di `src/routes/rss.xml/+server.ts`.
 
 ## Meta tag itu terpisah
 
 Route ini hanya mengurus keperluan crawler. `<title>`, deskripsi, Open Graph, dan Twitter card
 per halaman berasal dari `metadata()` di file `+page.server.ts`-mu — lihat
-[panduan server metadata](/guides/server-metadata/).
+[panduan server metadata](/id/guides/server-metadata/).

@@ -19,7 +19,7 @@ bun x bosia@latest add block blog/post-body
 bun x bosia@latest add block blog/related
 ```
 
-`post-body` menarik [`ui/typography`](/components/ui/typography/) untuk gaya prosanya.
+`post-body` menarik [`ui/typography`](/id/components/ui/typography/) untuk gaya prosanya.
 
 ## Blok-bloknya
 
@@ -41,7 +41,7 @@ bun x bosia@latest add block blog/related
 Setiap blok membawa post contoh sehingga langsung tampil. Untuk data asli, kirim props:
 `post-list` dan `related` menerima `posts` (array `{ slug, title, excerpt, tag, date, datetime }`),
 `post-header` menerima field post langsung, dan `post-body` menerima `html`. Tautan post menuju
-`{base}/{slug}` — `base` default `/blog`. Pasang [feature `blog`](/guides/blog/) untuk tabel post
+`{base}/{slug}` — `base` default `/blog`. Pasang [feature `blog`](/id/guides/blog/) untuk tabel post
 berbasis database dengan server loader yang menghasilkan bentuk data ini.
 
 `post-body` merender `html` tanpa escape — hanya kirim konten tepercaya (database milikmu),

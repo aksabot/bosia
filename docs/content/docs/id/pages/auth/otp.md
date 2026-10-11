@@ -4,7 +4,7 @@ description: Layar dua faktor — input kode 6 digit bersegmen dan verifikasi.
 demo: AuthOtpDemo
 ---
 
-Layar dua faktor: badge perisai, [input OTP](/blocks/auth) 6 digit bersegmen dengan maju otomatis
+Layar dua faktor: badge perisai, [input OTP](/id/blocks/auth) 6 digit bersegmen dengan maju otomatis
 dan tempel, pesan info, tombol verifikasi, dan tautan kirim ulang. Default ke tata letak terpusat;
 set `variant="split"` untuk tampilan dua panel.
 
@@ -17,7 +17,7 @@ bun x bosia@latest add page auth/otp
 ```
 
 Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 
@@ -33,7 +33,7 @@ Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
 Kedua tata letak ditampilkan pada preview di atas; berikan `variant="split"` (atau ubah default-nya
 di `page.svelte`) untuk memakai split dua panel.
 
-Halaman ini memakai block `auth/otp-input`; [`ui/input-otp`](/components/ui/input-otp) adalah
+Halaman ini memakai block `auth/otp-input`; [`ui/input-otp`](/id/components/ui/input-otp) adalah
 alternatif primitif.
 
 ## Backend

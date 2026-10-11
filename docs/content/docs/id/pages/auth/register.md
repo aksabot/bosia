@@ -5,7 +5,7 @@ demo: AuthRegisterDemo
 ---
 
 Layar pembuatan akun: brand, grid sosial, field nama, email kerja, dan kata sandi dengan meter
-[kekuatan kata sandi](/blocks/auth) langsung, catatan ketentuan, dan baris-alih masuk. Default ke
+[kekuatan kata sandi](/id/blocks/auth) langsung, catatan ketentuan, dan baris-alih masuk. Default ke
 tata letak terpusat; set `variant="split"` untuk tampilan dua panel.
 
 ## Preview
@@ -17,7 +17,7 @@ bun x bosia@latest add page auth/register
 ```
 
 Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 
@@ -32,7 +32,7 @@ Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
 
 Berikan prop `variant` (atau ubah default-nya di bagian atas `page.svelte`) untuk beralih antara
 kartu terpusat dan split dua panel — keduanya ditampilkan pada preview di atas. Lihat
-[ringkasan pages](/pages/overview).
+[ringkasan pages](/id/pages/overview).
 
 ## Backend
 

@@ -17,7 +17,7 @@ bun x bosia@latest add block faq/accordion
 bun x bosia@latest add block faq/grid
 ```
 
-`accordion` menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon toggle-nya.
+`accordion` menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon toggle-nya.
 
 ## Blok-bloknya
 

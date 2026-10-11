@@ -20,7 +20,7 @@ bun x bosia@latest add block storefront/reviews
 bun x bosia@latest add block storefront/quick-view
 ```
 
-`product-options` menarik `storefront/store`; semuanya menarik [`@lucide/svelte`](/components/ui/icon/).
+`product-options` menarik `storefront/store`; semuanya menarik [`@lucide/svelte`](/id/components/ui/icon/).
 
 ## Usage
 

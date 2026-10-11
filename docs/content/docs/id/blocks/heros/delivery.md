@@ -18,7 +18,7 @@ Hero pengantaran makanan dengan bilah pencarian alamat dan hidangan mengambang. 
 bun x bosia@latest add block heros/delivery
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

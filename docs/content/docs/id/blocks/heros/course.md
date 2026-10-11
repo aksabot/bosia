@@ -18,7 +18,7 @@ Hero halaman kursus dengan statistik pendaftaran dan kartu pelajaran langsung. S
 bun x bosia@latest add block heros/course
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

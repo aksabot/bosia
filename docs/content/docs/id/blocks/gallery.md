@@ -17,7 +17,7 @@ bun x bosia@latest add block gallery/grid
 bun x bosia@latest add block gallery/masonry
 ```
 
-`grid` menarik [`ui/dialog`](/components/ui/dialog/) untuk lightbox-nya.
+`grid` menarik [`ui/dialog`](/id/components/ui/dialog/) untuk lightbox-nya.
 
 ## Blok-bloknya
 
@@ -36,7 +36,7 @@ bun x bosia@latest add block gallery/masonry
 
 Kedua blok membawa foto contoh sehingga langsung tampil. Untuk fotomu sendiri, kirim `images` —
 array `{ src, alt }` (`grid` juga menerima `caption` opsional yang tampil di lightbox) — plus
-`heading` dan `intro` untuk teksnya. Padukan dengan [feature `file-upload`](/guides/file-upload/)
+`heading` dan `intro` untuk teksnya. Padukan dengan [feature `file-upload`](/id/guides/file-upload/)
 jika gambarnya berasal dari penyimpananmu sendiri.
 
 ## Sumber

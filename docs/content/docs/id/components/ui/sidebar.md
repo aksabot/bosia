@@ -104,7 +104,7 @@ Sidebar komposabel dengan header, konten yang bisa di-scroll, menu berkelompok, 
 
 ### Snippet Ikon
 
-Prop `icon` menerima sebuah snippet Svelte. Letakkan ikon [`@lucide/svelte`](/components/ui/icon/) di dalamnya:
+Prop `icon` menerima sebuah snippet Svelte. Letakkan ikon [`@lucide/svelte`](/id/components/ui/icon/) di dalamnya:
 
 ```svelte
 <script lang="ts">

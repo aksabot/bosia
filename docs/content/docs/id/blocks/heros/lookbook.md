@@ -18,7 +18,7 @@ Hero lookbook fashion editorial di atas foto full-bleed. Sebuah `<section>` mand
 bun x bosia@latest add block heros/lookbook
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

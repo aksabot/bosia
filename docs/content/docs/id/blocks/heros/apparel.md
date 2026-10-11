@@ -18,7 +18,7 @@ Hero pakaian dengan swatch warna dan pemilih ukuran di samping model. Sebuah `<s
 bun x bosia@latest add block heros/apparel
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

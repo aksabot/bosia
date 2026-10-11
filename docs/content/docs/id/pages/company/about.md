@@ -16,7 +16,7 @@ bun x bosia@latest add page company/about
 ```
 
 Memasang `page.svelte` plus setiap blok yang dirangkainya. Beberapa blok menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Penggunaan
 

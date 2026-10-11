@@ -21,7 +21,7 @@ bun x bosia@latest add block storefront/testimonials
 bun x bosia@latest add block storefront/newsletter
 ```
 
-Masing-masing menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Masing-masing menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

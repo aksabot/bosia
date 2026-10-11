@@ -18,7 +18,7 @@ Hero restoran full-bleed dengan CTA reservasi dan meta tempat. Sebuah `<section>
 bun x bosia@latest add block heros/restaurant
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

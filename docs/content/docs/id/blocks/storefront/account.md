@@ -21,7 +21,7 @@ bun x bosia@latest add block storefront/account-settings
 ```
 
 `order-list`, `order-detail`, dan `address-book` menarik `storefront/store` (yang menyertakan
-contoh `orders.ts`); semuanya menarik [`@lucide/svelte`](/components/ui/icon/).
+contoh `orders.ts`); semuanya menarik [`@lucide/svelte`](/id/components/ui/icon/).
 
 ## Usage
 

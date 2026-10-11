@@ -3,7 +3,7 @@ title: File Upload
 description: Upload gambar di sisi server dengan kompresi Bun.Image dan storage yang bisa dipasang (FS lokal atau S3).
 ---
 
-Fitur `file-upload` memberi Anda backend lengkap untuk blok [`files/upload-area`](/blocks/files/upload-area): sebuah endpoint `POST /api/files` yang menerima `multipart/form-data`, mengompresi gambar dengan `Bun.Image`, menyimpan metadata melalui Drizzle, dan menyimpan binary di disk lokal atau S3.
+Fitur `file-upload` memberi Anda backend lengkap untuk blok [`files/upload-area`](/id/blocks/files/upload-area): sebuah endpoint `POST /api/files` yang menerima `multipart/form-data`, mengompresi gambar dengan `Bun.Image`, menyimpan metadata melalui Drizzle, dan menyimpan binary di disk lokal atau S3.
 
 ## Instalasi
 
@@ -98,4 +98,4 @@ Restart server. Kedua driver mengembalikan URL relatif `/uploads/<key>` dan disa
 ## Catatan
 
 - Route `uploads/[...path]` melakukan streaming dari driver aktif (FS lokal atau S3) di balik cek autentikasi + kepemilikan, dengan penjaga path-traversal. Untuk aset publik bertraffic tinggi, Anda bisa memajang bucket publik di belakang CDN dan membuat adapter S3 mengembalikan URL langsung — tapi default-nya menjaga tiap objek tetap privat.
-- Cropping dilakukan di sisi klien melalui blok [`files/crop-image`](/blocks/files/crop-image) — sambungkan melalui prop `onCropRequest` milik `upload-area`.
+- Cropping dilakukan di sisi klien melalui blok [`files/crop-image`](/id/blocks/files/crop-image) — sambungkan melalui prop `onCropRequest` milik `upload-area`.

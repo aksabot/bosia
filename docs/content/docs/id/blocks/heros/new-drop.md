@@ -18,7 +18,7 @@ Hero produk rilisan baru fashion dengan pemilih ukuran dan harga. Sebuah `<secti
 bun x bosia@latest add block heros/new-drop
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

@@ -26,7 +26,7 @@ File mendarat di `src/lib/blocks/<category>/<name>/`. Dependensi primitif (Card,
 
 ## Page block tidak menyertakan navbar
 
-Block tingkat halaman (heros, cards, sections) tidak membawa navbar situsnya sendiri — itu disengaja. Navbar, footer, dan sidebar berada di `+layout.svelte` Anda agar dirender sekali di setiap rute. Pasangkan page block dengan [navbar block](/blocks/navbars/standard) yang diletakkan di layout; menaruh hero di halaman dan navbar di layout memberi Anda tepat satu navbar, bukan dua.
+Block tingkat halaman (heros, cards, sections) tidak membawa navbar situsnya sendiri — itu disengaja. Navbar, footer, dan sidebar berada di `+layout.svelte` Anda agar dirender sekali di setiap rute. Pasangkan page block dengan [navbar block](/id/blocks/navbars/standard) yang diletakkan di layout; menaruh hero di halaman dan navbar di layout memberi Anda tepat satu navbar, bukan dua.
 
 ## Block yang tersedia
 
@@ -35,94 +35,94 @@ Block tingkat halaman (heros, cards, sections) tidak membawa navbar situsnya sen
 ### Heros (17)
 
 Section hero landing full-bleed, satu per vertikal:
-[agency](/blocks/heros/agency) ·
-[app](/blocks/heros/app) ·
-[apparel](/blocks/heros/apparel) ·
-[bags](/blocks/heros/bags) ·
-[bookstore](/blocks/heros/bookstore) ·
-[campus](/blocks/heros/campus) ·
-[consulting](/blocks/heros/consulting) ·
-[course](/blocks/heros/course) ·
-[delivery](/blocks/heros/delivery) ·
-[home-goods](/blocks/heros/home-goods) ·
-[lookbook](/blocks/heros/lookbook) ·
-[new-drop](/blocks/heros/new-drop) ·
-[product](/blocks/heros/product) ·
-[restaurant](/blocks/heros/restaurant) ·
-[sale](/blocks/heros/sale) ·
-[shop-split](/blocks/heros/shop-split) ·
-[toys](/blocks/heros/toys)
+[agency](/id/blocks/heros/agency) ·
+[app](/id/blocks/heros/app) ·
+[apparel](/id/blocks/heros/apparel) ·
+[bags](/id/blocks/heros/bags) ·
+[bookstore](/id/blocks/heros/bookstore) ·
+[campus](/id/blocks/heros/campus) ·
+[consulting](/id/blocks/heros/consulting) ·
+[course](/id/blocks/heros/course) ·
+[delivery](/id/blocks/heros/delivery) ·
+[home-goods](/id/blocks/heros/home-goods) ·
+[lookbook](/id/blocks/heros/lookbook) ·
+[new-drop](/id/blocks/heros/new-drop) ·
+[product](/id/blocks/heros/product) ·
+[restaurant](/id/blocks/heros/restaurant) ·
+[sale](/id/blocks/heros/sale) ·
+[shop-split](/id/blocks/heros/shop-split) ·
+[toys](/id/blocks/heros/toys)
 
 ### Navbars (19)
 
-- [Standard](/blocks/navbars/standard) — layout terang klasik: centered, split, search-led, minimal, two-tier
-- [App & Interactive](/blocks/navbars/app) — dashboard, e-commerce, docs, mega-menu, announcement, mobile
-- [Themes](/blocks/navbars/themes) — dark, glass, brutalist, floating pill, gradient, brand bar, overlay
+- [Standard](/id/blocks/navbars/standard) — layout terang klasik: centered, split, search-led, minimal, two-tier
+- [App & Interactive](/id/blocks/navbars/app) — dashboard, e-commerce, docs, mega-menu, announcement, mobile
+- [Themes](/id/blocks/navbars/themes) — dark, glass, brutalist, floating pill, gradient, brand bar, overlay
 
 ### Docks (4)
 
-[Bar navigasi bawah](/blocks/docks) untuk mobile — edge, floating, pill, center-FAB.
+[Bar navigasi bawah](/id/blocks/docks) untuk mobile — edge, floating, pill, center-FAB.
 
 ### Footers (12)
 
-- [Standard](/blocks/footers/standard) — layout terang klasik: minimal, columns, newsletter, centered, mega, split-brand
-- [Themes](/blocks/footers/themes) — dark, glass, gradient, brutalist, editorial, terminal
+- [Standard](/id/blocks/footers/standard) — layout terang klasik: minimal, columns, newsletter, centered, mega, split-brand
+- [Themes](/id/blocks/footers/themes) — dark, glass, gradient, brutalist, editorial, terminal
 
 ### Sections (28)
 
 Section marketing untuk bagian tengah halaman — di antara hero dan footer:
 
-- [Pricing](/blocks/pricing) — columns, comparison, simple
-- [Testimonials](/blocks/testimonials) — grid, spotlight
-- [FAQ](/blocks/faq) — accordion, grid
-- [CTA](/blocks/cta) — banner, panel
-- [Features](/blocks/features) — grid, split, bento
-- [Stats](/blocks/stats) — band, cards, sentiment bar
-- [Logos](/blocks/logos) — row, grid
-- [Contact](/blocks/contact) — split, simple
-- [Team](/blocks/team) — grid, spotlight
-- [Gallery](/blocks/gallery) — grid dengan lightbox, masonry
-- [Process](/blocks/process) — steps, timeline
-- [Newsletter](/blocks/newsletter) — centered, split
-- [Consent](/blocks/consent) — banner cookie
+- [Pricing](/id/blocks/pricing) — columns, comparison, simple
+- [Testimonials](/id/blocks/testimonials) — grid, spotlight
+- [FAQ](/id/blocks/faq) — accordion, grid
+- [CTA](/id/blocks/cta) — banner, panel
+- [Features](/id/blocks/features) — grid, split, bento
+- [Stats](/id/blocks/stats) — band, cards, sentiment bar
+- [Logos](/id/blocks/logos) — row, grid
+- [Contact](/id/blocks/contact) — split, simple
+- [Team](/id/blocks/team) — grid, spotlight
+- [Gallery](/id/blocks/gallery) — grid dengan lightbox, masonry
+- [Process](/id/blocks/process) — steps, timeline
+- [Newsletter](/id/blocks/newsletter) — centered, split
+- [Consent](/id/blocks/consent) — banner cookie
 
 ### Blog (4)
 
-Section editorial untuk situs konten — pasangkan dengan [feature `blog`](/guides/blog/) untuk
+Section editorial untuk situs konten — pasangkan dengan [feature `blog`](/id/guides/blog/) untuk
 post berbasis database di baliknya:
 
-- [Blog](/blocks/blog) — post-list, post-header, post-body, related
+- [Blog](/id/blocks/blog) — post-list, post-header, post-body, related
 
 ### Cards (30)
 
-- [People](/blocks/cards/people) — profile, contact, testimonial
-- [Data & Dashboard](/blocks/cards/data) — stat, progress, chart, balance
-- [Auth & Marketing](/blocks/cards/auth) — login, feature
-- [Media](/blocks/cards/media) — article, music, video, gallery
-- [Commerce](/blocks/cards/commerce) — product, pricing, order, review
-- [Utility & System](/blocks/cards/utility) — notification, weather, event, file, task, storage, code, map, integration, poll, stepper, chat, pick list
+- [People](/id/blocks/cards/people) — profile, contact, testimonial
+- [Data & Dashboard](/id/blocks/cards/data) — stat, progress, chart, balance
+- [Auth & Marketing](/id/blocks/cards/auth) — login, feature
+- [Media](/id/blocks/cards/media) — article, music, video, gallery
+- [Commerce](/id/blocks/cards/commerce) — product, pricing, order, review
+- [Utility & System](/id/blocks/cards/utility) — notification, weather, event, file, task, storage, code, map, integration, poll, stepper, chat, pick list
 
 ### Storefront (36)
 
 Block commerce Mercato:
-[Layout](/blocks/storefront/layout) ·
-[Home Sections](/blocks/storefront/home) ·
-[Catalog & Cart](/blocks/storefront/catalog) ·
-[Listing](/blocks/storefront/listing) ·
-[Product](/blocks/storefront/product) ·
-[Cart & Wishlist](/blocks/storefront/cart-wishlist) ·
-[Checkout](/blocks/storefront/checkout) ·
-[Account](/blocks/storefront/account)
+[Layout](/id/blocks/storefront/layout) ·
+[Home Sections](/id/blocks/storefront/home) ·
+[Catalog & Cart](/id/blocks/storefront/catalog) ·
+[Listing](/id/blocks/storefront/listing) ·
+[Product](/id/blocks/storefront/product) ·
+[Cart & Wishlist](/id/blocks/storefront/cart-wishlist) ·
+[Checkout](/id/blocks/storefront/checkout) ·
+[Account](/id/blocks/storefront/account)
 
 ### Auth (9)
 
-[Block auth](/blocks/auth) bersama — brand, shell, card, social row, divider, field, password strength, OTP input, form messages.
+[Block auth](/id/blocks/auth) bersama — brand, shell, card, social row, divider, field, password strength, OTP input, form messages.
 
 ### Files (3)
 
-[Upload Area](/blocks/files/upload-area) ·
-[Crop Image](/blocks/files/crop-image) ·
-[Image Dialog](/blocks/files/image-dialog)
+[Upload Area](/id/blocks/files/upload-area) ·
+[Crop Image](/id/blocks/files/crop-image) ·
+[Image Dialog](/id/blocks/files/image-dialog)
 
 ## Theming
 
@@ -132,4 +132,4 @@ Blocks hanya mengonsumsi **token semantik** — `bg-card`, `text-foreground`, `f
 bun x bosia@latest add theme editorial
 ```
 
-Lihat [Themes](/themes/overview).
+Lihat [Themes](/id/themes/overview).

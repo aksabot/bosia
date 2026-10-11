@@ -8,7 +8,7 @@ demo: NavbarDemo
 bun x bosia@latest add navbar
 ```
 
-Bilah navigasi responsif dengan baris tautan desktop, menu hamburger mobile, toggle tema yang menyiklus Light / Dark / System (menyimpan pilihan Anda dan mengikuti OS saat dalam mode System), dan dropdown avatar pengguna opsional. Otomatis menginstal dependensi: `button`, `avatar`, `dropdown-menu`, dan paket npm [`@lucide/svelte`](/components/ui/icon/).
+Bilah navigasi responsif dengan baris tautan desktop, menu hamburger mobile, toggle tema yang menyiklus Light / Dark / System (menyimpan pilihan Anda dan mengikuti OS saat dalam mode System), dan dropdown avatar pengguna opsional. Otomatis menginstal dependensi: `button`, `avatar`, `dropdown-menu`, dan paket npm [`@lucide/svelte`](/id/components/ui/icon/).
 
 ## Preview
 

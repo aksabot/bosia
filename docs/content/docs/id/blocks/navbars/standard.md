@@ -23,7 +23,7 @@ bun x bosia@latest add block navbars/minimal
 bun x bosia@latest add block navbars/two-tier
 ```
 
-Beberapa menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Beberapa menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Blok-bloknya
 

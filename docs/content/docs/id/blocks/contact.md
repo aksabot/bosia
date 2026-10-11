@@ -17,7 +17,7 @@ bun x bosia@latest add block contact/split
 bun x bosia@latest add block contact/simple
 ```
 
-`split` menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon detailnya.
+`split` menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon detailnya.
 
 ## Blok-bloknya
 
@@ -35,7 +35,7 @@ bun x bosia@latest add block contact/simple
 ```
 
 Kedua form mengirim `POST` JSON (`name`, `email`, `message`) ke `/api/contact` — ganti endpoint
-lewat prop `action`. Pasang [feature `contact-form`](/guides/contact-form/) untuk mendapatkan
+lewat prop `action`. Pasang [feature `contact-form`](/id/guides/contact-form/) untuk mendapatkan
 endpoint itu lengkap dengan validasi dan penyimpanan Drizzle; tanpa itu, arahkan `action` ke route
 milikmu sendiri. Ubah teks dan detail kontak di masing-masing `block.svelte`.
 

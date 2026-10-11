@@ -18,7 +18,7 @@ bun x bosia@latest add block features/split
 bun x bosia@latest add block features/bento
 ```
 
-Semuanya menarik [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Semuanya menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Blok-bloknya
 

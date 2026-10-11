@@ -90,13 +90,13 @@ Objek `data` dari `metadata()` menjadi `event.metadata` di `load()`. Jika tidak 
 
 ## Properti MetadataEvent
 
-| Properti  | Tipe                     | Deskripsi                                                                                                                                    |
-| --------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `params`  | `Record<string, string>` | Parameter route dinamis                                                                                                                      |
-| `url`     | `URL`                    | URL request                                                                                                                                  |
-| `locals`  | `Record<string, any>`    | Data yang diset oleh middleware hooks                                                                                                        |
-| `cookies` | `Cookies`                | Baca/tulis cookie                                                                                                                            |
-| `fetch`   | `Function`               | Helper fetch (cookie hanya diteruskan ke same-origin — lihat [Server Loaders → Cookie Forwarding](/guides/server-loaders#cookie-forwarding)) |
+| Properti  | Tipe                     | Deskripsi                                                                                                                                       |
+| --------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `params`  | `Record<string, string>` | Parameter route dinamis                                                                                                                         |
+| `url`     | `URL`                    | URL request                                                                                                                                     |
+| `locals`  | `Record<string, any>`    | Data yang diset oleh middleware hooks                                                                                                           |
+| `cookies` | `Cookies`                | Baca/tulis cookie                                                                                                                               |
+| `fetch`   | `Function`               | Helper fetch (cookie hanya diteruskan ke same-origin — lihat [Server Loaders → Cookie Forwarding](/id/guides/server-loaders#cookie-forwarding)) |
 
 ## Tipe Return Metadata
 
@@ -150,7 +150,7 @@ Selama navigasi sisi-klien, Bosia mengirim `title`, `description`, `meta`, `link
 
 Router hanya mengganti tag yang dihasilkan `metadata()` (ditandai `data-bosia-meta` di HTML). Tag yang kamu tambahkan lewat `<svelte:head>` atau fragmen `head` sebuah plugin tidak disentuh.
 
-`<svelte:head>` dirender di server ke dalam `<head>` mentah, di bagian akhir, setelah markup `app.html`-mu. Script dan stylesheet di sana dimuat seperti yang lain di `<head>`: `<script src>` biasa menahan tampilan pertama sampai selesai diunduh, jadi tambahkan `async` atau `defer` pada script pihak ketiga. Inline script di sana juga butuh nonce CSP saat policy aktif, dan data di dalam script `{@html}` seperti JSON-LD wajib meng-escape `<` (lihat [Keamanan](/guides/security)). Isi hanya dengan tag head (`title`, `meta`, `link`, `style`, `script`, `noscript`): `<div>`, `<img>`, atau teks biasa di sana membuat browser menutup `<head>` lebih awal dan merusak hydration.
+`<svelte:head>` dirender di server ke dalam `<head>` mentah, di bagian akhir, setelah markup `app.html`-mu. Script dan stylesheet di sana dimuat seperti yang lain di `<head>`: `<script src>` biasa menahan tampilan pertama sampai selesai diunduh, jadi tambahkan `async` atau `defer` pada script pihak ketiga. Inline script di sana juga butuh nonce CSP saat policy aktif, dan data di dalam script `{@html}` seperti JSON-LD wajib meng-escape `<` (lihat [Keamanan](/id/guides/security)). Isi hanya dengan tag head (`title`, `meta`, `link`, `style`, `script`, `noscript`): `<div>`, `<img>`, atau teks biasa di sana membuat browser menutup `<head>` lebih awal dan merusak hydration.
 
 Saat navigasi client, halaman yang tidak punya judul sendiri mendapat judul yang sama dengan hard load: judul yang ditulis layout-nya, lalu `<title>` di `app.html`, lalu `Bosia App`. Svelte hanya memasang judul saat komponen dipasang atau saat judulnya berubah, jadi layout yang tetap terpasang tidak memasang judulnya lagi. Bosia mengingat judul yang ditulis tiap layout, termasuk judul dari ekspresi (`{data.site}`) atau komponen anak seperti `<Seo>`, lalu memasangnya kembali. Tetap di halaman yang sama (`invalidate()`, form action, `?page=2`) tidak mengubah judul yang dipasang komponen anak. Ada beberapa kasus yang tidak tertangkap. Komponen yang menulis judul setelah `{@render children()}` di layout dianggap milik halaman, jadi judulnya diganti saat pindah halaman; taruh sebelum `{@render children()}`. Layout yang memasang `document.title` di `$effect` atau `onMount` tidak diingat; pakai `<svelte:head><title>`. Judul layout yang berubah di antara dua navigasi (`({unread}) Inbox`) kembali ke nilai saat navigasi terakhir, sampai judulnya berubah lagi. Layout yang me-render `{@render children()}` lebih lambat dari judulnya (di dalam `{#if}`, `{#await}`, atau setelah `onMount`) tidak diingat. Halaman yang menulis judul di `$effect.pre` atau `$:` lama bisa dianggap milik layout-nya; pakai `<svelte:head><title>` di halaman. Di antara dua halaman dari route yang sama (`/blog/a` ke `/blog/b`), judul yang hanya tampil di dalam `{#if}` tetap ada saat halaman berikutnya menyembunyikannya; pakai `metadata().title` untuk judul per item. `<title>` dari fragmen `head` plugin juga diganti default; pakai `metadata().title` atau `<title>` di `app.html`.
 
@@ -162,4 +162,4 @@ Fungsi `metadata()` punya timeout yang bisa dikonfigurasi melalui variabel envir
 
 ## Interaksi dengan Caching
 
-Jika `metadata()` memanggil `cookies.get()` atau `cookies.getAll()`, respons data otomatis ditandai dengan `Cache-Control: private, no-cache`. Lihat [Server Loaders](/guides/server-loaders#caching) untuk detailnya.
+Jika `metadata()` memanggil `cookies.get()` atau `cookies.getAll()`, respons data otomatis ditandai dengan `Cache-Control: private, no-cache`. Lihat [Server Loaders](/id/guides/server-loaders#caching) untuk detailnya.

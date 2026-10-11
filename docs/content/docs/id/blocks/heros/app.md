@@ -18,7 +18,7 @@ Hero aplikasi SaaS dengan daftar fitur dan mockup ponsel. Sebuah `<section>` man
 bun x bosia@latest add block heros/app
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

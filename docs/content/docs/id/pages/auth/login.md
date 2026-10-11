@@ -16,7 +16,7 @@ bun x bosia@latest add page auth/login
 ```
 
 Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 
@@ -31,7 +31,7 @@ Menginstal `page.svelte` plus setiap block auth yang disusunnya. Menarik
 
 Berikan prop `variant` (atau ubah default-nya di bagian atas `page.svelte`) untuk beralih antara
 kartu terpusat dan split dua panel — keduanya ditampilkan pada preview di atas. Lihat
-[ringkasan pages](/pages/overview) untuk keluarga auth.
+[ringkasan pages](/id/pages/overview) untuk keluarga auth.
 
 ## Backend
 

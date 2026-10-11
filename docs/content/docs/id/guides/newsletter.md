@@ -4,7 +4,7 @@ description: Backend newsletter — POST /api/newsletter memvalidasi email dan m
 ---
 
 Feature `newsletter` memberi backend untuk [blok `newsletter/centered` dan
-`newsletter/split`](/blocks/newsletter): endpoint `POST /api/newsletter` yang memvalidasi
+`newsletter/split`](/id/blocks/newsletter): endpoint `POST /api/newsletter` yang memvalidasi
 email lalu menyimpan subscriber via Drizzle. Mendaftar dua kali dengan email yang sama dianggap
 sukses, bukan error — aman dipasang di halaman publik.
 

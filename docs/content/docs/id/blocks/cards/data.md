@@ -21,7 +21,7 @@ bun x bosia@latest add block cards/chart
 bun x bosia@latest add block cards/balance
 ```
 
-Masing-masing menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon. Sparkline,
+Masing-masing menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon. Sparkline,
 ring, dan mini-bar adalah SVG/CSS sebaris yang memakai stroke token semantik — tanpa pustaka grafik.
 
 ## Usage

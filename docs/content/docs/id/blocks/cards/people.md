@@ -19,7 +19,7 @@ bun x bosia@latest add block cards/contact
 bun x bosia@latest add block cards/testimonial
 ```
 
-Masing-masing menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Masing-masing menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

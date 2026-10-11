@@ -18,7 +18,7 @@ Hero gaya hidup full-bleed dengan kartu produk unggulan mengambang. Sebuah `<sec
 bun x bosia@latest add block heros/home-goods
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

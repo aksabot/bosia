@@ -18,7 +18,7 @@ Hero terbagi konsultasi B2B dengan poin-poin dan statistik hasil. Sebuah `<secti
 bun x bosia@latest add block heros/consulting
 ```
 
-Menarik paket npm [`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+Menarik paket npm [`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Usage
 

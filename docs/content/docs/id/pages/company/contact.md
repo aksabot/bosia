@@ -16,7 +16,7 @@ bun x bosia@latest add page company/contact
 ```
 
 Memasang `page.svelte` plus setiap blok yang dirangkainya. Blok kontak menarik
-[`@lucide/svelte`](/components/ui/icon/) untuk ikon.
+[`@lucide/svelte`](/id/components/ui/icon/) untuk ikon.
 
 ## Penggunaan
 
@@ -29,7 +29,7 @@ Memasang `page.svelte` plus setiap blok yang dirangkainya. Blok kontak menarik
 ```
 
 Halaman ini murni komposisi — mengimpor tiap blok dan menumpuknya berurutan, tanpa props. Form
-mengirim ke `/api/contact`; pasang [feature `contact-form`](/guides/contact-form/) untuk
+mengirim ke `/api/contact`; pasang [feature `contact-form`](/id/guides/contact-form/) untuk
 backend-nya, atau arahkan prop `action` blok ke endpoint milikmu. Ganti `contact/split` dengan
 `contact/simple` di `page.svelte` untuk layout terpusat.
 

@@ -17,7 +17,7 @@ bun x bosia@latest add block team/grid
 bun x bosia@latest add block team/spotlight
 ```
 
-`spotlight` menarik [`@lucide/svelte`](/components/ui/icon/) untuk panah tautan ceritanya.
+`spotlight` menarik [`@lucide/svelte`](/id/components/ui/icon/) untuk panah tautan ceritanya.
 
 ## Blok-bloknya
 

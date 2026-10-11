@@ -101,19 +101,28 @@ console.log(`✓ sitemap.xml written (${enPages.size + idPages.size} URLs)`);
 // 404.html — without it Cloudflare serves index.html with a 200 for every unknown
 // path, so broken links land on the home page silently. Capture the server's own
 // 404 response so it matches what the dev and prod servers render.
-const port = 4399;
+// A free port from the OS. Small race until the server binds it, but a lost race
+// makes the server refuse the busy port and exit, which the loop below catches.
+const probe = Bun.serve({ port: 0, fetch: () => new Response() });
+const port = probe.port;
+probe.stop(true);
 // The server entry directly, not `bun run start`: the start CLI ignores SIGTERM.
+// No BOSIA_REUSE_PORT, so it can't silently share a port with another server.
+const { BOSIA_REUSE_PORT: _, ...env } = process.env;
 const server = Bun.spawn(["bun", "run", "./dist/server/index.js"], {
-	env: { ...process.env, NODE_ENV: "production", PORT: String(port) },
+	env: { ...env, NODE_ENV: "production", PORT: String(port) },
 	stdout: "ignore",
-	stderr: "ignore",
+	stderr: "inherit",
 });
 try {
 	let res: Response | null = null;
-	for (let i = 0; i < 100 && !res; i++) {
+	for (let i = 0; i < 100 && !res && server.exitCode === null; i++) {
 		res = await fetch(`http://localhost:${port}/__bosia-404-probe`).catch(() => null);
 		if (!res) await Bun.sleep(100);
 	}
+	// Only trust the answer while our own server is still alive.
+	if (server.exitCode !== null)
+		throw new Error(`docs server exited with code ${server.exitCode}; see its error above`);
 	if (res?.status !== 404)
 		throw new Error(`expected a 404 page, got ${res?.status ?? "no server"}`);
 	writeFileSync(join(outDir, "404.html"), await res.text());

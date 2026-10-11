@@ -156,7 +156,7 @@ interface Navigation {
 
 ## Indikator Loading
 
-Bosia menampilkan bilah progres tipis di bagian atas halaman selama setiap navigasi klien. Untuk transisi yang lebih kaya, letakkan `+loading.svelte` di folder route dan Bosia merender kerangka itu secara otomatis saat tujuan dimuat — tertanam di dalam layout yang dibagi, tanpa perlu mengatur `beforeNavigate`. Lihat [Kerangka Loading](/guides/routing#kerangka-loading).
+Bosia menampilkan bilah progres tipis di bagian atas halaman selama setiap navigasi klien. Untuk transisi yang lebih kaya, letakkan `+loading.svelte` di folder route dan Bosia merender kerangka itu secara otomatis saat tujuan dimuat — tertanam di dalam layout yang dibagi, tanpa perlu mengatur `beforeNavigate`. Lihat [Kerangka Loading](/id/guides/routing#kerangka-loading).
 
 ## Form actions
 
@@ -168,7 +168,7 @@ Form action yang melempar `redirect(303, "/x")` bernavigasi melalui router secar
 </form>
 ```
 
-Lihat [Form Actions](/guides/form-actions) untuk cerita lengkapnya.
+Lihat [Form Actions](/id/guides/form-actions) untuk cerita lengkapnya.
 
 ## `window.location.href` — reload penuh
 
