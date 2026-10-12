@@ -61,6 +61,10 @@
 - [ ] ⚪ `needsStatic404` misses single-quoted TOML (`'404-page'`) and checks config files in a different order than wrangler.
 - [ ] ⚪ The Bun server serves `dist/static/404.html` at `/404.html` with a 200 (soft 404) for every prerendering app.
 - [ ] ⚪ Prerender's inherited stderr also prints normal server warnings (CSRF exempt paths) during `bosia build`.
+- [x] 🟡 Review 2: keepTitle compares the collapsed status title; `--target=workers` never requires 404.html; SSR-only `404-page` builds log "Building 404.html".
+- [ ] ⚪ Prerender ready race: a server that grabs the port first can pass `/_health`. Fix with a nonce in the child env echoed by `/_health`.
+- [ ] ⚪ Client nav never resets `<html lang>` to app.html's when the next page (or an error page) has no `metadata().lang`.
+- [ ] ⚪ A conditional `<title>` in `+error.svelte` (`{#if}`) stays after 404 → 500 with the same boundary; a hard load shows the status title.
 
 ---
 

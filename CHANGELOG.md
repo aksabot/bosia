@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Moving between two error pages keeps the error page's own title.
 - A `404-page` build now also fails when its server can't start or the 404 page isn't HTML.
 - Prerender notices a server killed by a signal (out of memory, crash) right away.
+- Workers builds no longer fail over a missing `404.html`; the worker answers unknown paths.
+- Error messages with extra spaces no longer keep the previous error page's title.
 
 ## [1.2.1] - 2026-10-11
 

@@ -400,7 +400,7 @@ await bundleRuntimeUserFiles(process.cwd());
 const devBuild = process.env.BOSIA_DEV_BUILD === "1";
 
 // 9. Prerender static routes
-if (!devBuild) await prerenderStaticRoutes(manifest);
+if (!devBuild) await prerenderStaticRoutes(manifest, target);
 
 // 10. Generate static site output (HTML + client assets + public → dist/static/)
 if (!devBuild) generateStaticSite();

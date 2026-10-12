@@ -357,7 +357,7 @@
 					const keepTitle =
 						errorShown === errMod.default &&
 						!!prev &&
-						document.title !== errorTitle(prev.status, prev.message);
+						document.title !== collapseTitle(errorTitle(prev.status, prev.message));
 					layoutComponents = layoutModsForError.map((m: any) => m.default);
 					currentLayoutPaths = destLayoutPaths.slice(0, K);
 					titleNav.seq++; // the error branch remounts the layouts

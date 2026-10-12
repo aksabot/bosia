@@ -2,6 +2,7 @@ import { writeFileSync, mkdirSync, cpSync, existsSync, readFileSync } from "fs";
 import { createServer } from "net";
 import { join } from "path";
 import type { RouteManifest, TrailingSlash } from "./types.ts";
+import type { RuntimeTarget } from "./types/plugin.ts";
 
 import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
@@ -177,18 +178,28 @@ async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Prerender
 	return results.flat();
 }
 
-export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<void> {
+export async function prerenderStaticRoutes(
+	manifest: RouteManifest,
+	target: RuntimeTarget = "bun",
+): Promise<void> {
 	const targets = await detectPrerenderRoutes(manifest);
-	// No routes to prerender: start the server only when a 404.html is required.
-	const require404 = needsStatic404();
+	// On Workers the worker answers unknown paths, so 404.html is never required.
+	const require404 = target !== "workers" && needsStatic404();
+	// No routes to prerender: start the server only for the required 404.html.
 	if (targets.length === 0 && !require404) return;
 
-	console.log(`\n🖨️  Prerendering ${targets.length} route(s)...`);
+	console.log(
+		targets.length
+			? `\n🖨️  Prerendering ${targets.length} route(s)...`
+			: "\n🖨️  Building 404.html (wrangler sets 404-page)...",
+	);
 
 	const port = await getEphemeralPort();
 	// No BOSIA_REUSE_PORT: the child must fail to bind rather than share a port
 	// with another server, whose pages we'd then save as ours. The ready loop
-	// stops once the child exits, so a foreign /_health never passes for it.
+	// stops once the child exits, but a server that grabbed the port first can
+	// still answer /_health before the child dies. Have /_health echo a nonce
+	// from the child's env if that race ever shows up.
 	const { BOSIA_REUSE_PORT: _, ...env } = process.env;
 	const child = Bun.spawn(["bun", "run", `${OUT_DIR}/server/index.js`], {
 		env: {
@@ -352,7 +363,7 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 			console.warn(`   ⚠️  404.html skipped: ${reason}`);
 		}
 
-		console.log("✅ Prerendering complete");
+		if (targets.length) console.log("✅ Prerendering complete");
 	} finally {
 		for (const sig of signals) process.off(sig, onSignal);
 		child.kill();
