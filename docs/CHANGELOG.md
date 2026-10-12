@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Deployment guide and Cloudflare skill: `404-page` makes a 404 page even with no prerendered page.
 - Deployment guide and Cloudflare skill: Workers builds don't make a `404.html`.
 - Metadata guide and SEO skill: error pages reached by a link get the status title too.
+- Navigation guide: refreshing data on the same page keeps the scroll position.
 
 ## [0.8.24] - 2026-10-11
 

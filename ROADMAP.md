@@ -25,6 +25,7 @@
 - [ ] ⚪ `needsStatic404` also matches `404-page` in an `env` section or a `/* */` block, failing builds whose main deploy doesn't use it.
 - [ ] ⚪ Ctrl-C during prerender: the 404 probe still runs against the dead server and can print a false "404.html could not be built". Skip it once `receivedSignal` is set.
 - [ ] ⚪ A prerendered `/404` route (`trailingSlash: "never"`) overwrites the probe's `404.html` in `generateStaticSite`, yet the build logs "✅ 404 page".
+- [x] 🟠 `invalidate*()`/`use:enhance` on the same URL jumped to top: `settleScroll` read a leftover `router.isPush`. Now only navs set `router.scrollPending`.
 
 ---
 

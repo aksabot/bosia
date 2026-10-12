@@ -127,18 +127,21 @@
 	// back/forward navs restore the position saved for that history entry.
 	// Runs after tick() so the destination page's real height is in the DOM.
 	// goto({ noScroll: true }) flips `router.suppressScroll` for one nav.
+	// A same-URL re-run (`invalidate*()`, `use:enhance`) isn't a nav: `scrollPending`
+	// stays unset and the page keeps its scroll.
 	function settleScroll() {
-		if (router.isPush && !router.suppressScroll) {
+		if (router.scrollPending && router.isPush && !router.suppressScroll) {
 			const hash = window.location.hash;
 			tick().then(() => {
 				if (!scrollToHash(hash)) window.scrollTo(0, 0);
 			});
-		} else if (!router.isPush) {
+		} else if (router.scrollPending && !router.isPush) {
 			const pos = router.pendingScroll;
 			// single post-tick restore; content that loads later (images
 			// without dimensions) can still shift it. Revisit only if reported.
 			if (pos) tick().then(() => window.scrollTo(pos.x, pos.y));
 		}
+		router.scrollPending = false;
 		router.pendingScroll = null;
 		router.suppressScroll = false;
 		settleSnapshot();

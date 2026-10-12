@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender notices a server killed by a signal (out of memory, crash) right away.
 - Workers builds skip `404.html`; the worker answers unknown paths itself.
 - Error messages with extra spaces no longer keep the previous error page's title.
+- Saving a form or refreshing data on the same page no longer jumps back to the top.
 
 ## [1.2.1] - 2026-10-11
 

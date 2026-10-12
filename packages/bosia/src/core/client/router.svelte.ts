@@ -82,6 +82,9 @@ export const router = new (class Router {
 	origin = $state(typeof window !== "undefined" ? window.location.origin : "");
 	/** True when navigation was triggered by a link click / navigate() call, false on popstate (back/forward). */
 	isPush = $state(true);
+	/** Set by a real navigation (push or popstate); App.svelte scrolls only when it's set, then clears it.
+	 *  An invalidation re-run (`invalidate*()`, `use:enhance`) leaves it unset, so the page keeps its scroll. */
+	scrollPending = false;
 	/** Source of the most recent navigation — feeds the Navigation object passed to lifecycle hooks. */
 	lastNavType: NavType = "enter";
 	/** Set by `goto({ noScroll: true })`; consumed once by App.svelte after the next nav settles. */
@@ -135,6 +138,7 @@ export const router = new (class Router {
 
 		this.lastNavType = navType;
 		this.isPush = true;
+		this.scrollPending = true;
 		this.pendingScroll = null;
 		this.pendingSnapshot = undefined;
 		this.currentRoute = finalPath;
@@ -238,6 +242,7 @@ export const router = new (class Router {
 
 			this.lastNavType = "popstate";
 			this.isPush = false;
+			this.scrollPending = true;
 			this.currentRoute = finalPath;
 		});
 
