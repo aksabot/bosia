@@ -6,7 +6,7 @@
 // disabled because nothing is wired up until this action runs.
 
 import { appState } from "./appState.svelte.ts";
-import { router } from "./router.svelte.ts";
+import { goto } from "./navigation.ts";
 
 export type ActionResult =
 	| { type: "success"; status: number; data: any }
@@ -37,7 +37,9 @@ async function applyResult(
 	const invalidateAll = opts.invalidateAll !== false;
 
 	if (result.type === "redirect") {
-		router.navigate(result.location);
+		// The action changed data, so reload loaders — also when it redirects to this
+		// same page (post/redirect/get), where a plain navigate() would do nothing.
+		await goto(result.location, { invalidateAll });
 		return;
 	}
 	if (result.type === "error") {

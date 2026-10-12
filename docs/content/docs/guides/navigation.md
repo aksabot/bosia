@@ -41,7 +41,7 @@ await goto("/login", { replaceState: true, invalidateAll: true });
 | `keepFocus`     | `false` | Reserved — not yet honored.                                            |
 | `state`         | —       | Reserved — Bosia has no shallow routing yet.                           |
 
-If the URL matches the current route, `goto()` resolves immediately without re-running loaders. The `invalidateAll: true` option is **not** honored on same-path calls — call `invalidateAll()` directly (imported from `bosia/client`) to refresh in place.
+If the URL matches the current route, `goto()` resolves immediately without re-running loaders. Pass `invalidateAll: true` to re-run them in place; the Promise resolves once fresh data is on the page.
 
 ### Under a `BASE_PATH`
 
@@ -161,7 +161,7 @@ Bosia shows a thin progress bar at the top of the page during every client navig
 
 ## Form actions
 
-Form actions that throw `redirect(303, "/x")` navigate via the router automatically when wrapped with `use:enhance`:
+Form actions that throw `redirect(303, "/x")` navigate via the router automatically when wrapped with `use:enhance`. The loaders re-run, so a redirect back to the same page shows the updated data:
 
 ```svelte
 <form method="POST" action="?/logout" use:enhance>

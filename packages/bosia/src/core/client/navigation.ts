@@ -127,18 +127,21 @@ export function goto(url: string, opts: GotoOptions = {}): Promise<void> {
 	if (opts.invalidateAll) {
 		appState.dirty.all = true;
 	}
-	if (opts.noScroll) {
-		router.suppressScroll = true;
-	}
 
 	const beforePath = router.currentRoute;
 
 	return new Promise<void>((resolve) => {
 		appState.navResolvers.push(resolve);
 		router.navigate(url, { replace: opts.replaceState, source: "goto" });
-		// `navigate()` short-circuits when `currentRoute === path` — the nav
-		// effect won't fire, so nothing will drain the resolver. Resolve now.
-		if (router.currentRoute === beforePath) {
+		if (router.currentRoute !== beforePath) {
+			// Set after navigate() so a nav that never starts can't carry it to the next one.
+			if (opts.noScroll) router.suppressScroll = true;
+		} else if (opts.invalidateAll) {
+			// Same URL: no nav effect from the route, so wake it with the tick to refetch.
+			bumpTick();
+		} else {
+			// `navigate()` short-circuited (same URL or cancelled) — the nav effect
+			// won't fire, so nothing will drain the resolver. Resolve now.
 			drainNavResolvers();
 		}
 	});

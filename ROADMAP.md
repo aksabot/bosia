@@ -1,9 +1,18 @@
 # Bosia — Roadmap
 
 > Track what's done, what's next, and where we're headed.
-> Current version: **1.2.2**
+> Current version: **1.2.3**
 
 ---
+
+## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
+
+- [x] 🟠 `invalidate*()`/`use:enhance` on the same URL jumped to top: `settleScroll` read a leftover `router.isPush`. It now scrolls only when the route differs from the last settled one.
+- [x] 🟡 An error page replacing the page on a same-URL re-run scrolls to top, so the error is in view.
+- [x] 🟡 `use:enhance` redirects go through `goto(..., { invalidateAll })`: a redirect to the same page (post/redirect/get) now refetches.
+- [x] 🟡 `goto(sameUrl, { invalidateAll: true })` bumps the tick and refetches; it used to resolve with stale data.
+- [x] 🟢 `goto(url, { noScroll: true })` sets `suppressScroll` only when the nav starts, so a no-op can't swallow the next nav's scroll. Test: `goto.test.ts`.
+- [ ] ⚪ `goto(..., { invalidateAll: true })` cancelled by `beforeNavigate` still refetches the current page. Skip the bump on cancel if it matters.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 
@@ -25,7 +34,6 @@
 - [ ] ⚪ `needsStatic404` also matches `404-page` in an `env` section or a `/* */` block, failing builds whose main deploy doesn't use it.
 - [ ] ⚪ Ctrl-C during prerender: the 404 probe still runs against the dead server and can print a false "404.html could not be built". Skip it once `receivedSignal` is set.
 - [ ] ⚪ A prerendered `/404` route (`trailingSlash: "never"`) overwrites the probe's `404.html` in `generateStaticSite`, yet the build logs "✅ 404 page".
-- [x] 🟠 `invalidate*()`/`use:enhance` on the same URL jumped to top: `settleScroll` read a leftover `router.isPush`. Now only navs set `router.scrollPending`.
 
 ---
 

@@ -41,7 +41,7 @@ await goto("/login", { replaceState: true, invalidateAll: true });
 | `keepFocus`     | `false` | Dicadangkan — belum dihormati.                                                  |
 | `state`         | —       | Dicadangkan — Bosia belum punya shallow routing.                                |
 
-Jika URL cocok dengan route saat ini, `goto()` resolve langsung tanpa menjalankan ulang loader. Opsi `invalidateAll: true` **tidak** dihormati pada panggilan ke path yang sama — panggil `invalidateAll()` langsung (diimpor dari `bosia/client`) untuk menyegarkan di tempat.
+Jika URL cocok dengan route saat ini, `goto()` resolve langsung tanpa menjalankan ulang loader. Berikan `invalidateAll: true` untuk menjalankannya ulang di tempat; Promise resolve setelah data baru tampil di halaman.
 
 ### Di bawah `BASE_PATH`
 
@@ -161,7 +161,7 @@ Bosia menampilkan bilah progres tipis di bagian atas halaman selama setiap navig
 
 ## Form actions
 
-Form action yang melempar `redirect(303, "/x")` bernavigasi melalui router secara otomatis saat dibungkus dengan `use:enhance`:
+Form action yang melempar `redirect(303, "/x")` bernavigasi melalui router secara otomatis saat dibungkus dengan `use:enhance`. Loader dijalankan ulang, jadi redirect ke halaman yang sama menampilkan data terbaru:
 
 ```svelte
 <form method="POST" action="?/logout" use:enhance>

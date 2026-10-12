@@ -118,6 +118,7 @@
 	let currentLayoutPaths: string[] = [];
 	let lastSettledPath = "";
 	let lastNavKey = ""; // pathname + search of the last processed nav
+	let settledRoute = ""; // full route (with hash) settleScroll last ran for
 	let lastTick = 0; // invalidationTick value last processed
 	// Skip bar on the very first effect run (initial hydration — data already present)
 	let firstNav = true;
@@ -127,21 +128,24 @@
 	// back/forward navs restore the position saved for that history entry.
 	// Runs after tick() so the destination page's real height is in the DOM.
 	// goto({ noScroll: true }) flips `router.suppressScroll` for one nav.
-	// A same-URL re-run (`invalidate*()`, `use:enhance`) isn't a nav: `scrollPending`
-	// stays unset and the page keeps its scroll.
-	function settleScroll() {
-		if (router.scrollPending && router.isPush && !router.suppressScroll) {
+	// A re-run on the URL already settled (`invalidate*()`, `use:enhance`) isn't a
+	// nav and keeps its scroll — unless `replaced`: an error page took the page's place.
+	function settleScroll(route: string, replaced = false) {
+		const navigated = route !== settledRoute;
+		settledRoute = route;
+		if (!navigated) {
+			if (replaced) tick().then(() => window.scrollTo(0, 0));
+		} else if (router.isPush && !router.suppressScroll) {
 			const hash = window.location.hash;
 			tick().then(() => {
 				if (!scrollToHash(hash)) window.scrollTo(0, 0);
 			});
-		} else if (router.scrollPending && !router.isPush) {
+		} else if (!router.isPush) {
 			const pos = router.pendingScroll;
 			// single post-tick restore; content that loads later (images
 			// without dimensions) can still shift it. Revisit only if reported.
 			if (pos) tick().then(() => window.scrollTo(pos.x, pos.y));
 		}
-		router.scrollPending = false;
 		router.pendingScroll = null;
 		router.suppressScroll = false;
 		settleSnapshot();
@@ -183,6 +187,7 @@
 			navTitle = ssrTitle ? collapseTitle(ssrTitle) : document.title === base ? base : null;
 			lastSettledPath = pathname;
 			lastNavKey = navKey;
+			settledRoute = path;
 			lastTick = currentTick;
 			// Restore-after-reload: router.init() staged this entry's snapshot.
 			settleSnapshot();
@@ -193,7 +198,7 @@
 		// refetch. A static host can't answer the parent-snapshot POST a refetch may
 		// issue, which would otherwise render the error page.
 		if (navKey === lastNavKey && currentTick === lastTick) {
-			settleScroll();
+			settleScroll(path);
 			return;
 		}
 		// A prefetch saved before an invalidation holds pre-mutation data — after a
@@ -389,7 +394,7 @@
 							(kept > 0 ? chainTitles[kept - 1] : null) ?? errorTitle(errStatus, errMessage);
 						navTitle = document.title;
 					}
-					settleScroll();
+					settleScroll(path, !errorShown);
 					settle({ url, params: match.params });
 				} catch {
 					window.location.href = path;
@@ -483,7 +488,7 @@
 			appState.errorProps = null;
 			appState.errorDepth = null;
 
-			settleScroll();
+			settleScroll(path);
 
 			// Re-emit the head from server metadata. `data-bosia-meta` (html.ts `OWNED`)
 			// marks exactly the tags metadata() owns, so headExtras, the framework's own

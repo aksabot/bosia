@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.8.26] - 2026-10-13
+
+### Changed
+
+- Navigation guide and skill: refreshing data on the same page keeps the scroll position.
+- Navigation guide and skill: `goto()` to the current page with `invalidateAll` reloads its data.
+- Navigation guide: a form that redirects back to its own page shows the updated data.
+
 ## [0.8.25] - 2026-10-12
 
 ### Changed
@@ -17,7 +25,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Deployment guide and Cloudflare skill: `404-page` makes a 404 page even with no prerendered page.
 - Deployment guide and Cloudflare skill: Workers builds don't make a `404.html`.
 - Metadata guide and SEO skill: error pages reached by a link get the status title too.
-- Navigation guide: refreshing data on the same page keeps the scroll position.
 
 ## [0.8.24] - 2026-10-11
 
