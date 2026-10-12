@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Prerender stops waiting once its server dies, and shows that server's errors.
 - Build fails if Cloudflare needs a `404.html` (`404-page` setting) and it can't be made.
+- Error pages reached by a link now show their status title, like a full page load.
 
 ## [1.2.1] - 2026-10-11
 

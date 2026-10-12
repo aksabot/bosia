@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The docs build gets its 404 page from the framework instead of its own script.
 - Deployment guide: the `404-page` setting is only for Cloudflare deploys without a worker.
 - Deployment guide and Cloudflare skill: the build fails when `404-page` is set but no 404 page can be made.
+- Metadata guide and SEO skill: error pages reached by a link get the status title too.
 
 ## [0.8.24] - 2026-10-11
 

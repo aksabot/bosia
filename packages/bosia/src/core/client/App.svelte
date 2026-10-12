@@ -361,6 +361,11 @@
 					appState.errorComponent = errMod.default;
 					appState.errorProps = { error: { status: errStatus, message: errMessage } };
 					appState.errorDepth = K;
+					// The status title a hard load gives it (renderer.ts). Set before
+					// Svelte flushes, so a <title> in +error.svelte or a layout still wins.
+					document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
+					document.title = `${errStatus} — ${errMessage}`;
+					navTitle = document.title;
 					settleScroll();
 					settle({ url, params: match.params });
 				} catch {
