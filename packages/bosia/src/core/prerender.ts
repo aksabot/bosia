@@ -337,31 +337,33 @@ export async function prerenderStaticRoutes(
 		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
 		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
 		// Goes to dist/static, not prerendered/, so the Bun server doesn't route /404
-		// to it. Static hosts still serve /404 and /404.html with a 200; no file name
-		// avoids that. A public/404.html overwrites it (generateStaticSite copies later).
+		// to it, though it (and static hosts) still serve /404.html with a 200.
+		// Skipped on Workers: the worker answers unknown paths, and an uploaded file
+		// would only add that soft 404. A public/404.html overwrites it.
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
-		try {
-			const res = await fetch(`${base}/__bosia-404-probe`, {
-				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-			});
-			if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
-			// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
-			if (!res.headers.get("content-type")?.includes("text/html"))
-				throw new Error(`expected an HTML 404 page, got ${res.headers.get("content-type")}`);
-			mkdirSync(`${OUT_DIR}/static`, { recursive: true });
-			writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
-			console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
-		} catch (err) {
-			// Only a deploy that serves 404.html needs it; elsewhere (an app whose
-			// hooks redirect every request) a missing one is fine, so just warn.
-			const reason = (err as Error).message;
-			if (require404)
-				throw new Error(
-					`404.html could not be built (${reason}), but wrangler sets ` +
-						`not_found_handling "404-page". Make unknown paths answer 404, or add public/404.html.`,
-				);
-			console.warn(`   ⚠️  404.html skipped: ${reason}`);
-		}
+		if (target !== "workers")
+			try {
+				const res = await fetch(`${base}/__bosia-404-probe`, {
+					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
+				});
+				if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
+				// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
+				if (!res.headers.get("content-type")?.includes("text/html"))
+					throw new Error(`expected an HTML 404 page, got ${res.headers.get("content-type")}`);
+				mkdirSync(`${OUT_DIR}/static`, { recursive: true });
+				writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
+				console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
+			} catch (err) {
+				// Only a deploy that serves 404.html needs it; elsewhere (an app whose
+				// hooks redirect every request) a missing one is fine, so just warn.
+				const reason = (err as Error).message;
+				if (require404)
+					throw new Error(
+						`404.html could not be built (${reason}), but wrangler sets ` +
+							`not_found_handling "404-page". Make unknown paths answer 404, or add public/404.html.`,
+					);
+				console.warn(`   ⚠️  404.html skipped: ${reason}`);
+			}
 
 		if (targets.length) console.log("✅ Prerendering complete");
 	} finally {

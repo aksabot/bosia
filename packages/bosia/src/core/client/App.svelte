@@ -309,8 +309,10 @@
 			// can't clobber a newer nav's loader.
 			// The skeleton and the error page render in their own {#if} branch, so
 			// leaving either remounts the page. Read before both are cleared below.
-			const pageShown = !showLoading && !appState.errorComponent;
-			const errorShown = showLoading ? null : appState.errorComponent;
+			// The skeleton shows only once its chunk loaded (template's condition).
+			const skeletonShown = showLoading && !!LoadingComponent;
+			const pageShown = !skeletonShown && !appState.errorComponent;
+			const errorShown = skeletonShown ? null : appState.errorComponent;
 			showLoading = false;
 			LoadingComponent = null;
 			lastSettledPath = pathname;
@@ -351,16 +353,22 @@
 						...match.route.layouts.slice(0, K).map((l: any) => l()),
 					]);
 					if (cancelled) return;
-					// Same error component still shown (one 404 to another): nothing
-					// remounts, so a <title> it or a layout wrote stays put — keep it.
+					// Error page to error page: the layouts both share stay mounted and
+					// never write their title again. Same error component under all of
+					// them too: nothing remounts, so a <title> it wrote stays — keep it.
+					const kept = errorShown
+						? sharedDepth(currentLayoutPaths, destLayoutPaths.slice(0, K))
+						: 0;
 					const prev = appState.errorProps?.error;
 					const keepTitle =
 						errorShown === errMod.default &&
+						kept === K &&
+						appState.errorDepth === K &&
 						!!prev &&
 						document.title !== collapseTitle(errorTitle(prev.status, prev.message));
 					layoutComponents = layoutModsForError.map((m: any) => m.default);
 					currentLayoutPaths = destLayoutPaths.slice(0, K);
-					titleNav.seq++; // the error branch remounts the layouts
+					titleNav.seq++; // the probes read again as this flushes
 					const newLayoutData: Record<string, any>[] = [];
 					for (let i = 0; i < K; i++) newLayoutData.push({});
 					appState.layoutData = newLayoutData;
@@ -369,12 +377,13 @@
 					appState.errorComponent = errMod.default;
 					appState.errorProps = { error: { status: errStatus, message: errMessage } };
 					appState.errorDepth = K;
-					// The status title a hard load gives it (renderer.ts). Set before
-					// Svelte flushes, so a freshly mounted <title> in +error.svelte or a
-					// layout still wins.
+					// What a hard load shows (renderer.ts): a layout's title, else the
+					// status title. Set before Svelte flushes, so a freshly mounted
+					// <title> in +error.svelte or a layout still wins.
 					document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
 					if (!keepTitle) {
-						document.title = errorTitle(errStatus, errMessage);
+						document.title =
+							(kept > 0 ? chainTitles[kept - 1] : null) ?? errorTitle(errStatus, errMessage);
 						navTitle = document.title;
 					}
 					settleScroll();

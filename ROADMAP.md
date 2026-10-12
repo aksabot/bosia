@@ -9,7 +9,7 @@
 
 - [x] 🟡 Static hosts (Cloudflare assets) served `index.html` with a 200 for unknown paths. Prerender now saves the server's 404 as `dist/static/404.html`; docs' own copy in `post-build.ts` is gone. Test: `docs/test/not-found-page.test.ts`.
 - [x] 🟢 The prerender server no longer inherits `BOSIA_REUSE_PORT`, so another server on the port can't answer for it.
-- [ ] ⚪ SSR-only apps get no `404.html` (no server boot just for it). Add one if an SSR app ever deploys to a static host.
+- [x] ⚪ SSR-only apps get a `404.html` only when wrangler sets `404-page` (server boots just for it).
 - [ ] ⚪ `/404.html` (and `/404` on Cloudflare/Netlify/Pages) answers with a 200 serving the 404 page. Any file name does this; add `noindex` if crawlers index it.
 - [x] 🟠 Review: the ready loop ignored the child's exit, so a foreign server's `/_health` passed. It stops once the child exits (the docs probe did this).
 - [x] 🟡 Review: prerender server stderr shows now; a failed 404 render printed only "got 500".
@@ -17,6 +17,14 @@
 - [x] 🟡 A failed 404 probe fails the build when `wrangler.*` sets `not_found_handling: "404-page"` and there's no `public/404.html` (`needsStatic404`); else it warns. Test: `needsStatic404.test.ts`.
 - [ ] ⚪ `needsStatic404` reads wrangler text by regex: a key inside a `/* */` block comment still counts. Parse JSONC/TOML if it bites.
 - [ ] ⚪ One English probe: `/id/...` gets the English 404. Add per-locale probe paths when needed (see `docs/ROADMAP.md`).
+- [x] 🟡 Error → error nav restores a still-mounted layout's title (`chainTitles`), else the status title; keeps the error component's own only when nothing remounts.
+- [x] 🟢 A `+loading.svelte` whose chunk hasn't loaded no longer counts as shown when deciding what remounts.
+- [x] 🟡 `--target=workers` skips the 404 probe: the uploaded `404.html` only answered `/404.html` with a 200.
+- [ ] ⚪ 404 probe follows redirects, so a redirect-all hook reports "got 200"; use `redirect: "manual"` and name the Location.
+- [ ] ⚪ The "404-page needs 404.html" error is built in two places in `prerender.ts`; one helper would keep them in sync.
+- [ ] ⚪ `needsStatic404` also matches `404-page` in an `env` section or a `/* */` block, failing builds whose main deploy doesn't use it.
+- [ ] ⚪ Ctrl-C during prerender: the 404 probe still runs against the dead server and can print a false "404.html could not be built". Skip it once `receivedSignal` is set.
+- [ ] ⚪ A prerendered `/404` route (`trailingSlash: "never"`) overwrites the probe's `404.html` in `generateStaticSite`, yet the build logs "✅ 404 page".
 
 ---
 

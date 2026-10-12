@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Deployment guide: the `404-page` setting is only for Cloudflare deploys without a worker.
 - Deployment guide and Cloudflare skill: build fails if `404-page` is set and no 404 page is made.
 - Deployment guide and Cloudflare skill: `404-page` makes a 404 page even with no prerendered page.
+- Deployment guide and Cloudflare skill: Workers builds don't make a `404.html`.
 - Metadata guide and SEO skill: error pages reached by a link get the status title too.
 
 ## [0.8.24] - 2026-10-11

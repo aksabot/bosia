@@ -17,10 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender stops waiting once its server dies, and shows that server's errors.
 - Build fails if Cloudflare needs a `404.html` (`404-page` setting) and it can't be made.
 - Error pages reached by a link now show their status title, like a full page load.
-- Moving between two error pages keeps the error page's own title.
+- Moving between error pages keeps the title the error page or a layout set.
 - A `404-page` build now also fails when its server can't start or the 404 page isn't HTML.
 - Prerender notices a server killed by a signal (out of memory, crash) right away.
-- Workers builds no longer fail over a missing `404.html`; the worker answers unknown paths.
+- Workers builds skip `404.html`; the worker answers unknown paths itself.
 - Error messages with extra spaces no longer keep the previous error page's title.
 
 ## [1.2.1] - 2026-10-11
