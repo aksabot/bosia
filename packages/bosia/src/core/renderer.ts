@@ -45,7 +45,7 @@ import { reportDevErrorFromCatch } from "./devErrorReport.ts";
 import { dev500Response } from "./dev-500.ts";
 import type { BosiaPlugin, RenderContext } from "./types/plugin.ts";
 import { getAppHtmlSegments } from "./appHtml.ts";
-import { hasTitle } from "./headScan.ts";
+import { errorTitle, hasTitle } from "./headScan.ts";
 import type { AppHtmlSegments } from "./appHtml.ts";
 
 // Shared, stateless — one instance instead of a fresh allocation per stream.
@@ -1217,7 +1217,7 @@ export async function renderErrorPage(
 	// head, so a real title hasTitle misses still comes first), except when
 	// app.html has its own <title>: that would come first, so the status title
 	// takes the metadata slot ahead of it instead.
-	const statusTitle = `${status} — ${message}`;
+	const statusTitle = errorTitle(status, message);
 	const errMeta = (head: string): Metadata | null =>
 		appHtmlHasTitle(appHtmlSegments) && !hasTitle(head) ? { title: statusTitle } : null;
 

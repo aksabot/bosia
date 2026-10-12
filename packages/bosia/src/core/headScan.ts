@@ -5,6 +5,12 @@
 /** The title a page gets when nothing else sets one. */
 export const DEFAULT_TITLE = "Bosia App";
 
+/** The title an error page gets when its components set none: `404 — Not Found`.
+ *  SSR and client navigation both use it, so the two never drift apart. */
+export function errorTitle(status: number, message: string): string {
+	return `${status} — ${message}`;
+}
+
 /** Whether a chunk of head markup already sets the document title. Matches a
  *  <title> with attributes too. Ignores one in a comment, an attribute value, a
  *  script or JSON-LD string, <style>, <noscript>, <template>, or an inline <svg>

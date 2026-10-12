@@ -179,7 +179,9 @@ async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Prerender
 
 export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<void> {
 	const targets = await detectPrerenderRoutes(manifest);
-	if (targets.length === 0) return;
+	// No routes to prerender: start the server only when a 404.html is required.
+	const require404 = needsStatic404();
+	if (targets.length === 0 && !require404) return;
 
 	console.log(`\n🖨️  Prerendering ${targets.length} route(s)...`);
 
@@ -199,6 +201,10 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 		// Show render errors (a throwing +error.svelte, a crashing loader).
 		stderr: "inherit",
 	});
+	// exitCode stays null when a signal kills the child (OOM, segfault), so
+	// watch `exited` instead.
+	let exited = false;
+	child.exited.then(() => (exited = true));
 
 	const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 	let receivedSignal: NodeJS.Signals | null = null;
@@ -216,7 +222,7 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 		const base = `http://localhost:${port}${currentBase()}`;
 		let ready = false;
 		const deadline = Date.now() + 10_000;
-		while (Date.now() < deadline && child.exitCode === null) {
+		while (Date.now() < deadline && !exited) {
 			try {
 				const res = await fetch(`${base}/_health`);
 				if (res.ok) {
@@ -229,8 +235,14 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 			await Bun.sleep(50);
 		}
 
-		if (!ready || child.exitCode !== null) {
-			console.error(`❌ Prerender server failed to start (exit code ${child.exitCode ?? "none"})`);
+		if (!ready || exited) {
+			const why = child.signalCode ?? `exit code ${child.exitCode ?? "none"}`;
+			if (require404)
+				throw new Error(
+					`Prerender server failed to start (${why}), so 404.html could not be built, but ` +
+						`wrangler sets not_found_handling "404-page". Fix the server, or add public/404.html.`,
+				);
+			console.error(`❌ Prerender server failed to start (${why})`);
 			return;
 		}
 
@@ -322,6 +334,9 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
 			});
 			if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
+			// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
+			if (!res.headers.get("content-type")?.includes("text/html"))
+				throw new Error(`expected an HTML 404 page, got ${res.headers.get("content-type")}`);
 			mkdirSync(`${OUT_DIR}/static`, { recursive: true });
 			writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
 			console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
@@ -329,7 +344,7 @@ export async function prerenderStaticRoutes(manifest: RouteManifest): Promise<vo
 			// Only a deploy that serves 404.html needs it; elsewhere (an app whose
 			// hooks redirect every request) a missing one is fine, so just warn.
 			const reason = (err as Error).message;
-			if (needsStatic404())
+			if (require404)
 				throw new Error(
 					`404.html could not be built (${reason}), but wrangler sets ` +
 						`not_found_handling "404-page". Make unknown paths answer 404, or add public/404.html.`,

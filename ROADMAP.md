@@ -56,6 +56,11 @@
 - [ ] 🟡 Next: replace the `document.title` patch with an explicit layout title (layout `metadata().title` or a title registry). The patch leans on Svelte effect order.
 - [ ] ⚪ A `+loading.svelte` chunk that loads after the nav settles shows the skeleton until the next nav. Also on main.
 - [x] ⚪ Client-nav error pages get the hard load's `404 — Not Found` title and drop the last page's metadata tags; an error/layout `<title>` still wins.
+- [x] 🟡 Review: error → error with the same `+error.svelte` keeps its own title; status title format shared via `errorTitle()` (headScan.ts).
+- [x] 🟡 Review: prerender watches `child.exited` (signal kills); `404-page` builds also fail when the server won't start, no routes prerender, or the 404 isn't HTML.
+- [ ] ⚪ `needsStatic404` misses single-quoted TOML (`'404-page'`) and checks config files in a different order than wrangler.
+- [ ] ⚪ The Bun server serves `dist/static/404.html` at `/404.html` with a 200 (soft 404) for every prerendering app.
+- [ ] ⚪ Prerender's inherited stderr also prints normal server warnings (CSRF exempt paths) during `bosia build`.
 
 ---
 
