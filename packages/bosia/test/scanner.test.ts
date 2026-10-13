@@ -226,7 +226,8 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("use [...path]");
 	});
 
-	test("an optional [id?] fails the build", () => {
+	// Windows forbids `?` in file names, so this folder can only exist elsewhere.
+	test.skipIf(process.platform === "win32")("an optional [id?] fails the build", () => {
 		write("items/[id?]/+page.svelte");
 		expect(conflict()?.message).toContain("optional params aren't supported, use [id]");
 	});
