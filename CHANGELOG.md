@@ -14,7 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender `entries()` values allow only letters, digits, `- _ . ~` (and `/` in catch-alls).
 - `entries()` values like `v1..v2` are allowed; a part ending in `.` (`v1.`, `..`) fails.
 - The build fails when two prerendered pages differ only by case, like `About` and `about`.
-- `entries()` values can't end in `.html`/`.json` or be Windows device names like `con`.
+- `entries()` values can't be Windows device names like `con`, or end the URL in `.html`/`.json`.
+- An `entries()` value of `index` fails; it used to replace the parent page, like `/blog`.
+- A value repeated in `entries()` (a tag on two posts) is written once instead of failing.
 - Upgrading: rename params like `[post-id]` or `[file.name]` to `[post_id]` or `[fileName]`.
 - Upgrading: prerender slugs like `50%-off` or `café` must become `50-off` or `cafe`.
 - The build lists every broken `entries()` route at once, one `❌` line each.

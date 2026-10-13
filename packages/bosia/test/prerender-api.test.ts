@@ -79,13 +79,13 @@ describe("substituteParams() — API rest-segment cases", () => {
 
 	test("empty parts and parts ending in `.` fail (they'd land on another route's file)", () => {
 		for (const slug of ["...", "v1.", "a.."])
-			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/can't end with `\.`/);
+			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/trailing `\.`/);
 		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/no empty parts/);
 		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/no empty parts/);
 		expect(() => substituteParams("/docs/[...p]", { p: "/" })).toThrow(/no empty parts/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/can't end with `\.`/);
-		expect(() => substituteParams("/blog/[slug]", { slug: ".." })).toThrow(/can't end with `\.`/);
-		expect(() => substituteParams("/docs/[...p]", { p: "a/../b" })).toThrow(/can't end with `\.`/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/trailing `\.`/);
+		expect(() => substituteParams("/blog/[slug]", { slug: ".." })).toThrow(/trailing `\.`/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a/../b" })).toThrow(/trailing `\.`/);
 	});
 
 	test("`.html`/`.json` endings and Windows device names fail", () => {
@@ -95,6 +95,18 @@ describe("substituteParams() — API rest-segment cases", () => {
 			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/device names/);
 		expect(substituteParams("/blog/[slug]", { slug: "console" })).toBe("/blog/console");
 		expect(substituteParams("/blog/[slug]", { slug: "post.htm" })).toBe("/blog/post.htm");
+		// Only the URL's last part names a file.
+		expect(substituteParams("/docs/[...p]", { p: "release.html/notes" })).toBe(
+			"/docs/release.html/notes",
+		);
+		expect(substituteParams("/[slug]/edit", { slug: "a.json" })).toBe("/a.json/edit");
+	});
+
+	test("`index` as the last part fails (it would serve the parent URL)", () => {
+		expect(() => substituteParams("/[slug]", { slug: "index" })).toThrow(/can't be `index`/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a/Index" })).toThrow(/can't be `index`/);
+		expect(substituteParams("/docs/[...p]", { p: "index/a" })).toBe("/docs/index/a");
+		expect(substituteParams("/[slug]/edit", { slug: "index" })).toBe("/index/edit");
 	});
 
 	test("the error quotes the value, so a newline can't split the message", () => {
@@ -146,5 +158,45 @@ export const entries = () => [{ slug: "About" }, { slug: "about" }];
 		const err = await detect([route("c", server)]);
 		expect(err).toBeInstanceOf(PrerenderEntriesError);
 		expect(err.message).toContain("/c/About and /c/about write the same file");
+	});
+
+	test("a repeated value is written once", async () => {
+		const server = `export const prerender = true;
+export const entries = () => [{ slug: "js" }, { slug: "js" }];
+`;
+		expect(await detect([route("t", server)])).toEqual([
+			{ path: "/t/js", kind: "page", trailingSlash: "never" },
+		]);
+	});
+
+	test("folders that differ only by case fail", async () => {
+		mkdirSync(join(dir, "src/routes/d/[...p]"), { recursive: true });
+		writeFileSync(
+			join(dir, "src/routes/d/[...p]/+page.server.ts"),
+			`export const prerender = true;
+export const entries = () => [{ p: "A/x" }, { p: "a/y" }];
+`,
+		);
+		const page = {
+			pattern: "/d/[...p]",
+			pageServer: "d/[...p]/+page.server.ts",
+			trailingSlash: "never",
+		};
+		const err = await detect([page]);
+		expect(err.message).toContain("/d/A/x and /d/a/y write the same folder");
+	});
+
+	test("two pages writing one data file fail", async () => {
+		const page = (pattern: string, file: string) => {
+			mkdirSync(join(dir, "src/routes", file, ".."), { recursive: true });
+			writeFileSync(join(dir, "src/routes", file), "export const prerender = true;\n");
+			return { pattern, pageServer: file, trailingSlash: "always" };
+		};
+		const err = await detect([
+			page("/", "+page.server.ts"),
+			page("/index", "index/+page.server.ts"),
+		]);
+		expect(err.message).toContain("/ and /index write the same file");
+		expect(err.message).toContain("__bosia/data/index.json");
 	});
 });

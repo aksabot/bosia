@@ -72,7 +72,7 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 	// Per segment, so an inserted value is never re-read as a placeholder.
 	return pattern
 		.split("/")
-		.map((seg) => {
+		.map((seg, i, segs) => {
 			const rank = segmentRank(seg);
 			if (!rank) return seg;
 			const name = segmentName(seg);
@@ -88,20 +88,20 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			// Strict on purpose (decided 2026-10-14): ASCII unreserved URL characters only, so the
 			// fetched URL, the file written and a static host's lookup all agree, with nothing to
 			// percent-encode or decode. `50%-off`, `café`, `what%3F` fail by design: slugify them.
+			// No part may end in `.`: the URL parser folds `.`/`..`, and Windows drops trailing
+			// dots (`v1.` → `v1`), so the page would land on another route's file.
 			const parts = rank === 2 ? value.split("/") : [value];
-			if (!parts.every((part) => /^[A-Za-z0-9._~-]+$/.test(part)))
+			if (!parts.every((part) => /^[A-Za-z0-9._~-]*[A-Za-z0-9_~-]$/.test(part)))
 				bad(
-					`use only ASCII letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts`,
+					`use only ASCII letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts or trailing \`.\``,
 				);
-			// The URL parser folds a `.`/`..` part, and Windows drops a part's trailing dots
-			// (`v1.` → `v1`, `...` → ``), so the page would land on another route's file.
-			if (parts.some((part) => part.endsWith("."))) bad("a part can't end with `.`");
-			// `post.html` would be written as `post.html.html`; a static host serves `post.html` instead.
-			if (parts.some((part) => /\.(html|json)$/i.test(part)))
-				bad("a part can't end with .html or .json");
 			// Windows device names: writing `nul.html` hits the device, not a file.
 			if (parts.some((part) => /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(part)))
 				bad("Windows device names (con, nul, com1, …) are not allowed");
+			// Only the URL's last part names a file: `index` is written as `<parent>/index.html`,
+			// which serves the parent URL; `post.html` as `post.html.html`, never served for it.
+			if (i === segs.length - 1 && /^index$|\.(html|json)$/i.test(parts.at(-1)!))
+				bad("the last part can't be `index` or end with .html or .json");
 			return value;
 		})
 		.join("/");
@@ -208,17 +208,37 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 		throw new PrerenderEntriesError(failed.map((e) => `❌ ${e.message}`).join("\n"), {
 			cause: failed,
 		});
-	const targets = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-	// macOS and Windows file systems ignore case: `About` and `about` would be one file.
-	const seen = new Map<string, string>();
+	// A repeated entries() value (a tag on two posts) is written once.
+	const all = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+	const targets = [...new Map(all.map((t) => [`${t.kind} ${t.path}`, t])).values()];
+	// Two routes may not write one file, and macOS/Windows ignore case: `About` and `about`
+	// (or folders `A/` and `a/`) would merge. Every folder level and the data file count.
+	const owners = new Map<string, { path: string; route: string; file: boolean }>();
 	const clashes: string[] = [];
 	for (const t of targets) {
-		const out =
-			t.kind === "api" ? prerenderApiOutPath(t.path) : prerenderOutPath(t.path, t.trailingSlash);
-		const key = out.toLowerCase();
-		const first = seen.get(key);
-		if (first) clashes.push(`❌ Prerender: ${first} and ${t.path} write the same file (${out})`);
-		else seen.set(key, t.path);
+		const files =
+			t.kind === "api"
+				? [prerenderApiOutPath(t.path)]
+				: [
+						prerenderOutPath(t.path, t.trailingSlash),
+						`${OUT_DIR}/prerendered/__bosia/data${prerenderDataPath(t.path)}`,
+					];
+		for (const out of files) {
+			const segs = out.split("/");
+			for (let i = 1; i <= segs.length; i++) {
+				const path = segs.slice(0, i).join("/");
+				const file = i === segs.length;
+				const prev = owners.get(path.toLowerCase());
+				if (!prev) owners.set(path.toLowerCase(), { path, route: t.path, file });
+				else if (prev.path !== path || (file && prev.file)) {
+					const what = file && prev.file ? "file" : "folder";
+					clashes.push(
+						`❌ Prerender: ${prev.route} and ${t.path} write the same ${what} (${path})`,
+					);
+					break;
+				}
+			}
+		}
 	}
 	if (clashes.length) throw new PrerenderEntriesError(clashes.join("\n"));
 	return targets;

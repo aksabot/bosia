@@ -13,7 +13,8 @@
 - [x] 🟡 Prerender fails on output paths equal ignoring case (`About`/`about` are one file on macOS/Windows); values ending `.html`/`.json` and Windows device names (`con`, `nul`) fail too.
 - [x] ⚪ Combined `PrerenderEntriesError` keeps every route's error in `cause`. Strict name/value rules carry "decided 2026-10-14" comments in code.
 - [ ] ⚪ A non-entries error (unreadable route file) still drops the collected `entries()` errors.
-- [ ] ⚪ Slug `index` under `/blog/[slug]` can clash with `/blog/` on static hosts when both are prerendered.
+- [x] 🟡 A last-part `index` value fails: written as `<parent>/index.html`, it replaced the parent URL's page (even a live one). `.html`/`.json` checks only the last part.
+- [x] ⚪ Clash check dedupes repeated values, compares every folder level ignoring case (`A/x` vs `a/y`) and includes `__bosia/data` files (`/` vs `/index`).
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 
