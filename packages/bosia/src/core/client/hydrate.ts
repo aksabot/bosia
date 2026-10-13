@@ -82,8 +82,10 @@ async function main() {
 	// next client navigation can decide which loaders to skip without an
 	// extra fetch round-trip.
 	if (match) {
-		const url = new URL(window.location.href);
-		const ctx = liveContext(window.location.pathname, match.params, url);
+		// The server's route, not window.location: a click during the chunk loads
+		// above already moved the address bar on.
+		const url = new URL(router.hydratedRoute, window.location.origin);
+		const ctx = liveContext(url.pathname, match.params, url);
 		const ssrPageDeps: LoaderDeps | null = (window as any).__BOSIA_PAGE_DEPS__ ?? null;
 		const ssrLayoutDeps: (LoaderDeps | null)[] = (window as any).__BOSIA_LAYOUT_DEPS__ ?? [];
 		const pageId = (match.route as any).pageId as string | null;

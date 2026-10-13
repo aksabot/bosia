@@ -139,12 +139,12 @@
 	// waiting goto()/use:enhance calls.
 	function dropLoadingUI() {
 		navigating = false;
-		router.loading = false;
 		showLoading = false;
 		LoadingComponent = null;
 	}
 	function abandonRun() {
 		dropLoadingUI();
+		router.loading = false;
 		navPending = false;
 		router.suppressScroll = false;
 		drainNavResolvers();
@@ -228,8 +228,9 @@
 			lastNavKey = hUrl.pathname + hUrl.search;
 			seenRoute = router.hydratedRoute;
 			lastTick = 0; // the SSR data's tick
-			// Restore-after-reload: router.init() staged this entry's snapshot.
-			settleSnapshot();
+			// Restore-after-reload: router.init() staged this entry's snapshot. Only for
+			// the hydrated page — a nav during hydration staged the destination's.
+			if (path === router.hydratedRoute) settleSnapshot();
 			// Initial hydration — data already in SSR props, no fetch needed. Unless a
 			// child's onMount (its effects run first) already invalidated or navigated:
 			// then fall through and run it as a normal nav from the server's route.
@@ -248,6 +249,7 @@
 			// Back to the settled page before an in-flight nav finished: its run was
 			// cancelled, so drop the progress bar and skeleton it left up.
 			dropLoadingUI();
+			router.loading = false;
 			settleScroll();
 			// goto("#x") waits on this nav like any other.
 			drainNavResolvers();
@@ -359,6 +361,9 @@
 				willUnload: false,
 				cancel: () => {},
 			};
+			// Cleared here, not with the loading UI: an error chunk await or a redirect
+			// hop is still loading for a goto() to the same URL.
+			router.loading = false;
 			fireAfterNavigate(nav);
 			drainNavResolvers();
 		};
@@ -400,10 +405,6 @@
 					else abandonRun();
 					return;
 				}
-				// Recorded only once something renders for it: a redirected route never
-				// counts as settled, so Back to it refetches instead of taking the shortcut.
-				lastSettledPath = pathname;
-				lastNavKey = navKey;
 				if (result?.error || (result === null && match.route.hasServerData)) {
 					// New shape: { error: { status, message }, errorDepth, errorOrigin }
 					const errInfo = result?.error;
@@ -466,6 +467,10 @@
 								(kept > 0 ? chainTitles[kept - 1] : null) ?? errorTitle(errStatus, errMessage);
 							navTitle = document.title;
 						}
+						// Recorded only once something renders for it (here after the error
+						// chunk's await): a cancelled or redirected run never counts as settled.
+						lastSettledPath = pathname;
+						lastNavKey = navKey;
 						settleScroll(!errorShown);
 						settle({ url, params: match.params });
 					} catch {
@@ -476,6 +481,8 @@
 				// Fresh data is applied below; the error branch above applied none, so it
 				// left any owed refresh for the next run.
 				owedRefresh = false;
+				lastSettledPath = pathname;
+				lastNavKey = navKey;
 				// Layout paths are recorded only once they render: a redirect above
 				// leaves the mounted ones in place.
 				const shared = sharedDepth(currentLayoutPaths, destLayoutPaths);
