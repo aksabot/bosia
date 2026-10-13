@@ -62,6 +62,8 @@
 - [x] ⚪ `[path...]` built as a one-segment param (now "did you mean [...path]?"); `[...p=x]` hint kept the `...`; prerender `replace` read `$&` in values (function replacer now).
 - [x] ⚪ `substituteParams` goes per segment (segmentRank): throws on a missing `entries()` key, keeps `[draft]` values literal; type imports use JSON-quoted paths so `[it's]` stays valid TS.
 - [x] 🟠 An `entries()` error skipped the whole route and the build passed (500 pages gone quietly); now exits 1. Values null/undefined/empty/`.` rejected; `[id?]` fails the build.
+- [x] ⚪ Prerender: catch-all values may end in `/` again; `?`/`#` rejected; errors throw (no `process.exit`); missing `entries()` export fails too. `[path..]`/`[x…]` typos caught.
+- [ ] ⚪ Prerender lets `%2e%2e` through: the URL parser folds it to `/`, so home HTML lands in `docs/%2e%2e.html`. Decode before checking.
 - [ ] ⚪ One `parseSegment()` returning `{rank, name}` or an error: `SEGMENT` runs 2–3× per segment, and `checkParams` keeps its own bracket regex.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 

@@ -236,6 +236,11 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("did you mean [...path]?");
 	});
 
+	test("two dots or an ellipsis ask for a catch-all too", () => {
+		write("docs/[path..]/+page.svelte");
+		expect(conflict()?.message).toContain("did you mean [...path]?");
+	});
+
 	test("a dot-led param name fails the build", () => {
 		write("[.hidden]/+page.svelte");
 		expect(conflict()?.message).toContain("[.hidden] needs a param name");

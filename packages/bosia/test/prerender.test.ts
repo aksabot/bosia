@@ -42,7 +42,9 @@ describe("substituteParams()", () => {
 	});
 
 	test("rejects `/` in non-rest dynamic segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "a/b" })).toThrow(/path traversal/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a/b" })).toThrow(
+			/only allowed in a \[\.\.\.rest\]/,
+		);
 	});
 
 	test("allows `/` inside catch-all `[...rest]` value", () => {

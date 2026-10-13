@@ -50,9 +50,19 @@ describe("substituteParams() — API rest-segment cases", () => {
 	test("null, undefined, empty or '.' values fail instead of writing a wrong file", () => {
 		expect(() => substituteParams("/blog/[slug]", { slug: undefined as any })).toThrow("no value");
 		expect(() => substituteParams("/blog/[slug]", { slug: null as any })).toThrow("no value");
-		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/path traversal/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/path traversal/);
-		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/path traversal/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/empty or `\.` parts/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/empty or `\.` parts/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/empty or `\.` parts/);
+		expect(() => substituteParams("/docs/[...p]", { p: "/" })).toThrow(/empty or `\.` parts/);
+	});
+
+	test("a catch-all value may end in one slash", () => {
+		expect(substituteParams("/docs/[...p]", { p: "guide/intro/" })).toBe("/docs/guide/intro");
+	});
+
+	test("? and # fail (fetched URL would differ from the written file)", () => {
+		expect(() => substituteParams("/docs/[...p]", { p: "a?b" })).toThrow(/`\?` and `#`/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a#b" })).toThrow(/`\?` and `#`/);
 	});
 
 	test("bracketed values stay literal and aren't re-substituted", () => {

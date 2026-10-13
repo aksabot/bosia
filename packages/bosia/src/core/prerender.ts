@@ -78,19 +78,19 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			const name = segmentName(seg);
 			if (entry[name] == null || !Object.hasOwn(entry, name))
 				throw new Error(`Prerender entries(): no value for ${seg} in ${pattern}.`);
-			const value = String(entry[name]);
-			// `..` and `\` let a build write outside the output tree; `/` only fits a catch-all;
-			// an empty or "." part would land on the parent route's file.
-			if (
-				/\\|\.\./.test(value) ||
-				(rank === 1 && value.includes("/")) ||
-				value.split("/").some((part) => part === "" || part === ".")
-			) {
-				throw new Error(
-					`Prerender entries(): unsafe value "${value}" for ${seg} — ` +
-						`path traversal characters are not allowed in dynamic segment values.`,
-				);
-			}
+			// A catch-all may end in one "/" ("guide/intro/"); the out path drops it.
+			const value = rank === 2 ? String(entry[name]).replace(/\/$/, "") : String(entry[name]);
+			const bad = (why: string) => {
+				throw new Error(`Prerender entries(): unsafe value "${entry[name]}" for ${seg} — ${why}.`);
+			};
+			// `..` and `\` let a build write outside the output tree.
+			if (/\\|\.\./.test(value)) bad("path traversal characters are not allowed");
+			// The fetched URL would differ from the file written.
+			if (/[?#]/.test(value)) bad("`?` and `#` are not allowed");
+			if (rank === 1 && value.includes("/")) bad("`/` is only allowed in a [...rest] param");
+			// An empty or "." part would land on the parent route's file.
+			if (value.split("/").some((part) => part === "" || part === "."))
+				bad("empty or `.` parts are not allowed");
 			return value;
 		})
 		.join("/");
@@ -139,10 +139,8 @@ async function expandDynamicRoute(
 ): Promise<PrerenderTarget[]> {
 	try {
 		const mod = await import(join(process.cwd(), filePath));
-		if (typeof mod.entries !== "function") {
-			console.warn(`   ⚠️  ${pattern} has prerender=true but no entries() export — skipped`);
-			return [];
-		}
+		if (typeof mod.entries !== "function")
+			throw new Error("prerender = true on a dynamic route needs an entries() export");
 		const entryList: Record<string, string>[] = await mod.entries();
 		return entryList.map((entry) => ({
 			path: substituteParams(pattern, entry),
@@ -151,8 +149,9 @@ async function expandDynamicRoute(
 		}));
 	} catch (err) {
 		// Fail the build: skipping the route would silently drop every page it lists.
-		console.error(`   ❌ Failed to resolve entries() for ${pattern}:`, err);
-		process.exit(1);
+		throw new Error(`Failed to resolve entries() for ${pattern}: ${(err as Error).message}`, {
+			cause: err,
+		});
 	}
 }
 

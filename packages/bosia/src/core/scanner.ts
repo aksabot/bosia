@@ -291,7 +291,7 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 				fail(`${seg}: param matchers aren't supported, use [${dots}${name.split("=")[0]}]`);
 			if (name.endsWith("?"))
 				fail(`${seg}: optional params aren't supported, use [${dots}${name.slice(0, -1)}]`);
-			if (name.endsWith("...")) fail(`${seg}: did you mean [...${name.slice(0, -3)}]?`);
+			if (/[.…]$/.test(name)) fail(`${seg}: did you mean [...${name.replace(/[.…]+$/, "")}]?`);
 			// params is a plain object: assigning "__proto__" sets the prototype, not a key.
 			if (name === "__proto__") fail(`"__proto__" can't be a param name`);
 			if (names.has(name)) fail(`the param "${name}" is used twice`);
