@@ -70,14 +70,20 @@ describe("goto", () => {
 	}
 });
 
-describe("go (use:enhance redirect)", () => {
-	test("a no-op call resolves itself, not a nav still loading", async () => {
-		const loading = goto("/b");
+describe("goto while a nav is loading", () => {
+	test("a cancelled call resolves itself, not the nav still loading", async () => {
 		let loadingDone = false;
-		loading.then(() => (loadingDone = true));
-		await go("/b", {}, false);
+		goto("/b").then(() => (loadingDone = true));
+		next = "cancelled";
+		await go("/c", {}, false);
 		await Promise.resolve();
 		expect(loadingDone).toBe(false);
 		expect(appState.navResolvers.length).toBe(1);
+	});
+
+	test("a call to the loading URL waits for it", () => {
+		goto("/b");
+		goto("/b");
+		expect(appState.navResolvers.length).toBe(2);
 	});
 });

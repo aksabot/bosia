@@ -25,6 +25,8 @@
 - [x] 🟡 An `invalidate()`/`goto(sameUrl, { invalidateAll })` from a child's `onMount` refetches; hydration's first effect absorbed the tick and hung the `goto()`.
 - [x] 🟢 A loader redirect that doesn't start a nav resets `suppressScroll`.
 - [x] 🟡 No-match exit (server-rendered 404) drains resolvers; a same-URL `goto(invalidateAll)` there hung. Error-chunk reload skips cancelled runs.
+- [x] 🟡 `goto()` to a URL still loading (`same`, resolvers queued) waits for it; it resolved before the data showed. No-match exits tear down the loading UI via `abandonRun()`.
+- [ ] ⚪ A child's `onMount` `goto('/other')` before App's first effect: hydration books `/other` with `/a` rendered and the goto hangs (pre-existing).
 - [ ] ⚪ A `use:enhance` redirect cancelled by `beforeNavigate` clears `form` and doesn't refetch, though the action mutated. Needs `go()` to expose its NavResult.
 - [ ] 🟡 Loader redirects `pushState`, so Back returns to the redirecting URL and bounces again; should `replace` (pre-existing).
 - [ ] ⚪ `owedRefresh` re-runs every loader with `fresh`; keeping the cancelled run's dirty set until it applies would refetch less.

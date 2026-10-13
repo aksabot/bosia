@@ -134,6 +134,18 @@
 	// goto({ noScroll: true }) flips `router.suppressScroll` for one nav.
 	// A re-run with no route change (`invalidate*()`, `use:enhance`) isn't a nav and
 	// keeps its scroll — unless `replaced`: an error page and the page swapped places.
+	// A run that ends without settling (no route, a redirect that didn't start a nav,
+	// a rejected chain): drop the loading UI and the scroll it owed, and release
+	// waiting goto()/use:enhance calls.
+	function abandonRun() {
+		navigating = false;
+		showLoading = false;
+		LoadingComponent = null;
+		navPending = false;
+		router.suppressScroll = false;
+		drainNavResolvers();
+	}
+
 	function settleScroll(replaced = false) {
 		const navigated = navPending;
 		navPending = false;
@@ -177,9 +189,9 @@
 		const navKey = pathname + url.search;
 		const match = findMatch(clientRoutes, pathname);
 		if (!match) {
-			// No client route (e.g. a server-rendered 404): nothing will settle, so
-			// release a goto()/use:enhance waiting on a same-URL refresh.
-			drainNavResolvers();
+			// No client route (e.g. a server-rendered 404, or Back onto one): nothing
+			// will settle, so release a waiting goto()/use:enhance.
+			abandonRun();
 			return;
 		}
 
@@ -358,11 +370,7 @@
 					// A redirect that doesn't start a nav (cancelled, same URL, left the app)
 					// gets no run to settle it — release the waiting goto()/use:enhance here.
 					// owedRefresh stays set: the destination owes this run's invalidation.
-					if (router.navigate(result.redirect) !== "started") {
-						navPending = false;
-						router.suppressScroll = false;
-						drainNavResolvers();
-					}
+					if (router.navigate(result.redirect) !== "started") abandonRun();
 					return;
 				}
 				owedRefresh = false;
@@ -568,14 +576,7 @@
 				// A rejected chunk or a throwing page module: tear down this run's loading UI
 				// and release waiting goto()/use:enhance calls, then rethrow — a stale-deploy
 				// chunk error must still reach hydrate.ts's unhandledrejection recovery.
-				if (!cancelled) {
-					navigating = false;
-					showLoading = false;
-					LoadingComponent = null;
-					navPending = false;
-					router.suppressScroll = false;
-					drainNavResolvers();
-				}
+				if (!cancelled) abandonRun();
 				throw err;
 			});
 

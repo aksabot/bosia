@@ -130,11 +130,11 @@ export function goto(url: string, opts: GotoOptions = {}): Promise<void> {
 	);
 }
 
-/** Internal — `goto()` and `use:enhance` redirects (which always pass `invalidateAll`). */
+/** Internal — `goto()` and `use:enhance` redirects. `reload` re-runs every loader (enhance: unless `update({ invalidateAll: false })`). */
 export function go(
 	url: string,
 	opts: { replace?: boolean; noScroll?: boolean; source?: NavType },
-	invalidateAll: boolean,
+	reload: boolean,
 ): Promise<void> {
 	if (typeof window === "undefined") return Promise.resolve();
 
@@ -143,16 +143,16 @@ export function go(
 		// The nav effect runs after this, so marks set now still reach it — and a nav
 		// that never starts (cancelled, left the app) leaves none behind for the next one.
 		if (result === "started" && opts.noScroll) router.suppressScroll = true;
-		const refetch = invalidateAll && (result === "started" || result === "same");
-		if (refetch) {
-			appState.dirty.all = true;
-			// The tick wakes the effect on the same URL, and on a new one it keeps a
-			// prefetch holding pre-mutation data from standing in for the refetch.
-			bumpTick();
-		}
-		// Nothing for the nav effect to settle: resolve just this call — draining the
-		// queue would also release a nav still loading.
-		if (result === "started" || refetch) appState.navResolvers.push(resolve);
+		const refetch = reload && (result === "started" || result === "same");
+		// The tick wakes the effect on the same URL, and on a new one it keeps a
+		// prefetch holding pre-mutation data from standing in for the refetch.
+		if (refetch) invalidateAll();
+		// "same" while a nav to it is still loading (queued resolvers) waits for it too.
+		const wait =
+			result === "started" || refetch || (result === "same" && appState.navResolvers.length > 0);
+		// Otherwise nothing will settle: resolve just this call — draining the queue
+		// would also release a nav still loading.
+		if (wait) appState.navResolvers.push(resolve);
 		else resolve();
 	});
 }

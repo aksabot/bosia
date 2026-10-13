@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Refreshing data right when a page first loads now works and no longer hangs.
 - A page that fails to load no longer leaves the loading bar or a saving form stuck.
 - Refreshing data on a "not found" page no longer hangs.
+- Waiting on `goto()` to a page that is still loading now waits until it has loaded.
 
 ## [1.2.2] - 2026-10-12
 
