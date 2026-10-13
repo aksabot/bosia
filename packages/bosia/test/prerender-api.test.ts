@@ -44,6 +44,12 @@ describe("substituteParams() — API rest-segment cases", () => {
 	});
 
 	test("a missing param fails instead of writing a literal [slug] path", () => {
-		expect(() => substituteParams("/blog/[slug]/[id]", { id: "5" })).toThrow("still has a [param]");
+		expect(() => substituteParams("/blog/[slug]/[id]", { id: "5" })).toThrow("no value for [slug]");
+	});
+
+	test("bracketed values stay literal and aren't re-substituted", () => {
+		expect(substituteParams("/blog/[slug]", { slug: "[draft]" })).toBe("/blog/[draft]");
+		expect(substituteParams("/[a]/[b]", { a: "[b]", b: "x" })).toBe("/[b]/x");
+		expect(substituteParams("/notes/[...path]", { path: "a/[wip]" })).toBe("/notes/a/[wip]");
 	});
 });

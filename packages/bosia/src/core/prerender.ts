@@ -7,7 +7,7 @@ import type { RuntimeTarget } from "./types/plugin.ts";
 import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
-import { isDynamic } from "./matcher.ts";
+import { isDynamic, segmentName, segmentRank } from "./matcher.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
 export function getEphemeralPort(): Promise<number> {
@@ -69,28 +69,26 @@ interface PrerenderTarget {
  * concrete values from an `entries()` record.
  */
 export function substituteParams(pattern: string, entry: Record<string, string>): string {
-	let resolved = pattern;
-	for (const [key, value] of Object.entries(entry)) {
-		// `..` and `\` are never legitimate in a route segment — they let a build
-		// emit prerendered HTML outside the intended output tree. Forward slashes
-		// are only allowed for catch-all (`[...key]`) segments, which by design
-		// expand to multiple path parts. Validate accordingly.
-		const isRest = pattern.includes(`[...${key}]`);
-		if (/\\|\.\./.test(value) || (!isRest && value.includes("/"))) {
-			throw new Error(
-				`Prerender entries(): unsafe value "${value}" for [${key}] — ` +
-					`path traversal characters are not allowed in dynamic segment values.`,
-			);
-		}
-		// Function replacers: a `$&` or `$'` in value stays literal.
-		resolved = resolved.replace(`[...${key}]`, () => value);
-		resolved = resolved.replace(`[${key}]`, () => value);
-	}
-	if (isDynamic(resolved))
-		throw new Error(
-			`Prerender entries(): ${resolved} still has a [param]; give every param a value.`,
-		);
-	return resolved;
+	// Per segment, so an inserted value is never re-read as a placeholder.
+	return pattern
+		.split("/")
+		.map((seg) => {
+			const rank = segmentRank(seg);
+			if (!rank) return seg;
+			const name = segmentName(seg);
+			if (!Object.hasOwn(entry, name))
+				throw new Error(`Prerender entries(): no value for ${seg} in ${pattern}.`);
+			const value = String(entry[name]);
+			// `..` and `\` let a build write outside the output tree; `/` only fits a catch-all.
+			if (/\\|\.\./.test(value) || (rank === 1 && value.includes("/"))) {
+				throw new Error(
+					`Prerender entries(): unsafe value "${value}" for ${seg} — ` +
+						`path traversal characters are not allowed in dynamic segment values.`,
+				);
+			}
+			return value;
+		})
+		.join("/");
 }
 
 /**

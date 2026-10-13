@@ -60,7 +60,7 @@
 - [ ] ⚪ Catch-all prefix warning fires when another route already serves the prefix (`/[...all]`, or `/[page]` for `/docs`). Check with `findMatch` on the sorted pages.
 - [x] ⚪ `[id=integer]` (SvelteKit matcher) built as a param named "id=integer"; the build now rejects it. Prefix warning now says "unless another route already serves it".
 - [x] ⚪ `[path...]` built as a one-segment param (now "did you mean [...path]?"); `[...p=x]` hint kept the `...`; prerender `replace` read `$&` in values (function replacer now).
-- [x] ⚪ Prerender throws on a leftover `[param]` (missing `entries()` key); type imports use JSON-quoted paths so `[it's]` stays valid TS.
+- [x] ⚪ `substituteParams` goes per segment (segmentRank): throws on a missing `entries()` key, keeps `[draft]` values literal; type imports use JSON-quoted paths so `[it's]` stays valid TS.
 - [ ] ⚪ One `parseSegment()` returning `{rank, name}` or an error: `SEGMENT` runs 2–3× per segment, and `checkParams` keeps its own bracket regex.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 
