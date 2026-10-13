@@ -31,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Waiting on `goto()` to a page that is still loading now waits until it has loaded.
 - A page that must reload after an error no longer resends a form or runs its action twice.
 - Data owed a refresh (e.g. after logout) stays owed when the next page shows an error.
+- Moving to another page as soon as a page first loads now works and no longer hangs.
+- A loading placeholder no longer pops back up over a page that already loaded.
 
 ## [1.2.2] - 2026-10-12
 

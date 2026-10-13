@@ -126,6 +126,9 @@
 	let owedRefresh = false;
 	// Skip bar on the very first effect run (initial hydration — data already present)
 	let firstNav = true;
+	// The route the server rendered. Read before children mount: a child's onMount
+	// goto() runs before the first nav effect and moves router.currentRoute on.
+	const hydratedRoute = typeof window !== "undefined" ? router.currentRoute : "";
 	let navDoneTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Scroll after a nav settles: forward navs go to top (or the URL hash);
@@ -210,21 +213,24 @@
 		const isFirst = firstNav;
 		firstNav = false;
 		if (isFirst) {
-			currentLayoutPaths = (match.route as any).layoutPaths ?? [];
+			const hUrl = new URL(hydratedRoute, window.location.origin);
+			const hMatch = hydratedRoute === path ? match : findMatch(clientRoutes, hUrl.pathname);
+			currentLayoutPaths = (hMatch?.route as any)?.layoutPaths ?? [];
 			// The probes ran during hydration, before this effect. A title other than
 			// metadata()'s or the layouts' was a component's, so navigation keeps it.
 			const ssrTitle: string | undefined = (window as any).__BOSIA_TITLE__;
 			const base = baseTitle(currentLayoutPaths.length);
 			navTitle = ssrTitle ? collapseTitle(ssrTitle) : document.title === base ? base : null;
-			lastSettledPath = pathname;
-			lastNavKey = navKey;
-			seenRoute = path;
+			lastSettledPath = hUrl.pathname;
+			lastNavKey = hUrl.pathname + hUrl.search;
+			seenRoute = hydratedRoute;
 			lastTick = 0; // the SSR data's tick
 			// Restore-after-reload: router.init() staged this entry's snapshot.
 			settleSnapshot();
 			// Initial hydration — data already in SSR props, no fetch needed. Unless a
-			// child's onMount already invalidated (child effects run first): refetch then.
-			if (currentTick === 0) return;
+			// child's onMount (its effects run first) already invalidated or navigated:
+			// then fall through and run it as a normal nav from the server's route.
+			if (currentTick === 0 && path === hydratedRoute) return;
 		}
 
 		// Decided here, not at settle: a run superseded or redirected before it
@@ -271,7 +277,7 @@
 		if (loadingImport && pathname !== lastSettledPath) {
 			const s = sharedDepth(currentLayoutPaths, destLayoutPaths);
 			loadingImport().then((m) => {
-				if (cancelled) return; // superseded nav
+				if (cancelled || !navigating) return; // superseded, or already settled/abandoned
 				loadingDepth = s;
 				LoadingComponent = m.default;
 				showLoading = true;
@@ -367,8 +373,7 @@
 				const skeletonShown = showLoading && !!LoadingComponent;
 				const pageShown = !skeletonShown && !appState.errorComponent;
 				const errorShown = skeletonShown ? null : appState.errorComponent;
-				showLoading = false;
-				LoadingComponent = null;
+				dropLoadingUI();
 				navDoneTimer = setTimeout(() => {
 					navDone = false;
 				}, 400);
