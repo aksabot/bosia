@@ -18,6 +18,9 @@
 - [x] 🟡 `go()` resolves only its own Promise on a no-op; draining the queue released a nav still loading.
 - [x] 🟡 Back to the settled page mid-nav takes the hash shortcut: it now clears the stuck progress bar and skeleton.
 - [ ] ⚪ Error ↔ page swap on the same URL scrolls to top even with `noScroll` or a `#hash`.
+- [x] 🟠 An invalidated run cancelled or loader-redirected before applying data sets `owedRefresh`; the next run refetches every loader (logout via a redirecting `/` kept stale layouts).
+- [x] 🟡 A failed route chunk import (stale deploy) falls back to a full load; awaited `use:enhance` hung on it.
+- [ ] ⚪ A loader redirect cancelled by `beforeNavigate` leaves the URL on the new route with the old page shown (pre-existing).
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

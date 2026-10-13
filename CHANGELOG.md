@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A form whose redirect is cancelled no longer hangs.
 - Going Back while a page is loading no longer leaves the loading bar stuck.
 - After a form redirects, an old error message from an earlier try is cleared.
+- Data refreshed after logout stays fresh even if the next page redirects again.
+- A page whose code fails to load (after a new deploy) now reloads instead of freezing.
 
 ## [1.2.2] - 2026-10-12
 

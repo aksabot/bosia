@@ -121,6 +121,9 @@
 	let seenRoute = ""; // full route (with hash) the nav effect last ran for
 	let navPending = false; // a route change not yet scrolled for; outlives superseded/redirected runs
 	let lastTick = 0; // invalidationTick value last processed
+	// An invalidated run that was cancelled or redirected before applying its data
+	// already cleared the dirty set, so the next run refetches every loader instead.
+	let owedRefresh = false;
 	// Skip bar on the very first effect run (initial hydration — data already present)
 	let firstNav = true;
 	let navDoneTimer: ReturnType<typeof setTimeout> | null = null;
@@ -203,7 +206,7 @@
 		// Hash-only change (same pathname+search, no invalidation): scroll, don't
 		// refetch. A static host can't answer the parent-snapshot POST a refetch may
 		// issue, which would otherwise render the error page.
-		if (navKey === lastNavKey && currentTick === lastTick) {
+		if (navKey === lastNavKey && currentTick === lastTick && !owedRefresh) {
 			// Back to the settled page before an in-flight nav finished: its run was
 			// cancelled, so drop the progress bar and skeleton it left up.
 			navigating = false;
@@ -216,7 +219,9 @@
 		}
 		// A prefetch saved before an invalidation holds pre-mutation data — after a
 		// `use:enhance` success or `invalidate*()` it must not stand in for the refetch.
-		const invalidated = currentTick !== lastTick || appState.dirty.all;
+		const carried = owedRefresh;
+		const invalidated = currentTick !== lastTick || appState.dirty.all || carried;
+		if (invalidated) owedRefresh = true;
 		lastTick = currentTick;
 
 		// Only a real navigation drops the action result. An invalidation re-run
@@ -257,14 +262,14 @@
 		const layoutRunFlags: boolean[] = layoutIds.map((id) => {
 			if (id === null) return false; // no server loader at this depth
 			const entry = appState.loaderCache.layouts[id];
-			if (!entry) return true; // never loaded → must run
+			if (!entry || carried) return true; // never loaded, or owed a refresh → must run
 			return shouldRerun(entry, appState.dirty, ctx);
 		});
 
 		let pageRun = false;
 		if (pageId !== null) {
 			const entry = appState.loaderCache.page;
-			if (!entry || entry.nodeId !== pageId) {
+			if (!entry || entry.nodeId !== pageId || carried) {
 				pageRun = true;
 			} else {
 				pageRun = shouldRerun(entry, appState.dirty, ctx);
@@ -321,141 +326,135 @@
 			match.route.page(),
 			Promise.all(match.route.layouts.map((l: any) => l())),
 			dataFetch,
-		]).then(async ([pageMod, layoutMods, result]: [any, any[], any]) => {
-			if (cancelled) return;
-			navigating = false;
-			navDone = true;
-			// Tear down the loading skeleton and record identity for the next nav.
-			// Superseded navs have cancelled === true and never reach here, so they
-			// can't clobber a newer nav's loader.
-			// The skeleton and the error page render in their own {#if} branch, so
-			// leaving either remounts the page. Read before both are cleared below.
-			// The skeleton shows only once its chunk loaded (template's condition).
-			const skeletonShown = showLoading && !!LoadingComponent;
-			const pageShown = !skeletonShown && !appState.errorComponent;
-			const errorShown = skeletonShown ? null : appState.errorComponent;
-			showLoading = false;
-			LoadingComponent = null;
-			lastSettledPath = pathname;
-			lastNavKey = navKey;
-			navDoneTimer = setTimeout(() => {
-				navDone = false;
-			}, 400);
-			if (result?.redirect) {
-				// A redirect that doesn't start a nav (cancelled, same URL, left the app)
-				// gets no run to settle it — release the waiting goto()/use:enhance here.
-				if (router.navigate(result.redirect) !== "started") {
-					navPending = false;
-					drainNavResolvers();
-				}
-				return;
-			}
-			if (result?.error || (result === null && match.route.hasServerData)) {
-				// New shape: { error: { status, message }, errorDepth, errorOrigin }
-				const errInfo = result?.error;
-				const errStatus =
-					typeof errInfo === "object" && errInfo !== null
-						? (errInfo.status ?? 500)
-						: (result?.status ?? 500);
-				const errMessage =
-					typeof errInfo === "object" && errInfo !== null
-						? (errInfo.message ?? "Internal Server Error")
-						: typeof errInfo === "string"
-							? errInfo
-							: "Internal Server Error";
-				const errDepth: number =
-					typeof result?.errorDepth === "number" ? result.errorDepth : match.route.layouts.length;
-				const errOrigin = result?.errorOrigin === "layout" ? "layout" : "page";
-				const picked = pickErrorPage(match.route.errorPages ?? [], errDepth, errOrigin);
-				if (!picked) {
-					// No nested boundary — full reload so server can render global error page
-					window.location.href = path;
+		])
+			.then(async ([pageMod, layoutMods, result]: [any, any[], any]) => {
+				if (cancelled) return;
+				navigating = false;
+				navDone = true;
+				// Tear down the loading skeleton and record identity for the next nav.
+				// Superseded navs have cancelled === true and never reach here, so they
+				// can't clobber a newer nav's loader.
+				// The skeleton and the error page render in their own {#if} branch, so
+				// leaving either remounts the page. Read before both are cleared below.
+				// The skeleton shows only once its chunk loaded (template's condition).
+				const skeletonShown = showLoading && !!LoadingComponent;
+				const pageShown = !skeletonShown && !appState.errorComponent;
+				const errorShown = skeletonShown ? null : appState.errorComponent;
+				showLoading = false;
+				LoadingComponent = null;
+				lastSettledPath = pathname;
+				lastNavKey = navKey;
+				navDoneTimer = setTimeout(() => {
+					navDone = false;
+				}, 400);
+				if (result?.redirect) {
+					// A redirect that doesn't start a nav (cancelled, same URL, left the app)
+					// gets no run to settle it — release the waiting goto()/use:enhance here.
+					// owedRefresh stays set: the destination owes this run's invalidation.
+					if (router.navigate(result.redirect) !== "started") {
+						navPending = false;
+						drainNavResolvers();
+					}
 					return;
 				}
-				try {
-					const K = picked.depth;
-					const [errMod, ...layoutModsForError] = await Promise.all([
-						picked.loader(),
-						...match.route.layouts.slice(0, K).map((l: any) => l()),
-					]);
-					if (cancelled) return;
-					// Error page to error page: the layouts both share stay mounted and
-					// never write their title again. Same error component under all of
-					// them too: nothing remounts, so a <title> it wrote stays — keep it.
-					const kept = errorShown
-						? sharedDepth(currentLayoutPaths, destLayoutPaths.slice(0, K))
-						: 0;
-					const prev = appState.errorProps?.error;
-					const keepTitle =
-						errorShown === errMod.default &&
-						kept === K &&
-						appState.errorDepth === K &&
-						!!prev &&
-						document.title !== collapseTitle(errorTitle(prev.status, prev.message));
-					layoutComponents = layoutModsForError.map((m: any) => m.default);
-					currentLayoutPaths = destLayoutPaths.slice(0, K);
-					titleNav.seq++; // the probes read again as this flushes
-					const newLayoutData: Record<string, any>[] = [];
-					for (let i = 0; i < K; i++) newLayoutData.push({});
-					appState.layoutData = newLayoutData;
-					appState.pageData = {};
-					appState.routeParams = match.params;
-					appState.errorComponent = errMod.default;
-					appState.errorProps = { error: { status: errStatus, message: errMessage } };
-					appState.errorDepth = K;
-					// What a hard load shows (renderer.ts): a layout's title, else the
-					// status title. Set before Svelte flushes, so a freshly mounted
-					// <title> in +error.svelte or a layout still wins.
-					document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
-					if (!keepTitle) {
-						document.title =
-							(kept > 0 ? chainTitles[kept - 1] : null) ?? errorTitle(errStatus, errMessage);
-						navTitle = document.title;
+				owedRefresh = false;
+				if (result?.error || (result === null && match.route.hasServerData)) {
+					// New shape: { error: { status, message }, errorDepth, errorOrigin }
+					const errInfo = result?.error;
+					const errStatus =
+						typeof errInfo === "object" && errInfo !== null
+							? (errInfo.status ?? 500)
+							: (result?.status ?? 500);
+					const errMessage =
+						typeof errInfo === "object" && errInfo !== null
+							? (errInfo.message ?? "Internal Server Error")
+							: typeof errInfo === "string"
+								? errInfo
+								: "Internal Server Error";
+					const errDepth: number =
+						typeof result?.errorDepth === "number" ? result.errorDepth : match.route.layouts.length;
+					const errOrigin = result?.errorOrigin === "layout" ? "layout" : "page";
+					const picked = pickErrorPage(match.route.errorPages ?? [], errDepth, errOrigin);
+					if (!picked) {
+						// No nested boundary — full reload so server can render global error page
+						window.location.href = path;
+						return;
 					}
-					settleScroll(!errorShown);
-					settle({ url, params: match.params });
-				} catch {
-					window.location.href = path;
+					try {
+						const K = picked.depth;
+						const [errMod, ...layoutModsForError] = await Promise.all([
+							picked.loader(),
+							...match.route.layouts.slice(0, K).map((l: any) => l()),
+						]);
+						if (cancelled) return;
+						// Error page to error page: the layouts both share stay mounted and
+						// never write their title again. Same error component under all of
+						// them too: nothing remounts, so a <title> it wrote stays — keep it.
+						const kept = errorShown
+							? sharedDepth(currentLayoutPaths, destLayoutPaths.slice(0, K))
+							: 0;
+						const prev = appState.errorProps?.error;
+						const keepTitle =
+							errorShown === errMod.default &&
+							kept === K &&
+							appState.errorDepth === K &&
+							!!prev &&
+							document.title !== collapseTitle(errorTitle(prev.status, prev.message));
+						layoutComponents = layoutModsForError.map((m: any) => m.default);
+						currentLayoutPaths = destLayoutPaths.slice(0, K);
+						titleNav.seq++; // the probes read again as this flushes
+						const newLayoutData: Record<string, any>[] = [];
+						for (let i = 0; i < K; i++) newLayoutData.push({});
+						appState.layoutData = newLayoutData;
+						appState.pageData = {};
+						appState.routeParams = match.params;
+						appState.errorComponent = errMod.default;
+						appState.errorProps = { error: { status: errStatus, message: errMessage } };
+						appState.errorDepth = K;
+						// What a hard load shows (renderer.ts): a layout's title, else the
+						// status title. Set before Svelte flushes, so a freshly mounted
+						// <title> in +error.svelte or a layout still wins.
+						document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
+						if (!keepTitle) {
+							document.title =
+								(kept > 0 ? chainTitles[kept - 1] : null) ?? errorTitle(errStatus, errMessage);
+							navTitle = document.title;
+						}
+						settleScroll(!errorShown);
+						settle({ url, params: match.params });
+					} catch {
+						window.location.href = path;
+					}
+					return;
 				}
-				return;
-			}
-			// Layout paths are recorded only once they render: a redirect above
-			// leaves the mounted ones in place.
-			const shared = sharedDepth(currentLayoutPaths, destLayoutPaths);
-			currentLayoutPaths = destLayoutPaths;
-			const pageChanged = !pageShown || PageComponent !== pageMod.default;
-			PageComponent = pageMod.default;
-			layoutComponents = layoutMods.map((m: any) => m.default);
+				// Layout paths are recorded only once they render: a redirect above
+				// leaves the mounted ones in place.
+				const shared = sharedDepth(currentLayoutPaths, destLayoutPaths);
+				currentLayoutPaths = destLayoutPaths;
+				const pageChanged = !pageShown || PageComponent !== pageMod.default;
+				PageComponent = pageMod.default;
+				layoutComponents = layoutMods.map((m: any) => m.default);
 
-			// Merge sparse server response with the existing client cache.
-			// Slots the server returned null for were intentionally skipped — we
-			// must pull their data from the cache to keep rendering correct.
-			const respLayoutData: (Record<string, any> | null)[] = result?.layoutData ?? [];
-			const respLayoutDeps: (any | null)[] = result?.layoutDeps ?? [];
-			const respPageData: Record<string, any> | null | undefined = result?.pageData;
-			const respPageDeps: any = result?.pageDeps ?? null;
+				// Merge sparse server response with the existing client cache.
+				// Slots the server returned null for were intentionally skipped — we
+				// must pull their data from the cache to keep rendering correct.
+				const respLayoutData: (Record<string, any> | null)[] = result?.layoutData ?? [];
+				const respLayoutDeps: (any | null)[] = result?.layoutDeps ?? [];
+				const respPageData: Record<string, any> | null | undefined = result?.pageData;
+				const respPageDeps: any = result?.pageDeps ?? null;
 
-			const mergedLayoutData: Record<string, any>[] = [];
-			for (let i = 0; i < layoutIds.length; i++) {
-				const id = layoutIds[i];
-				if (id === null) {
-					mergedLayoutData.push({});
-					continue;
-				}
-				if (respLayoutData[i] !== null && respLayoutData[i] !== undefined) {
-					const entry: CacheEntry = {
-						nodeId: id,
-						data: respLayoutData[i] as Record<string, any>,
-						deps: respLayoutDeps[i] ?? {
-							keys: [],
-							urls: [],
-							params: [],
-							searchParams: [],
-							cookies: [],
-							uses_url: false,
-						},
-						snapshot: captureSnapshot(
-							respLayoutDeps[i] ?? {
+				const mergedLayoutData: Record<string, any>[] = [];
+				for (let i = 0; i < layoutIds.length; i++) {
+					const id = layoutIds[i];
+					if (id === null) {
+						mergedLayoutData.push({});
+						continue;
+					}
+					if (respLayoutData[i] !== null && respLayoutData[i] !== undefined) {
+						const entry: CacheEntry = {
+							nodeId: id,
+							data: respLayoutData[i] as Record<string, any>,
+							deps: respLayoutDeps[i] ?? {
 								keys: [],
 								urls: [],
 								params: [],
@@ -463,89 +462,103 @@
 								cookies: [],
 								uses_url: false,
 							},
-							ctx,
-						),
+							snapshot: captureSnapshot(
+								respLayoutDeps[i] ?? {
+									keys: [],
+									urls: [],
+									params: [],
+									searchParams: [],
+									cookies: [],
+									uses_url: false,
+								},
+								ctx,
+							),
+						};
+						appState.loaderCache.layouts[id] = entry;
+						mergedLayoutData.push(entry.data);
+					} else {
+						const cachedEntry = appState.loaderCache.layouts[id];
+						mergedLayoutData.push(cachedEntry?.data ?? {});
+					}
+				}
+
+				let mergedPageData: Record<string, any>;
+				if (respPageData !== null && respPageData !== undefined) {
+					const deps = respPageDeps ?? {
+						keys: [],
+						urls: [],
+						params: [],
+						searchParams: [],
+						cookies: [],
+						uses_url: false,
 					};
-					appState.loaderCache.layouts[id] = entry;
-					mergedLayoutData.push(entry.data);
+					const entry: CacheEntry = {
+						nodeId: pageId ?? "",
+						data: respPageData,
+						deps,
+						snapshot: captureSnapshot(deps, ctx),
+					};
+					if (pageId !== null) appState.loaderCache.page = entry;
+					mergedPageData = respPageData;
+				} else if (appState.loaderCache.page && appState.loaderCache.page.nodeId === pageId) {
+					mergedPageData = appState.loaderCache.page.data;
 				} else {
-					const cachedEntry = appState.loaderCache.layouts[id];
-					mergedLayoutData.push(cachedEntry?.data ?? {});
+					mergedPageData = {};
 				}
-			}
 
-			let mergedPageData: Record<string, any>;
-			if (respPageData !== null && respPageData !== undefined) {
-				const deps = respPageDeps ?? {
-					keys: [],
-					urls: [],
-					params: [],
-					searchParams: [],
-					cookies: [],
-					uses_url: false,
-				};
-				const entry: CacheEntry = {
-					nodeId: pageId ?? "",
-					data: respPageData,
-					deps,
-					snapshot: captureSnapshot(deps, ctx),
-				};
-				if (pageId !== null) appState.loaderCache.page = entry;
-				mergedPageData = respPageData;
-			} else if (appState.loaderCache.page && appState.loaderCache.page.nodeId === pageId) {
-				mergedPageData = appState.loaderCache.page.data;
-			} else {
-				mergedPageData = {};
-			}
+				appState.pageData = mergedPageData;
+				appState.layoutData = mergedLayoutData;
+				appState.routeParams = match.params;
+				// Successful navigation — clear any prior error state.
+				appState.errorComponent = null;
+				appState.errorProps = null;
+				appState.errorDepth = null;
 
-			appState.pageData = mergedPageData;
-			appState.layoutData = mergedLayoutData;
-			appState.routeParams = match.params;
-			// Successful navigation — clear any prior error state.
-			appState.errorComponent = null;
-			appState.errorProps = null;
-			appState.errorDepth = null;
+				settleScroll(!pageShown);
 
-			settleScroll(!pageShown);
-
-			// Re-emit the head from server metadata. `data-bosia-meta` (html.ts `OWNED`)
-			// marks exactly the tags metadata() owns, so headExtras, the framework's own
-			// static tags and <svelte:head> output are never touched. `result === null`
-			// with server data means the fetch failed — leave the head as it is; without
-			// server data there is no metadata() at all, so clearing matches SSR.
-			if (result || !match.route.hasServerData) {
-				const md = result?.metadata;
-				document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
-				// With no metadata() title, a page gets the one a hard load would give
-				// it: the layouts' (baseTitle), else app.html's <title>, else "Bosia
-				// App". A layout that stays mounted never writes its title again, so it
-				// is put back here. Set before Svelte flushes, so a freshly mounted
-				// <svelte:head><title> still wins. On the same page (invalidate, a form
-				// action, ?page=2) it stays once a component like <Seo> took it over.
-				if (md?.title) {
-					document.title = md.title;
-					navTitle = document.title;
-				} else if (pageChanged || document.title === navTitle) {
-					document.title = baseTitle(shared);
-					navTitle = document.title;
+				// Re-emit the head from server metadata. `data-bosia-meta` (html.ts `OWNED`)
+				// marks exactly the tags metadata() owns, so headExtras, the framework's own
+				// static tags and <svelte:head> output are never touched. `result === null`
+				// with server data means the fetch failed — leave the head as it is; without
+				// server data there is no metadata() at all, so clearing matches SSR.
+				if (result || !match.route.hasServerData) {
+					const md = result?.metadata;
+					document.querySelectorAll("[data-bosia-meta]").forEach((el) => el.remove());
+					// With no metadata() title, a page gets the one a hard load would give
+					// it: the layouts' (baseTitle), else app.html's <title>, else "Bosia
+					// App". A layout that stays mounted never writes its title again, so it
+					// is put back here. Set before Svelte flushes, so a freshly mounted
+					// <svelte:head><title> still wins. On the same page (invalidate, a form
+					// action, ?page=2) it stays once a component like <Seo> took it over.
+					if (md?.title) {
+						document.title = md.title;
+						navTitle = document.title;
+					} else if (pageChanged || document.title === navTitle) {
+						document.title = baseTitle(shared);
+						navTitle = document.title;
+					}
+					if (md?.lang) document.documentElement.lang = md.lang;
+					const emit = (tag: "meta" | "link", attrs: Record<string, string | undefined>) => {
+						const el = document.createElement(tag);
+						for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v);
+						el.setAttribute("data-bosia-meta", "");
+						document.head.appendChild(el);
+					};
+					if (md?.description) emit("meta", { name: "description", content: md.description });
+					for (const m of md?.meta ?? [])
+						emit("meta", { name: m.name, property: m.property, content: m.content });
+					for (const l of md?.link ?? [])
+						emit("link", { rel: l.rel, href: l.href, hreflang: l.hreflang });
 				}
-				if (md?.lang) document.documentElement.lang = md.lang;
-				const emit = (tag: "meta" | "link", attrs: Record<string, string | undefined>) => {
-					const el = document.createElement(tag);
-					for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v);
-					el.setAttribute("data-bosia-meta", "");
-					document.head.appendChild(el);
-				};
-				if (md?.description) emit("meta", { name: "description", content: md.description });
-				for (const m of md?.meta ?? [])
-					emit("meta", { name: m.name, property: m.property, content: m.content });
-				for (const l of md?.link ?? [])
-					emit("link", { rel: l.rel, href: l.href, hreflang: l.hreflang });
-			}
-			titleNav.seq++; // the probes read again as this flushes
+				titleNav.seq++; // the probes read again as this flushes
 
-			settle({ url, params: match.params });
-		});
+				settle({ url, params: match.params });
+			})
+			.catch(() => {
+				// A route chunk failed to load (stale deploy, offline): let the server render
+				// it, rather than leave the page and any awaiting goto()/use:enhance stuck.
+				if (!cancelled) window.location.href = path;
+			});
 
 		return () => {
 			cancelled = true;

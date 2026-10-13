@@ -150,7 +150,7 @@ interface Navigation {
 
 ### R5 — Form actions over manual `goto()` post-submit
 
-If a form handler should navigate after success, throw `redirect(303, '/x')` from the action with `use:enhance` on the form — Bosia's enhance picks it up and SPA-navigates. Don't `goto()` from the `onSubmit` callback after a manual `fetch`.
+If a form handler should navigate after success, throw `redirect(303, '/x')` from the action with `use:enhance` on the form — Bosia's enhance picks it up and SPA-navigates, re-running every loader (layouts too, also on a redirect back to the same page) — NEVER add a manual `invalidateAll()` after it. Don't `goto()` from the `onSubmit` callback after a manual `fetch`.
 
 ```svelte
 <form method="POST" action="?/save" use:enhance>
