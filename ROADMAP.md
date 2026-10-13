@@ -49,6 +49,7 @@
 - [ ] 🟠 `export const cache = false` in `+page.server.ts` is silently ignored (only `+page.svelte` is read; v0.6.0 promised both): personalised data stays cached. Honor it, or warn at build.
 - [x] 🟡 Navigating to a route with `+loading.svelte` remounts its layouts (skeleton branch renders them separately): layout state like an open sidebar resets.
 - [x] ⚪ `await goto()` resolves before scroll-to-top is applied, so a `scrollTo()` right after it gets overwritten.
+- [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 
