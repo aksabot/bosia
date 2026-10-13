@@ -193,6 +193,10 @@ export function scanRoutes(): RouteManifest {
 
 	walk("", [], [], [], [], "never", null);
 
+	// Invalid segments first, so they get their own message, not a conflict or warning.
+	checkParams(pages, (p) => p.page);
+	checkParams(apis, (a) => a.server);
+
 	// Warn when a trailing catch-all exists but no page covers its prefix.
 	// e.g. "/[...slug]" matches everything EXCEPT "/" (which needs its own +page.svelte),
 	// "/[lang]/[...rest]" needs "/[lang]" for "/en".
@@ -212,8 +216,6 @@ export function scanRoutes(): RouteManifest {
 
 	preventConflicts(pages, (p) => p.page);
 	preventConflicts(apis, (a) => a.server);
-	checkParams(pages, (p) => p.page);
-	checkParams(apis, (a) => a.server);
 
 	const errorPage = existsSync(join(ROUTES_DIR, "+error.svelte")) ? "+error.svelte" : null;
 
@@ -250,14 +252,18 @@ const KINDS = ["", "[]", "[...]"];
 
 /** The URL shape of a pattern, param names dropped: `/[lang]/[...rest]` → `/[]/[...]`. */
 function routeKey(pattern: string): string {
-	return pattern.replace(/[^/]+/g, (seg) => KINDS[segmentRank(seg)] || seg);
+	return pattern.replace(/[^/]+/g, (seg) => {
+		const rank = segmentRank(seg);
+		return rank ? KINDS[rank]! : seg;
+	});
 }
 
 /**
  * Fail on params the matcher can't serve: brackets that don't wrap a whole
- * segment, a `[...rest]` that isn't the last segment, or one name bound twice. Mid-path catch-alls
- * (`docs/[...path]/edit`) are left out on purpose: each is an unanchored `(.+)`
- * (several backtrack for seconds on a long URL) and they need span-aware ranking.
+ * segment, a `[...rest]` that isn't the last segment, `__proto__`, or one name
+ * bound twice. Mid-path catch-alls (`docs/[...path]/edit`) are left out on
+ * purpose: each needs an unanchored `(.+)` (several backtrack for seconds on a
+ * long URL) and span-aware ranking.
  * Add both together if that route shape is ever needed.
  */
 function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) => string) {
@@ -270,16 +276,16 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 			);
 		};
 		for (const [i, seg] of segs.entries()) {
-			if (!seg.includes("[") && !seg.includes("]")) continue;
-			// Brackets must wrap the whole segment: `[id].json`, `post-[slug]` and
-			// SvelteKit's optional `[[lang]]` would match only their literal text.
-			if (!/^\[(\.\.\.)?[\w-]+\]$/.test(seg)) {
-				fail(`${seg} must be a whole segment like [slug] or [...rest]`);
+			const rank = segmentRank(seg);
+			if (!rank) {
+				// `[id].json`, `post-[slug]`, `[[lang]]`, `[...]` would match only their literal text.
+				if (/[[\]]/.test(seg)) fail(`${seg} must be a whole segment like [slug] or [...rest]`);
+				continue;
 			}
 			const name = segmentName(seg);
-			if (segmentRank(seg) === 2 && i !== segs.length - 1) {
-				fail(`${seg} must be the last part of the route`);
-			}
+			if (rank === 2 && i !== segs.length - 1) fail(`${seg} must be the last part of the route`);
+			// params is a plain object: assigning "__proto__" sets the prototype, not a key.
+			if (name === "__proto__") fail(`"__proto__" can't be a param name`);
 			if (names.has(name)) fail(`the param "${name}" is used twice`);
 			names.add(name);
 		}

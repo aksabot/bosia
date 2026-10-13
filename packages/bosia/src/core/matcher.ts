@@ -13,22 +13,25 @@ interface CompiledRoute {
 	regex: RegExp;
 	paramNames: string[];
 	isExact: boolean;
-	/** Set by compileRoutes for exact routes it put in the Map, so findMatch can skip them. */
-	inMap?: boolean;
 }
 
 // ─── Pattern Compiler ────────────────────────────────────
 
+// Brackets wrap the whole segment; the name has no brackets or slash and doesn't
+// start with a dot (so `[...]` isn't a param named "..."). Anything else —
+// `[id].json`, `[[lang]]` — is static here, and the scanner fails the build on it.
+const SEGMENT = /^\[(\.\.\.)?([^[\]/.][^[\]/]*)\]$/;
+
 /** How every part of Bosia reads one route segment (matcher, sortRoutes, scanner):
  *  0 static, 1 `[param]`, 2 `[...rest]`. Doubles as the sort rank. */
 export function segmentRank(seg: string): 0 | 1 | 2 {
-	if (!seg.startsWith("[") || !seg.endsWith("]")) return 0;
-	return seg.startsWith("[...") ? 2 : 1;
+	const m = SEGMENT.exec(seg);
+	return !m ? 0 : m[1] ? 2 : 1;
 }
 
 /** The param name a dynamic segment binds: `[slug]` → `slug`, `[...rest]` → `rest`. */
 export function segmentName(seg: string): string {
-	return seg.slice(segmentRank(seg) === 2 ? 4 : 1, -1);
+	return SEGMENT.exec(seg)?.[2] ?? "";
 }
 
 /** True when any segment of the pattern is a param or catch-all. */
@@ -53,17 +56,18 @@ function compilePattern(pattern: string): CompiledRoute {
 	const paramNames: string[] = [];
 
 	// /blog/[slug]/comments → ^\/blog\/([^/]+)\/comments$
-	// A trailing [...rest] takes the rest of the path: /[lang]/[...rest].
-	// The scanner only allows it as the last segment, so there's one (.+) at most.
+	// A trailing [...rest] takes the rest of the path: /[lang]/[...rest]. Only the
+	// last segment gets (.+), so a hand-built table can't nest them (ReDoS); the
+	// scanner fails the build on a non-last catch-all anyway.
 	const segments = pattern.split("/").filter(Boolean);
 	let regexStr = "^";
-	for (const seg of segments) {
+	for (const [i, seg] of segments.entries()) {
 		regexStr += "\\/";
 		const rank = segmentRank(seg);
 		if (rank) paramNames.push(segmentName(seg));
-		if (rank === 2) {
+		if (rank === 2 && i === segments.length - 1) {
 			regexStr += "(.+)";
-		} else if (rank === 1) {
+		} else if (rank) {
 			regexStr += "([^/]+)";
 		} else {
 			regexStr += escapeRegex(seg);
@@ -93,10 +97,7 @@ export function compileRoutes<T extends { pattern: string }>(
 		const compiled = compilePattern(route.pattern);
 		(route as any)._compiled = compiled;
 		// Exact patterns contain no dynamic segments, so pattern === pathname.
-		if (compiled.isExact) {
-			exact.set(route.pattern, route);
-			compiled.inMap = true;
-		}
+		if (compiled.isExact) exact.set(route.pattern, route);
 	}
 	exactMaps.set(routes, exact);
 	return routes as (T & { _compiled: CompiledRoute })[];
@@ -155,8 +156,8 @@ export function findMatch<T extends { pattern: string }>(
 	for (const route of routes) {
 		// A route pushed after compileRoutes compiles here, once.
 		const compiled: CompiledRoute = ((route as any)._compiled ??= compilePattern(route.pattern));
-		// Exact routes in the Map were checked above — skip them.
-		if (compiled.inMap) continue;
+		// Exact routes in this array's Map were checked above — skip them.
+		if (compiled.isExact && exact.get(route.pattern) === route) continue;
 		const params = matchCompiled(compiled, route.pattern, pathname);
 		if (params !== null) return { route, params };
 	}

@@ -221,6 +221,25 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("[id].json must be a whole segment");
 	});
 
+	test("[[param]] next to a [param] reports the bad segment, not a conflict", () => {
+		write("[[lang]]/about/+page.svelte");
+		write("[x]/about/+page.svelte");
+		expect(conflict()?.message).toContain("[[lang]] must be a whole segment");
+	});
+
+	test("unusual but whole names still build: [slüg], [$id], [file.name]", () => {
+		write("a/[slüg]/+page.svelte");
+		write("b/[$id]/+page.svelte");
+		write("c/[file.name]/+page.svelte");
+		write("d/[slug]/edit/+page.svelte");
+		expect(conflict()).toBeNull();
+	});
+
+	test("__proto__ as a param name fails the build", () => {
+		write("[__proto__]/+page.svelte");
+		expect(conflict()?.message).toContain('"__proto__" can\'t be a param name');
+	});
+
 	test("SvelteKit optional [[param]] fails the build", () => {
 		write("[[lang]]/about/+page.svelte");
 		expect(conflict()?.message).toContain("[[lang]] must be a whole segment");

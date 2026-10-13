@@ -105,6 +105,20 @@ describe("findMatch — catch-all after a [param] segment", () => {
 		expect(findMatch(routes, "/docs/a/b")?.params).toEqual({ "my-path": "a/b" });
 	});
 
+	test("a catch-all that isn't last compiles to one segment (no nested (.+))", () => {
+		const routes = compileRoutes([{ pattern: "/[...a]/[...b]/end" }]);
+		expect(findMatch(routes, "/x/y/end")?.params).toEqual({ a: "x", b: "y" });
+		expect(findMatch(routes, "/x/y/z/end")).toBeNull();
+	});
+
+	test("one route object in two arrays matches in both", () => {
+		const r = { pattern: "/b" };
+		compileRoutes([{ pattern: "/a" }, r]);
+		const other: { pattern: string }[] = compileRoutes([{ pattern: "/[x]/y" }]);
+		other.push(r);
+		expect(findMatch(other, "/b")?.route).toBe(r);
+	});
+
 	test("a route pushed after compileRoutes still matches", () => {
 		const routes: { pattern: string }[] = compileRoutes([{ pattern: "/a" }]);
 		routes.push({ pattern: "/[x]" }, { pattern: "/b" });

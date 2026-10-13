@@ -54,6 +54,7 @@
 - [x] 🟡 Segment kinds were parsed four ways (matcher, sort, scanner, route types) and disagreed on mid-path/hyphenated `[...x]`; one `segmentRank()` in `matcher.ts` now feeds all.
 - [x] 🟠 Mid-path catch-alls (`[...a]/[...b]/[...c]`) compiled to nested `(.+)`: 3 s per 4 KB URL (ReDoS). Build now rejects a non-last `[...rest]`, nameless or duplicate params.
 - [x] ⚪ `isExact` and prerender used `includes("[")`; both now use `isDynamic()` (segmentRank), so `/api/[id].json` is static everywhere.
+- [x] ⚪ `segmentRank` is strict (`SEGMENT` regex): malformed segments rank static, `checkParams` runs first and names any bracket it can't read; unicode/`$`/`.` names still OK. Only a last `[...x]` compiles to `(.+)`.
 - [ ] ⚪ Mid-path catch-alls (`docs/[...path]/edit`): needs an anchored regex + span-aware ranking (SvelteKit sorts them last). Add both together if asked.
 - [x] ⚪ Partial/doubled brackets (`[id].json`, `post-[slug]`, `[[lang]]`) only ever matched literally; the build now rejects them. `findMatch` skips Map'd exact routes via `inMap`.
 - [ ] ⚪ Catch-all prefix warning fires when another route already serves the prefix (`/[...all]`, or `/[page]` for `/docs`). Check with `findMatch` on the sorted pages.
