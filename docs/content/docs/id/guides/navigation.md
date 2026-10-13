@@ -85,6 +85,7 @@ Parameter rute datang sebagai prop `params`, bukan di `page`.
 - **Navigasi maju** (link, `goto()`, redirect form) scroll ke atas — atau ke elemen `#hash` jika URL tujuan memilikinya. `goto(url, { noScroll: true })` melewatinya untuk satu navigasi.
 - **Back/forward (popstate)** memulihkan posisi scroll halaman saat ditinggalkan. Router menyimpan posisi per entri history dan memulihkannya _setelah_ halaman tujuan dirender, jadi listing panjang tidak melompat ke atas saat pengguna menekan Back. Posisi bertahan melewati reload via `sessionStorage`.
 - **Refresh di halaman yang sama** (`invalidate()`, `invalidateAll()`, form `use:enhance` yang tetap di halaman) mempertahankan posisi scroll saat ini.
+- `await goto()` lanjut setelah scroll ini, jadi `window.scrollTo()` tepat setelahnya tidak tertimpa.
 
 Ini otomatis — tanpa kode aplikasi.
 

@@ -47,8 +47,8 @@
 - [ ] ⚪ Back onto a 404 entry while hydration chunks load skips the hard load (first run forces `moved` false).
 - [ ] ⚪ A redirect back to the shown page superseded before settling leaves `lastNavKey = ""`: next Back refetches and clears `form`.
 - [ ] 🟠 `export const cache = false` in `+page.server.ts` is silently ignored (only `+page.svelte` is read; v0.6.0 promised both): personalised data stays cached. Honor it, or warn at build.
-- [ ] 🟡 Navigating to a route with `+loading.svelte` remounts its layouts (skeleton branch renders them separately): layout state like an open sidebar resets.
-- [ ] ⚪ `await goto()` resolves before scroll-to-top is applied, so a `scrollTo()` right after it gets overwritten.
+- [x] 🟡 Navigating to a route with `+loading.svelte` remounts its layouts (skeleton branch renders them separately): layout state like an open sidebar resets.
+- [x] ⚪ `await goto()` resolves before scroll-to-top is applied, so a `scrollTo()` right after it gets overwritten.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

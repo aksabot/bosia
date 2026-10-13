@@ -85,6 +85,7 @@ Route params arrive as the `params` prop, not on `page`.
 - **Forward navigation** (link, `goto()`, form redirect) scrolls to the top — or to the `#hash` element if the destination URL has one. `goto(url, { noScroll: true })` skips this for one navigation.
 - **Back/forward (popstate)** restores the scroll position the page had when you left it. The router saves the position per history entry and restores it _after_ the destination page renders, so long listings don't snap to the top when the user presses Back. Positions survive reloads via `sessionStorage`.
 - **Same-page refresh** (`invalidate()`, `invalidateAll()`, a `use:enhance` form that stays on the page) keeps the current scroll position.
+- `await goto()` resumes after this scroll, so a `window.scrollTo()` right after it sticks.
 
 This is automatic — no app code needed.
 

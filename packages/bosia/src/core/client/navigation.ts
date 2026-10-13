@@ -157,14 +157,20 @@ export function go(
 }
 
 /** Internal — App.svelte calls this after each nav effect settles. */
-export function drainNavResolvers(): void {
+// Takes the waiters now (a nav started meanwhile queues its own), releases them
+// once `after` (the settling nav's scroll) is done.
+export function drainNavResolvers(after?: Promise<unknown>): void {
 	const queue = appState.navResolvers;
 	appState.navResolvers = [];
-	for (const fn of queue) {
-		try {
-			fn();
-		} catch (err) {
-			console.warn("[bosia] navResolver threw", err);
+	const run = () => {
+		for (const fn of queue) {
+			try {
+				fn();
+			} catch (err) {
+				console.warn("[bosia] navResolver threw", err);
+			}
 		}
-	}
+	};
+	if (after) after.then(run);
+	else run();
 }

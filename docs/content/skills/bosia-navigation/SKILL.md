@@ -86,7 +86,7 @@ Options:
 | `keepFocus`     | `false` | Reserved — not yet honored.                                            |
 | `state`         | —       | Reserved — no shallow routing yet.                                     |
 
-Scroll is handled by the framework: forward navs scroll to top (or the `#hash`), browser Back/Forward restores the saved per-entry position after the destination renders, and a same-page refresh (`invalidate()`, `invalidateAll()`, a `use:enhance` form that stays put) keeps the current position. NEVER hand-roll scroll restoration in `afterNavigate` — it is built in since 0.8.6.
+Scroll is handled by the framework: forward navs scroll to top (or the `#hash`), browser Back/Forward restores the saved per-entry position after the destination renders, and a same-page refresh (`invalidate()`, `invalidateAll()`, a `use:enhance` form that stays put) keeps the current position. NEVER hand-roll scroll restoration in `afterNavigate` — it is built in since 0.8.6. `await goto()` resumes after that scroll, so a custom `scrollTo()` goes right after it.
 
 ### R2b — `export const snapshot` restores page state on Back/Forward
 

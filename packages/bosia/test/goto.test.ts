@@ -27,7 +27,7 @@ afterAll(() => {
 	if (!hadWindow) delete (globalThis as any).window;
 });
 
-const { goto, go } = await import("../src/core/client/navigation.ts");
+const { goto, go, drainNavResolvers } = await import("../src/core/client/navigation.ts");
 
 beforeEach(() => {
 	next = null;
@@ -88,5 +88,21 @@ describe("goto while a nav is loading", () => {
 		router.loading = true; // a link click's run: nothing queued
 		goto("/b");
 		expect(appState.navResolvers.length).toBe(1);
+	});
+});
+
+describe("drainNavResolvers", () => {
+	test("takes the waiters now, releases them after the scroll", async () => {
+		let done = false;
+		appState.navResolvers = [() => (done = true)];
+		let scroll!: () => void;
+		drainNavResolvers(new Promise<void>((r) => (scroll = r)));
+		expect(appState.navResolvers.length).toBe(0);
+		await Promise.resolve();
+		expect(done).toBe(false);
+		scroll();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(done).toBe(true);
 	});
 });

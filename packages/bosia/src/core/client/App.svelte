@@ -37,8 +37,7 @@
 
 	let PageComponent = $state<any>(ssrPageComponent);
 	let layoutComponents = $state<any[]>(ssrLayoutComponents ?? []);
-	// Mounted page instance — the two <PageComponent> render spots are mutually
-	// exclusive branches, so one ref suffices. Exposes `export const snapshot`.
+	// Mounted page instance. Exposes `export const snapshot`.
 	let pageInstance = $state<any>(null);
 	if (!ssrMode) router.getPageSnapshot = () => pageInstance?.snapshot;
 
@@ -115,6 +114,14 @@
 	let LoadingComponent = $state<any>(null);
 	let loadingDepth = $state(0); // # of shared layouts to keep mounted under the loader
 	let showLoading = $state(false);
+	// How many layouts wrap the leaf: the shared ones under a skeleton, the error's depth.
+	const outerDepth = $derived(
+		showLoading && LoadingComponent
+			? loadingDepth
+			: ErrorComponent
+				? Math.min(errorDepth ?? 0, layoutComponents.length)
+				: layoutComponents.length,
+	);
 	let currentLayoutPaths: string[] = [];
 	let lastSettledPath = "";
 	let lastNavKey = ""; // pathname + search of the last processed nav
@@ -142,12 +149,12 @@
 		showLoading = false;
 		LoadingComponent = null;
 	}
-	function abandonRun() {
+	function abandonRun(scrolled?: Promise<void>) {
 		dropLoadingUI();
 		router.loading = false;
 		navPending = false;
 		router.suppressScroll = false;
-		drainNavResolvers();
+		drainNavResolvers(scrolled);
 	}
 
 	// Full GET load of `path`, which the address bar already shows. reload() could
@@ -158,25 +165,29 @@
 		window.location.replace(path.split("#")[0]);
 	}
 
-	function settleScroll(replaced = false) {
+	// Returns the pending scroll: goto()/use:enhance waiters resume after it, so a
+	// scrollTo() right after `await goto()` isn't overwritten.
+	function settleScroll(replaced = false): Promise<void> | undefined {
 		const navigated = navPending;
 		navPending = false;
+		let scrolled: Promise<void> | undefined;
 		if (!navigated) {
-			if (replaced) tick().then(() => window.scrollTo(0, 0));
+			if (replaced) scrolled = tick().then(() => window.scrollTo(0, 0));
 		} else if (router.isPush && !router.suppressScroll) {
 			const hash = window.location.hash;
-			tick().then(() => {
+			scrolled = tick().then(() => {
 				if (!scrollToHash(hash)) window.scrollTo(0, 0);
 			});
 		} else if (!router.isPush) {
 			const pos = router.pendingScroll;
 			// single post-tick restore; content that loads later (images
 			// without dimensions) can still shift it. Revisit only if reported.
-			if (pos) tick().then(() => window.scrollTo(pos.x, pos.y));
+			if (pos) scrolled = tick().then(() => window.scrollTo(pos.x, pos.y));
 		}
 		router.pendingScroll = null;
 		router.suppressScroll = false;
 		settleSnapshot();
+		return scrolled;
 	}
 
 	// Each flush a navigation starts begins here, before any head effect: what
@@ -252,8 +263,7 @@
 			// Back to the settled page before an in-flight nav finished: its run was
 			// cancelled, so drop the loading UI it left up. goto("#x") waits on this nav
 			// like any other, so abandonRun() releases it too.
-			settleScroll();
-			abandonRun();
+			abandonRun(settleScroll());
 			return;
 		}
 		// A prefetch saved before an invalidation holds pre-mutation data — after a
@@ -354,7 +364,10 @@
 						.catch(() => null)
 				: Promise.resolve(null);
 
-		const settle = (target: { url: URL; params: Record<string, string> } | null) => {
+		const settle = (
+			target: { url: URL; params: Record<string, string> } | null,
+			scrolled?: Promise<void>,
+		) => {
 			const nav: Navigation = {
 				from: null,
 				to: target,
@@ -367,7 +380,7 @@
 			router.loading = false;
 			// Drain first: a goto() an afterNavigate listener starts must wait for its own
 			// nav. Awaiters still resume after the listeners — resolve() is async.
-			drainNavResolvers();
+			drainNavResolvers(scrolled);
 			fireAfterNavigate(nav);
 		};
 
@@ -383,7 +396,7 @@
 				// Tear down the loading skeleton and record identity for the next nav.
 				// Superseded navs have cancelled === true and never reach here, so they
 				// can't clobber a newer nav's loader.
-				// The skeleton and the error page render in their own {#if} branch, so
+				// The skeleton and the error page take the page's slot in the leaf {#if}, so
 				// leaving either remounts the page. Read before both are cleared below.
 				// The skeleton shows only once its chunk loaded (template's condition).
 				const skeletonShown = showLoading && !!LoadingComponent;
@@ -480,8 +493,7 @@
 						// chunk's await): a cancelled or redirected run never counts as settled.
 						lastSettledPath = pathname;
 						lastNavKey = navKey;
-						settleScroll(!errorShown);
-						settle({ url, params: match.params });
+						settle({ url, params: match.params }, settleScroll(!errorShown));
 					} catch {
 						if (!cancelled) hardLoad(path);
 					}
@@ -579,7 +591,7 @@
 				appState.errorProps = null;
 				appState.errorDepth = null;
 
-				settleScroll(!pageShown);
+				const scrolled = settleScroll(!pageShown);
 
 				// Re-emit the head from server metadata. `data-bosia-meta` (html.ts `OWNED`)
 				// marks exactly the tags metadata() owns, so headExtras, the framework's own
@@ -617,7 +629,7 @@
 				}
 				titleNav.seq++; // the probes read again as this flushes
 
-				settle({ url, params: match.params });
+				settle({ url, params: match.params }, scrolled);
 			})
 			.catch((err) => {
 				// A rejected chunk or a throwing page module: tear down this run's loading UI
@@ -647,55 +659,26 @@
 	<div class="bosia-bar done"></div>
 {/if}
 
-{#if showLoading && LoadingComponent}
-	{@render renderLoading(0)}
-{:else if ErrorComponent}
-	{@const depth = errorDepth ?? 0}
-	{#if depth > 0 && layoutComponents.length > 0}
-		{@render renderLayout(0, depth)}
-	{:else}
-		<ErrorComponent {...errorProps ?? {}} {params} />
-	{/if}
-{:else if layoutComponents.length > 0}
-	{@render renderLayout(0, layoutComponents.length)}
-{:else if PageComponent}
-	<PageComponent bind:this={pageInstance} data={pageData} {params} form={formData} />
-{:else}
-	<p>Loading...</p>
-{/if}
+<!-- One tree for page, error and skeleton: a layout at the same depth stays mounted
+  whichever of them it wraps, so its state (an open sidebar) survives the skeleton. -->
+{@render renderTree(0)}
 
-{#snippet renderLoading(index: number)}
-	{#if index < loadingDepth}
+{#snippet renderTree(index: number)}
+	{#if index < outerDepth}
 		{@const Layout = layoutComponents[index]}
 		{@const data = layoutData[index] ?? {}}
 		<Layout {data} {params}>
-			{@render renderLoading(index + 1)}
+			<TitleProbe depth={index} layout={Layout} />
+			{@render renderTree(index + 1)}
 		</Layout>
-	{:else}
+	{:else if showLoading && LoadingComponent}
 		<LoadingComponent />
-	{/if}
-{/snippet}
-
-{#snippet renderLayout(index: number, leafDepth: number)}
-	{@const Layout = layoutComponents[index]}
-	{@const data = layoutData[index] ?? {}}
-
-	{#if index < leafDepth - 1}
-		<Layout {data} {params}>
-			<TitleProbe depth={index} layout={Layout} />
-			{@render renderLayout(index + 1, leafDepth)}
-		</Layout>
+	{:else if ErrorComponent}
+		<ErrorComponent {...errorProps ?? {}} {params} />
+	{:else if PageComponent}
+		<PageComponent bind:this={pageInstance} data={pageData} {params} form={formData} />
 	{:else}
-		<Layout {data} {params}>
-			<TitleProbe depth={index} layout={Layout} />
-			{#if ErrorComponent}
-				<ErrorComponent {...errorProps ?? {}} {params} />
-			{:else if PageComponent}
-				<PageComponent bind:this={pageInstance} data={pageData} {params} form={formData} />
-			{:else}
-				<p>Loading...</p>
-			{/if}
-		</Layout>
+		<p>Loading...</p>
 	{/if}
 {/snippet}
 
