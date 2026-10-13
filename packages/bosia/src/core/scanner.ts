@@ -278,7 +278,9 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 		for (const [i, seg] of segs.entries()) {
 			const rank = segmentRank(seg);
 			if (!rank) {
-				// `[id].json`, `post-[slug]`, `[[lang]]`, `[...]` would match only their literal text.
+				// `[...]`, `[.x]`, `[id].json`, `post-[slug]`, `[[lang]]` would match only their literal text.
+				if (/^\[(\.\.\.)?[^[\]/]*\]$/.test(seg))
+					fail(`${seg} needs a param name that doesn't start with a dot, like [slug] or [...rest]`);
 				if (/[[\]]/.test(seg)) fail(`${seg} must be a whole segment like [slug] or [...rest]`);
 				continue;
 			}

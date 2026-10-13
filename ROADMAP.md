@@ -56,7 +56,7 @@
 - [x] ⚪ `isExact` and prerender used `includes("[")`; both now use `isDynamic()` (segmentRank), so `/api/[id].json` is static everywhere.
 - [x] ⚪ `segmentRank` is strict (`SEGMENT` regex): malformed segments rank static, `checkParams` runs first and names any bracket it can't read; unicode/`$`/`.` names still OK. Only a last `[...x]` compiles to `(.+)`.
 - [ ] ⚪ Mid-path catch-alls (`docs/[...path]/edit`): needs an anchored regex + span-aware ranking (SvelteKit sorts them last). Add both together if asked.
-- [x] ⚪ Partial/doubled brackets (`[id].json`, `post-[slug]`, `[[lang]]`) only ever matched literally; the build now rejects them. `findMatch` skips Map'd exact routes via `inMap`.
+- [x] ⚪ Partial/doubled brackets (`[id].json`, `post-[slug]`, `[[lang]]`) only ever matched literally; the build now rejects them. `findMatch` skips an exact route only when this array's Map holds that same object.
 - [ ] ⚪ Catch-all prefix warning fires when another route already serves the prefix (`/[...all]`, or `/[page]` for `/docs`). Check with `findMatch` on the sorted pages.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 

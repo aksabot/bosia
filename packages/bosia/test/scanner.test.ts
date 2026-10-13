@@ -213,7 +213,12 @@ describe("scanRoutes() route conflicts", () => {
 
 	test("a param with no name fails the build", () => {
 		write("[...]/+page.svelte");
-		expect(conflict()?.message).toContain("[...] must be a whole segment");
+		expect(conflict()?.message).toContain("[...] needs a param name");
+	});
+
+	test("a dot-led param name fails the build", () => {
+		write("[.hidden]/+page.svelte");
+		expect(conflict()?.message).toContain("[.hidden] needs a param name");
 	});
 
 	test("partial brackets fail the build", () => {
