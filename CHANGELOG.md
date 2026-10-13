@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A page whose code fails to load after a new deploy reloads fresh again, safe from reload loops.
 - A page that must reload after an error now does so even when its link has a `#section`.
 - Refreshing data right when a page first loads now works and no longer hangs.
+- A page that fails to load no longer leaves the loading bar or a saving form stuck.
+- Refreshing data on a "not found" page no longer hangs.
 
 ## [1.2.2] - 2026-10-12
 

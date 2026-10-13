@@ -12,19 +12,20 @@
 - [x] 🟠 `use:enhance` redirects go through internal `go(..., invalidateAll)`: every loader re-runs (logout must refresh layouts), a same-page redirect refetches, and a stale `form` is cleared.
 - [x] 🟡 `goto(sameUrl, { invalidateAll: true })` bumps the tick and refetches; it used to resolve with stale data.
 - [x] 🟡 `router.navigate()` returns `started`/`same`/`cancelled`/`left`; `goto()` marks dirty, bumps, and sets `noScroll` only for a nav that happens. Test: `goto.test.ts`.
-- [x] 🟡 Hash-only shortcut drains `goto()` resolvers (a `#hash` redirect hung `use:enhance`) and is skipped when `dirty.all` is set.
+- [x] 🟡 Hash-only shortcut drains `goto()` resolvers (a `#hash` redirect hung `use:enhance`); every `dirty.all` setter also bumps the tick, so it refetches.
 - [x] 🟢 `/about/` on `/about` returns `same` after canonicalizing; no duplicate history entry.
 - [x] 🟠 A loader redirect that doesn't start a nav (cancelled/same/left) drains resolvers; awaited `use:enhance` hung on it.
 - [x] 🟡 `go()` resolves only its own Promise on a no-op; draining the queue released a nav still loading.
 - [x] 🟡 Back to the settled page mid-nav takes the hash shortcut: it now clears the stuck progress bar and skeleton.
 - [ ] ⚪ Error ↔ page swap on the same URL scrolls to top even with `noScroll` or a `#hash`.
 - [x] 🟠 An invalidated run cancelled or loader-redirected before applying data sets `owedRefresh`; the next run refetches every loader (logout via a redirecting `/` kept stale layouts).
-- [x] 🟡 A failed route chunk import (stale deploy) falls back to a full load; awaited `use:enhance` hung on it.
-- [ ] ⚪ A loader redirect cancelled by `beforeNavigate` leaves the URL on the new route with the old page shown (pre-existing).
-- [x] 🟠 Dropped the round-4 `.catch` on the route chain: it swallowed stale-chunk rejections that `hydrate.ts` recovers with a cache-busting reload + loop guard.
+- [ ] ⚪ A loader redirect that is cancelled (or canonicalizes to `same`) leaves the URL on the new route with the old page shown; the awaited `goto()` resolves anyway (pre-existing).
+- [x] 🟠 A rejected route chain (stale chunk, throwing module) tears down the loading UI, drains resolvers, then rethrows so `hydrate.ts` still runs its cache-busting reload.
 - [x] 🟡 Reload fallbacks use `location.reload()`: `href = path` with a `#hash` only scrolled, leaving the page and awaited `goto()` stuck.
 - [x] 🟡 An `invalidate()`/`goto(sameUrl, { invalidateAll })` from a child's `onMount` refetches; hydration's first effect absorbed the tick and hung the `goto()`.
 - [x] 🟢 A loader redirect that doesn't start a nav resets `suppressScroll`.
+- [x] 🟡 No-match exit (server-rendered 404) drains resolvers; a same-URL `goto(invalidateAll)` there hung. Error-chunk reload skips cancelled runs.
+- [ ] ⚪ A `use:enhance` redirect cancelled by `beforeNavigate` clears `form` and doesn't refetch, though the action mutated. Needs `go()` to expose its NavResult.
 - [ ] 🟡 Loader redirects `pushState`, so Back returns to the redirecting URL and bounces again; should `replace` (pre-existing).
 - [ ] ⚪ `owedRefresh` re-runs every loader with `fresh`; keeping the cancelled run's dirty set until it applies would refetch less.
 - [ ] ⚪ Resolver draining lives at four exits (`settle`, hash shortcut, redirect, `go()`); a per-run token would cover all, incl. `if (!match) return`.
