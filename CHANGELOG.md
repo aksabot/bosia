@@ -51,7 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A param name starting with a digit, like `[1st]`, no longer breaks the generated types.
 - Prerendered paths keep a `$&` in an `entries()` value as-is instead of mangling it.
 - The build catches the `[path...]` typo and suggests `[...path]`.
-- Prerender fails clearly when `entries()` leaves a param out; values like `[draft]` stay as-is.
+- Prerender rejects a missing, empty or `.` param value; values like `[draft]` stay as-is.
 - A folder name with a `'` no longer breaks the generated route types.
 
 ### Changed
@@ -60,6 +60,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The build now fails on a `[...rest]` that isn't last, a name used twice, or `[id].json`/`[[x]]`.
 - Upgrading: a route like `docs/[...path]/edit` only half-worked before; put `[...path]` last.
 - The build now fails on SvelteKit matchers like `[id=integer]`; use `[id]` and check it in `load`.
+- The build now fails on optional `[id?]` params; use `[id]`.
+- Upgrading: an `entries()` error now fails the build instead of quietly skipping the route.
 - Upgrading: rename `[[lang]]` to `[lang]`; it gave `params["[lang]"]` and now fails the build.
 - Upgrading: `[post-id]` beside `[slug]` in one folder now fails as a conflict; both hit every URL.
 

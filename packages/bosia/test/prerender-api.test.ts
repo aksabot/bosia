@@ -47,6 +47,14 @@ describe("substituteParams() — API rest-segment cases", () => {
 		expect(() => substituteParams("/blog/[slug]/[id]", { id: "5" })).toThrow("no value for [slug]");
 	});
 
+	test("null, undefined, empty or '.' values fail instead of writing a wrong file", () => {
+		expect(() => substituteParams("/blog/[slug]", { slug: undefined as any })).toThrow("no value");
+		expect(() => substituteParams("/blog/[slug]", { slug: null as any })).toThrow("no value");
+		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/path traversal/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/path traversal/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/path traversal/);
+	});
+
 	test("bracketed values stay literal and aren't re-substituted", () => {
 		expect(substituteParams("/blog/[slug]", { slug: "[draft]" })).toBe("/blog/[draft]");
 		expect(substituteParams("/[a]/[b]", { a: "[b]", b: "x" })).toBe("/[b]/x");

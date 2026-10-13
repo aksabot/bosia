@@ -221,7 +221,7 @@ ini?") tempatnya di loader atau action yang membaca data tersebut.
 
 Penayangan file statis dan halaman prerendered memvalidasi bahwa path file yang telah diselesaikan tetap berada dalam direktori yang diizinkan, mencegah serangan traversal `../`.
 
-Pada waktu build, nilai `entries()` untuk prerender juga divalidasi: `..` dan `\` tidak pernah diizinkan di segmen mana pun, dan `/` hanya diizinkan pada segmen catch-all (`[...rest]`). Build yang mengembalikan nilai tidak aman akan gagal lebih awal dengan pesan error yang jelas, alih-alih diam-diam menulis HTML ke luar direktori output.
+Pada waktu build, nilai `entries()` untuk prerender juga divalidasi: `..` dan `\` tidak pernah diizinkan di segmen mana pun, `/` hanya diizinkan pada segmen catch-all (`[...rest]`), dan nilai yang hilang, kosong, atau `.` ditolak. Error apa pun di `entries()` menggagalkan build. Build yang mengembalikan nilai tidak aman akan gagal lebih awal dengan pesan error yang jelas, alih-alih diam-diam menulis HTML ke luar direktori output.
 
 ## Proteksi Open-Redirect
 

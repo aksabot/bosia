@@ -76,11 +76,16 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			const rank = segmentRank(seg);
 			if (!rank) return seg;
 			const name = segmentName(seg);
-			if (!Object.hasOwn(entry, name))
+			if (entry[name] == null || !Object.hasOwn(entry, name))
 				throw new Error(`Prerender entries(): no value for ${seg} in ${pattern}.`);
 			const value = String(entry[name]);
-			// `..` and `\` let a build write outside the output tree; `/` only fits a catch-all.
-			if (/\\|\.\./.test(value) || (rank === 1 && value.includes("/"))) {
+			// `..` and `\` let a build write outside the output tree; `/` only fits a catch-all;
+			// an empty or "." part would land on the parent route's file.
+			if (
+				/\\|\.\./.test(value) ||
+				(rank === 1 && value.includes("/")) ||
+				value.split("/").some((part) => part === "" || part === ".")
+			) {
 				throw new Error(
 					`Prerender entries(): unsafe value "${value}" for ${seg} — ` +
 						`path traversal characters are not allowed in dynamic segment values.`,
@@ -145,8 +150,9 @@ async function expandDynamicRoute(
 			trailingSlash: ts,
 		}));
 	} catch (err) {
+		// Fail the build: skipping the route would silently drop every page it lists.
 		console.error(`   ❌ Failed to resolve entries() for ${pattern}:`, err);
-		return [];
+		process.exit(1);
 	}
 }
 

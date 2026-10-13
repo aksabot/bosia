@@ -226,6 +226,11 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("use [...path]");
 	});
 
+	test("an optional [id?] fails the build", () => {
+		write("items/[id?]/+page.svelte");
+		expect(conflict()?.message).toContain("optional params aren't supported, use [id]");
+	});
+
 	test("trailing dots ask for a leading-dot catch-all", () => {
 		write("docs/[path...]/+page.svelte");
 		expect(conflict()?.message).toContain("did you mean [...path]?");
