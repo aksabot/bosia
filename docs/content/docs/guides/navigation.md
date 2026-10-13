@@ -41,7 +41,7 @@ await goto("/login", { replaceState: true, invalidateAll: true });
 | `keepFocus`     | `false` | Reserved — not yet honored.                                            |
 | `state`         | —       | Reserved — Bosia has no shallow routing yet.                           |
 
-If the URL matches the current route, `goto()` resolves immediately without re-running loaders. Pass `invalidateAll: true` to re-run them in place; the Promise resolves once fresh data is on the page.
+If the URL matches the current route, `goto()` resolves without re-running loaders — immediately, or once a navigation to it that is still loading finishes. Pass `invalidateAll: true` to re-run them in place; the Promise resolves once fresh data is on the page.
 
 ### Under a `BASE_PATH`
 

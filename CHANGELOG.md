@@ -33,6 +33,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Data owed a refresh (e.g. after logout) stays owed when the next page shows an error.
 - Moving to another page as soon as a page first loads now works and no longer hangs.
 - A loading placeholder no longer pops back up over a page that already loaded.
+- After a page redirects you, Back skips it instead of bouncing you forward again.
+- Going Back onto a "not found" page now shows it instead of the previous page.
+- A `goto()` with `noScroll` that gets interrupted no longer stops the next page scrolling up.
 
 ## [1.2.2] - 2026-10-12
 

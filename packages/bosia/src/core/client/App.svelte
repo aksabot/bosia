@@ -126,9 +126,6 @@
 	let owedRefresh = false;
 	// Skip bar on the very first effect run (initial hydration — data already present)
 	let firstNav = true;
-	// The route the server rendered. Read before children mount: a child's onMount
-	// goto() runs before the first nav effect and moves router.currentRoute on.
-	const hydratedRoute = typeof window !== "undefined" ? router.currentRoute : "";
 	let navDoneTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Scroll after a nav settles: forward navs go to top (or the URL hash);
@@ -202,9 +199,13 @@
 		const navKey = pathname + url.search;
 		const match = findMatch(clientRoutes, pathname);
 		if (!match) {
-			// No client route (e.g. a server-rendered 404, or Back onto one): nothing
-			// will settle, so release a waiting goto()/use:enhance.
-			abandonRun();
+			// No client route: a server-rendered 404, or Back onto one. Moving onto it
+			// needs the server to render it; a refresh on it just releases waiters.
+			const moved = !firstNav && path.split("#")[0] !== seenRoute.split("#")[0];
+			firstNav = false; // a 404 hydrated nothing, so the next match is a real nav
+			seenRoute = path;
+			if (moved) hardLoad(path);
+			else abandonRun();
 			return;
 		}
 
@@ -213,8 +214,8 @@
 		const isFirst = firstNav;
 		firstNav = false;
 		if (isFirst) {
-			const hUrl = new URL(hydratedRoute, window.location.origin);
-			const hMatch = hydratedRoute === path ? match : findMatch(clientRoutes, hUrl.pathname);
+			const hUrl = new URL(router.hydratedRoute, window.location.origin);
+			const hMatch = router.hydratedRoute === path ? match : findMatch(clientRoutes, hUrl.pathname);
 			currentLayoutPaths = (hMatch?.route as any)?.layoutPaths ?? [];
 			// The probes ran during hydration, before this effect. A title other than
 			// metadata()'s or the layouts' was a component's, so navigation keeps it.
@@ -223,14 +224,14 @@
 			navTitle = ssrTitle ? collapseTitle(ssrTitle) : document.title === base ? base : null;
 			lastSettledPath = hUrl.pathname;
 			lastNavKey = hUrl.pathname + hUrl.search;
-			seenRoute = hydratedRoute;
+			seenRoute = router.hydratedRoute;
 			lastTick = 0; // the SSR data's tick
 			// Restore-after-reload: router.init() staged this entry's snapshot.
 			settleSnapshot();
 			// Initial hydration — data already in SSR props, no fetch needed. Unless a
 			// child's onMount (its effects run first) already invalidated or navigated:
 			// then fall through and run it as a normal nav from the server's route.
-			if (currentTick === 0 && path === hydratedRoute) return;
+			if (currentTick === 0 && path === router.hydratedRoute) return;
 		}
 
 		// Decided here, not at settle: a run superseded or redirected before it
@@ -276,12 +277,16 @@
 		const loadingImport = (match.route as any).loading as (() => Promise<any>) | null;
 		if (loadingImport && pathname !== lastSettledPath) {
 			const s = sharedDepth(currentLayoutPaths, destLayoutPaths);
-			loadingImport().then((m) => {
-				if (cancelled || !navigating) return; // superseded, or already settled/abandoned
-				loadingDepth = s;
-				LoadingComponent = m.default;
-				showLoading = true;
-			});
+			loadingImport()
+				.then((m) => {
+					if (cancelled || !navigating) return; // superseded, or already settled/abandoned
+					loadingDepth = s;
+					LoadingComponent = m.default;
+					showLoading = true;
+				})
+				// No skeleton is no reason to fail the nav — and a stale chunk here must not
+				// reach hydrate.ts's reload while the page itself loaded fine.
+				.catch(() => {});
 		}
 
 		// ─── Loader cache: decide which loaders need to re-run ─────────────
@@ -381,7 +386,12 @@
 					// A redirect that doesn't start a nav (cancelled, same URL, left the app)
 					// gets no run to settle it — release the waiting goto()/use:enhance here.
 					// owedRefresh stays set: the destination owes this run's invalidation.
-					if (router.navigate(result.redirect) !== "started") abandonRun();
+					// Replace: Back must skip the redirecting URL, not bounce off it again.
+					const r = router.navigate(result.redirect, {
+						replace: true,
+						source: router.lastNavType,
+					});
+					if (r !== "started") abandonRun();
 					return;
 				}
 				// Recorded only once something renders for it: a redirected route never

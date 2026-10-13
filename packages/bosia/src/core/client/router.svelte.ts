@@ -97,6 +97,9 @@ export const router = new (class Router {
 	/** Captured snapshot for the entry a popstate/reload landed on; consumed once by App.svelte. `undefined` = nothing to restore. */
 	pendingSnapshot: unknown = undefined;
 
+	/** The route the server rendered, recorded by init() before any click or popstate can move currentRoute. */
+	hydratedRoute = "";
+
 	navigate(path: string, opts: { replace?: boolean; source?: NavType } = {}): NavResult {
 		if (this.currentRoute === path) return "same";
 		// Unknown route — let the server handle it (renders +error.svelte with 404)
@@ -141,6 +144,7 @@ export const router = new (class Router {
 		this.lastNavType = navType;
 		this.isPush = true;
 		this.pendingScroll = null;
+		this.suppressScroll = false; // a superseded noScroll goto's flag; go() re-sets its own after
 		this.pendingSnapshot = undefined;
 		this.currentRoute = finalPath;
 		if (typeof history !== "undefined") {
@@ -159,6 +163,7 @@ export const router = new (class Router {
 	init() {
 		if (typeof window === "undefined") return;
 
+		this.hydratedRoute = this.currentRoute;
 		history.scrollRestoration = "manual";
 		try {
 			scrollPositions = JSON.parse(sessionStorage.getItem(SCROLL_KEY) ?? "{}");
@@ -244,6 +249,7 @@ export const router = new (class Router {
 
 			this.lastNavType = "popstate";
 			this.isPush = false;
+			this.suppressScroll = false;
 			this.currentRoute = finalPath;
 		});
 

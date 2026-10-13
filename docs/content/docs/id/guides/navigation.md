@@ -41,7 +41,7 @@ await goto("/login", { replaceState: true, invalidateAll: true });
 | `keepFocus`     | `false` | Dicadangkan — belum dihormati.                                                  |
 | `state`         | —       | Dicadangkan — Bosia belum punya shallow routing.                                |
 
-Jika URL cocok dengan route saat ini, `goto()` resolve langsung tanpa menjalankan ulang loader. Berikan `invalidateAll: true` untuk menjalankannya ulang di tempat; Promise resolve setelah data baru tampil di halaman.
+Jika URL cocok dengan route saat ini, `goto()` resolve tanpa menjalankan ulang loader — langsung, atau setelah navigasi ke URL itu yang masih memuat selesai. Berikan `invalidateAll: true` untuk menjalankannya ulang di tempat; Promise resolve setelah data baru tampil di halaman.
 
 ### Di bawah `BASE_PATH`
 
