@@ -207,7 +207,7 @@ export function scanRoutes(): RouteManifest {
 			const exactEquivalent = p.pattern.slice(0, cut) || "/";
 			if (!pageKeys.has(routeKey(exactEquivalent))) {
 				console.warn(
-					`⚠️  No exact route for "${exactEquivalent}" — the catch-all "${p.pattern}" will NOT match it.\n` +
+					`⚠️  No page serves "${exactEquivalent}" — the catch-all "${p.pattern}" will NOT match it.\n` +
 						`   Add a +page.svelte at the "${exactEquivalent}" level to serve that URL.`,
 				);
 			}
@@ -287,6 +287,8 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 			const name = segmentName(seg);
 			if (rank === 2 && i !== segs.length - 1) fail(`${seg} must be the last part of the route`);
 			// params is a plain object: assigning "__proto__" sets the prototype, not a key.
+			if (name.includes("="))
+				fail(`${seg}: param matchers aren't supported, use [${name.split("=")[0]}]`);
 			if (name === "__proto__") fail(`"__proto__" can't be a param name`);
 			if (names.has(name)) fail(`the param "${name}" is used twice`);
 			names.add(name);

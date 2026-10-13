@@ -97,7 +97,8 @@ export function compileRoutes<T extends { pattern: string }>(
 		const compiled = compilePattern(route.pattern);
 		(route as any)._compiled = compiled;
 		// Exact patterns contain no dynamic segments, so pattern === pathname.
-		if (compiled.isExact) exact.set(route.pattern, route);
+		// First wins, like the sorted scan.
+		if (compiled.isExact && !exact.has(route.pattern)) exact.set(route.pattern, route);
 	}
 	exactMaps.set(routes, exact);
 	return routes as (T & { _compiled: CompiledRoute })[];
@@ -137,9 +138,9 @@ export function findMatch<T extends { pattern: string }>(
 	routes: T[],
 	pathname: string,
 ): RouteMatch<T> | null {
-	// Strip trailing slash (but keep "/" as-is)
+	// Strip trailing slashes (but keep "/" as-is)
 	if (pathname.length > 1 && pathname.endsWith("/")) {
-		pathname = pathname.slice(0, -1);
+		pathname = pathname.replace(/\/+$/, "") || "/";
 	}
 
 	// Arrays that skipped compileRoutes get compiled on first lookup.
@@ -156,8 +157,6 @@ export function findMatch<T extends { pattern: string }>(
 	for (const route of routes) {
 		// A route pushed after compileRoutes compiles here, once.
 		const compiled: CompiledRoute = ((route as any)._compiled ??= compilePattern(route.pattern));
-		// Exact routes in this array's Map were checked above — skip them.
-		if (compiled.isExact && exact.get(route.pattern) === route) continue;
 		const params = matchCompiled(compiled, route.pattern, pathname);
 		if (params !== null) return { route, params };
 	}

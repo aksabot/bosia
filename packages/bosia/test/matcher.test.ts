@@ -89,6 +89,18 @@ describe("compileRoutes / findMatch — escaping & priority", () => {
 		expect(findMatch(routes, "/contact")?.route.pattern).toBe("/[slug]");
 		expect(findMatch(routes, "/a/b")?.route.pattern).toBe("/[...rest]");
 	});
+
+	test("duplicate exact patterns: the first one wins", () => {
+		const a = { pattern: "/x" };
+		expect(findMatch(compileRoutes([a, { pattern: "/x" }]), "/x")?.route).toBe(a);
+	});
+
+	test("several trailing slashes are stripped", () => {
+		const routes = compile(["/[lang]/[...rest]", "/[...rest]"]);
+		expect(findMatch(routes, "/en/a//")?.params).toEqual({ lang: "en", rest: "a" });
+		expect(findMatch(routes, "/en//")?.route.pattern).toBe("/[...rest]");
+		expect(findMatch(routes, "/en//")?.params).toEqual({ rest: "en" });
+	});
 });
 
 describe("findMatch — catch-all after a [param] segment", () => {

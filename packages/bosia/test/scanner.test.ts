@@ -216,6 +216,11 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("[...] needs a param name");
 	});
 
+	test("a SvelteKit param matcher fails the build", () => {
+		write("items/[id=integer]/+page.svelte");
+		expect(conflict()?.message).toContain("param matchers aren't supported, use [id]");
+	});
+
 	test("a dot-led param name fails the build", () => {
 		write("[.hidden]/+page.svelte");
 		expect(conflict()?.message).toContain("[.hidden] needs a param name");
@@ -299,6 +304,6 @@ describe("scanRoutes() catch-all prefix warning", () => {
 
 	test("a missing prefix page still warns, hyphenated names too", () => {
 		write("docs/[...my-path]/+page.svelte");
-		expect(warnings().join("")).toContain('No exact route for "/docs"');
+		expect(warnings().join("")).toContain('No page serves "/docs"');
 	});
 });
