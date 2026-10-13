@@ -139,6 +139,7 @@
 	// waiting goto()/use:enhance calls.
 	function dropLoadingUI() {
 		navigating = false;
+		router.loading = false;
 		showLoading = false;
 		LoadingComponent = null;
 	}
@@ -153,7 +154,8 @@
 	// re-POST an entry a native form submit made; href= the same URL with a #hash
 	// would only scroll — so drop the hash.
 	function hardLoad(path: string) {
-		window.location.href = path.split("#")[0];
+		// replace: the entry being reloaded is this one, so no extra history entry.
+		window.location.replace(path.split("#")[0]);
 	}
 
 	function settleScroll(replaced = false) {
@@ -268,6 +270,7 @@
 		}
 		navDone = false;
 		navigating = true;
+		router.loading = true;
 
 		// ─── +loading.svelte skeleton ─────────────────────────────────────
 		// On a real path change, show the destination's loading skeleton nested
@@ -387,11 +390,14 @@
 					// gets no run to settle it — release the waiting goto()/use:enhance here.
 					// owedRefresh stays set: the destination owes this run's invalidation.
 					// Replace: Back must skip the redirecting URL, not bounce off it again.
+					// navigate() resets suppressScroll; a noScroll goto keeps it through its redirect.
+					const keepNoScroll = router.suppressScroll;
 					const r = router.navigate(result.redirect, {
 						replace: true,
 						source: router.lastNavType,
 					});
-					if (r !== "started") abandonRun();
+					if (r === "started") router.suppressScroll = keepNoScroll;
+					else abandonRun();
 					return;
 				}
 				// Recorded only once something renders for it: a redirected route never

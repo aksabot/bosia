@@ -6,6 +6,7 @@ let next: string | null = null;
 const router = {
 	currentRoute: "/a",
 	suppressScroll: false,
+	loading: false,
 	navigate(path: string) {
 		const result = next ?? (path === router.currentRoute ? "same" : "started");
 		if (result === "started") router.currentRoute = path;
@@ -32,6 +33,7 @@ beforeEach(() => {
 	next = null;
 	router.currentRoute = "/a";
 	router.suppressScroll = false;
+	router.loading = false;
 	appState.invalidationTick = 0;
 	appState.dirty.all = false;
 	appState.navResolvers = [];
@@ -81,9 +83,10 @@ describe("goto while a nav is loading", () => {
 		expect(appState.navResolvers.length).toBe(1);
 	});
 
-	test("a call to the loading URL waits for it", () => {
+	test("a call to the loading URL waits for it, even one a link started", () => {
+		router.currentRoute = "/b";
+		router.loading = true; // a link click's run: nothing queued
 		goto("/b");
-		goto("/b");
-		expect(appState.navResolvers.length).toBe(2);
+		expect(appState.navResolvers.length).toBe(1);
 	});
 });

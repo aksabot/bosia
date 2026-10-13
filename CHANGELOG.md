@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - After a page redirects you, Back skips it instead of bouncing you forward again.
 - Going Back onto a "not found" page now shows it instead of the previous page.
 - A `goto()` with `noScroll` that gets interrupted no longer stops the next page scrolling up.
+- Opening a page at a URL with an extra `/` no longer reloads its data on first load.
 
 ## [1.2.2] - 2026-10-12
 

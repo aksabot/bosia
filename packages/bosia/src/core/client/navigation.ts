@@ -147,9 +147,8 @@ export function go(
 		// The tick wakes the effect on the same URL, and on a new one it keeps a
 		// prefetch holding pre-mutation data from standing in for the refetch.
 		if (refetch) invalidateAll();
-		// "same" while a nav to it is still loading (queued resolvers) waits for it too.
-		const wait =
-			result === "started" || refetch || (result === "same" && appState.navResolvers.length > 0);
+		// "same" while a nav to it is still loading waits for it too.
+		const wait = result === "started" || (result === "same" && (reload || router.loading));
 		// Otherwise nothing will settle: resolve just this call — draining the queue
 		// would also release a nav still loading.
 		if (wait) appState.navResolvers.push(resolve);

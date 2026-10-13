@@ -97,8 +97,10 @@ export const router = new (class Router {
 	/** Captured snapshot for the entry a popstate/reload landed on; consumed once by App.svelte. `undefined` = nothing to restore. */
 	pendingSnapshot: unknown = undefined;
 
-	/** The route the server rendered, recorded by init() before any click or popstate can move currentRoute. */
+	/** The route the server rendered (canonical), recorded by hydrate.ts before App mounts. */
 	hydratedRoute = "";
+	/** True while App's nav effect is loading a run; `goto()` to the current URL waits on it. */
+	loading = false;
 
 	navigate(path: string, opts: { replace?: boolean; source?: NavType } = {}): NavResult {
 		if (this.currentRoute === path) return "same";
@@ -163,7 +165,6 @@ export const router = new (class Router {
 	init() {
 		if (typeof window === "undefined") return;
 
-		this.hydratedRoute = this.currentRoute;
 		history.scrollRestoration = "manual";
 		try {
 			scrollPositions = JSON.parse(sessionStorage.getItem(SCROLL_KEY) ?? "{}");
@@ -213,6 +214,7 @@ export const router = new (class Router {
 					savePageSnapshot();
 					historyIndex++;
 					history.pushState({ bosiaIndex: historyIndex }, "", finalPath);
+					this.suppressScroll = false;
 					this.currentRoute = finalPath;
 				}
 				scrollToHash(anchor.hash);

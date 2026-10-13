@@ -26,7 +26,7 @@
 - [x] 🟢 A loader redirect that doesn't start a nav resets `suppressScroll`.
 - [x] 🟡 No-match exit (server-rendered 404) drains resolvers; a same-URL `goto(invalidateAll)` there hung. Error-chunk reload skips cancelled runs.
 - [x] 🟡 `goto()` to a URL still loading (`same`, resolvers queued) waits for it; it resolved before the data showed. No-match exits tear down the loading UI via `abandonRun()`.
-- [x] 🟡 A child's `onMount` `goto('/other')` before App's first effect: hydration now books the server's route (`router.hydratedRoute`, set in `init()` before any click) and runs `/other` as a normal nav; it hung before.
+- [x] 🟡 A child's `onMount` `goto('/other')` before App's first effect: hydration now books the server's route (`router.hydratedRoute`, set in hydrate.ts after canonicalizing, before any await) and runs `/other` as a normal nav; it hung before.
 - [x] 🟡 A `+loading.svelte` chunk resolving after its run settled no longer re-shows the skeleton over the loaded page (pre-existing).
 - [ ] ⚪ A `use:enhance` redirect cancelled by `beforeNavigate` clears `form` and doesn't refetch, though the action mutated. Needs `go()` to expose its NavResult.
 - [x] 🟡 Loader redirects `replace` the redirecting entry (and keep the nav type), so Back no longer bounces off it.
@@ -36,6 +36,9 @@
 - [ ] 🟡 Per-run state (`seenRoute`, `navPending`, `owedRefresh`, `suppressScroll`, resolvers) lives in module flags that leak across runs; a per-run object committed on apply would replace the special cases.
 - [x] ⚪ `navigate()`/popstate reset `suppressScroll`, so a superseded `noScroll` goto no longer passes it to the newer nav.
 - [x] 🟡 Back/forward onto a URL with no client route hard-loads it (server 404) instead of keeping the old page; a 404 hydration no longer books the next match as hydrated.
+- [x] 🟡 `goto()` to the current URL waits on `router.loading` (set by App's run), not the resolver queue — it missed link-click navs.
+- [x] 🟢 `hardLoad()` uses `location.replace` (no extra entry); a loader redirect keeps a `noScroll` goto's flag; same-page hash clicks reset `suppressScroll`.
+- [ ] ⚪ A loader redirect back to the previous URL leaves two adjacent entries with the same URL; Back between them doesn't restore scroll/snapshot.
 - [x] 🟡 A failed `+loading.svelte` chunk is swallowed: no skeleton, and no `hydrate.ts` reload of a page that loaded fine.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts

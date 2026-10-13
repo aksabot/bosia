@@ -47,6 +47,9 @@ async function main() {
 		}
 	}
 	router.currentRoute = window.location.pathname + window.location.search + window.location.hash;
+	// After canonicalizing, before any await: a click during the chunk loads below
+	// moves currentRoute, and App must still know which route the server rendered.
+	router.hydratedRoute = router.currentRoute;
 	initPrefetch();
 
 	let ssrPageComponent = null;
