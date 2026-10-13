@@ -196,12 +196,12 @@ export function scanRoutes(): RouteManifest {
 	// Warn when a trailing catch-all exists but no page covers its prefix.
 	// e.g. "/[...slug]" matches everything EXCEPT "/" (which needs its own +page.svelte),
 	// "/[lang]/[...rest]" needs "/[lang]" for "/en".
-	const pagePatterns = new Set(pages.map((p) => p.pattern));
+	const pageKeys = new Set(pages.map((p) => routeKey(p.pattern)));
 	for (const p of pages) {
 		const cut = p.pattern.lastIndexOf("/");
 		if (segmentRank(p.pattern.slice(cut + 1)) === 2) {
 			const exactEquivalent = p.pattern.slice(0, cut) || "/";
-			if (!pagePatterns.has(exactEquivalent)) {
+			if (!pageKeys.has(routeKey(exactEquivalent))) {
 				console.warn(
 					`⚠️  No exact route for "${exactEquivalent}" — the catch-all "${p.pattern}" will NOT match it.\n` +
 						`   Add a +page.svelte at the "${exactEquivalent}" level to serve that URL.`,
@@ -212,6 +212,8 @@ export function scanRoutes(): RouteManifest {
 
 	preventConflicts(pages, (p) => p.page);
 	preventConflicts(apis, (a) => a.server);
+	oneCatchAll(pages, (p) => p.page);
+	oneCatchAll(apis, (a) => a.server);
 
 	const errorPage = existsSync(join(ROUTES_DIR, "+error.svelte")) ? "+error.svelte" : null;
 
@@ -228,8 +230,7 @@ export function scanRoutes(): RouteManifest {
 function preventConflicts<T extends { pattern: string }>(routes: T[], fileOf: (r: T) => string) {
 	const seen = new Map<string, T>();
 	for (const r of routes) {
-		const kinds = ["", "[]", "[...]"];
-		const key = r.pattern.replace(/[^/]+/g, (seg) => kinds[segmentRank(seg)] || seg);
+		const key = routeKey(r.pattern);
 		const first = seen.get(key);
 		if (!first) {
 			seen.set(key, r);
@@ -245,7 +246,32 @@ function preventConflicts<T extends { pattern: string }>(routes: T[], fileOf: (r
 	}
 }
 
-/** Two route files resolve to the same URL. Callers print `message` and exit. */
+const KINDS = ["", "[]", "[...]"];
+
+/** The URL shape of a pattern, param names dropped: `/[lang]/[...rest]` → `/[]/[...]`. */
+function routeKey(pattern: string): string {
+	return pattern.replace(/[^/]+/g, (seg) => KINDS[segmentRank(seg)] || seg);
+}
+
+/**
+ * Fail when a route has more than one `[...rest]`. Each compiles to `(.+)`, and
+ * three of them backtrack for seconds on a long URL (ReDoS). One is all a route
+ * needs; SvelteKit-style `[...a]/x/[...b]` can be added with an anchored regex.
+ */
+function oneCatchAll<T extends { pattern: string }>(routes: T[], fileOf: (r: T) => string) {
+	for (const r of routes) {
+		if (r.pattern.split("/").filter((seg) => segmentRank(seg) === 2).length > 1) {
+			throw new RouteConflictError(
+				`The "${r.pattern}" route has more than one [...rest] catch-all:\n` +
+					`   src/routes/${fileOf(r)}\n` +
+					`   Keep one; use [param] for the others.`,
+			);
+		}
+	}
+}
+
+/** A route tree the build refuses (two files at one URL, or several catch-alls).
+ *  Callers print `message` and exit. */
 export class RouteConflictError extends Error {
 	override name = "RouteConflictError";
 }

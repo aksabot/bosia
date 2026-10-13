@@ -126,18 +126,17 @@ export function findMatch<T extends { pattern: string }>(
 		pathname = pathname.slice(0, -1);
 	}
 
+	// Arrays that skipped compileRoutes get compiled on first lookup.
+	if (!exactMaps.has(routes)) compileRoutes(routes);
+
 	// Exact-match fast path: one Map.get instead of scanning every exact route.
-	const exact = exactMaps.get(routes) as Map<string, T> | undefined;
-	if (exact) {
-		const hit = exact.get(pathname);
-		if (hit) return { route: hit, params: {} };
-	}
+	const hit = (exactMaps.get(routes) as Map<string, T>).get(pathname);
+	if (hit) return { route: hit, params: {} };
 
 	for (const route of routes) {
-		// Arrays that skipped compileRoutes compile lazily, once per route.
-		const compiled: CompiledRoute = ((route as any)._compiled ??= compilePattern(route.pattern));
+		const compiled = (route as any)._compiled as CompiledRoute;
 		// Exact routes already covered by the Map lookup above — skip them.
-		if (exact && compiled.isExact) continue;
+		if (compiled.isExact) continue;
 		const params = matchCompiled(compiled, route.pattern, pathname);
 		if (params !== null) return { route, params };
 	}

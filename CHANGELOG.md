@@ -47,11 +47,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A fixed path like `/label/[id]` now wins over `/[folder]/[thread]` instead of returning 404.
 - A catch-all after a param, like `/[lang]/[...rest]`, now matches instead of returning 404.
 - A catch-all mid-path or with a `-` in its name, like `/docs/[...my-path]/edit`, now works.
-- The build no longer warns about `/[lang]/[...rest]` when a `/[lang]` page exists.
+- The build no longer warns about `/[lang]/[...rest]` when a `/[lang]` or `/[slug]` page exists.
+- A param name starting with a digit, like `[1st]`, no longer breaks the generated types.
 
 ### Changed
 
 - Route priority is checked part by part: `/blog/[...slug]` beats `/[lang]/about` on `/blog/about`.
+- A route with more than one `[...rest]` now fails the build, so a long URL can't stall the server.
 
 ## [1.2.2] - 2026-10-12
 

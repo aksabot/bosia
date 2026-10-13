@@ -52,6 +52,10 @@
 - [x] 🟠 Route order: `sortRoutes` tie-broke same-tier routes by `localeCompare` (`[` < letters), so `/[a]/[b]` beat `/label/[id]`. Now per segment: static > dynamic > catch-all.
 - [x] 🟡 `compilePattern` copied a catch-all's prefix literally: `/[lang]/[...rest]` never matched. Legacy `matchPattern` (same bug) removed; uncompiled arrays compile per lookup.
 - [x] 🟡 Segment kinds were parsed four ways (matcher, sort, scanner, route types) and disagreed on mid-path/hyphenated `[...x]`; one `segmentRank()` in `matcher.ts` now feeds all.
+- [x] 🟠 Mid-path catch-alls let `[...a]/[...b]/[...c]` compile to nested `(.+)`: 3 s per 4 KB URL (ReDoS). The build now allows one catch-all per route.
+- [ ] ⚪ Mid-path catch-all ranks by written position: `/x/edit` goes to `[a]/[b]` over `[...path]/edit`. Rank by matched span if it bites (documented).
+- [ ] ⚪ Malformed segments `[a]-[b]`, `[[lang]]` read as params with odd names (types + matcher). Reject or warn at build.
+- [ ] ⚪ `compilePattern` `isExact` and prerender's dynamic check still use `includes("[")`: static `v[1]` counts as dynamic. Use `segmentRank`.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts

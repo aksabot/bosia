@@ -206,6 +206,11 @@ describe("scanRoutes() route conflicts", () => {
 		expect(msg).toContain("src/routes/(app)/blog/[slug]/+page.svelte");
 	});
 
+	test("more than one catch-all in a route fails the build", () => {
+		write("[...a]/x/[...b]/+page.svelte");
+		expect(conflict()?.message).toContain("more than one [...rest] catch-all");
+	});
+
 	test("duplicate +server.ts API routes conflict", () => {
 		write("(a)/api/ping/+server.ts");
 		write("(b)/api/ping/+server.ts");
@@ -238,6 +243,12 @@ describe("scanRoutes() catch-all prefix warning", () => {
 
 	test("a page at a [param] prefix covers its catch-all", () => {
 		write("[lang]/+page.svelte");
+		write("[lang]/[...rest]/+page.svelte");
+		expect(warnings()).toEqual([]);
+	});
+
+	test("a differently named param page covers the prefix too", () => {
+		write("[slug]/+page.svelte");
 		write("[lang]/[...rest]/+page.svelte");
 		expect(warnings()).toEqual([]);
 	});
