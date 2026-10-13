@@ -138,9 +138,9 @@ export function findMatch<T extends { pattern: string }>(
 	routes: T[],
 	pathname: string,
 ): RouteMatch<T> | null {
-	// Strip trailing slashes (but keep "/" as-is)
+	// Strip one trailing slash (but keep "/" as-is), same as canonicalPathname.
 	if (pathname.length > 1 && pathname.endsWith("/")) {
-		pathname = pathname.replace(/\/+$/, "") || "/";
+		pathname = pathname.slice(0, -1);
 	}
 
 	// Arrays that skipped compileRoutes get compiled on first lookup.

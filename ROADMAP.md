@@ -56,7 +56,7 @@
 - [x] ⚪ `isExact` and prerender used `includes("[")`; both now use `isDynamic()` (segmentRank), so `/api/[id].json` is static everywhere.
 - [x] ⚪ `segmentRank` is strict (`SEGMENT` regex): malformed segments rank static, `checkParams` runs first and names any bracket it can't read; unicode/`$`/`.` names still OK. Only a last `[...x]` compiles to `(.+)`.
 - [ ] ⚪ Mid-path catch-alls (`docs/[...path]/edit`): needs an anchored regex + span-aware ranking (SvelteKit sorts them last). Add both together if asked.
-- [x] ⚪ Partial/doubled brackets (`[id].json`, `post-[slug]`, `[[lang]]`) only ever matched literally; the build now rejects them. Exact Map is first-wins like the scan; `findMatch` strips every trailing slash.
+- [x] ⚪ Partial brackets (`[id].json`, `post-[slug]`) matched literally; `[[lang]]` was a param named "[lang]". The build now rejects all three. Exact Map is first-wins like the scan.
 - [ ] ⚪ Catch-all prefix warning fires when another route already serves the prefix (`/[...all]`, or `/[page]` for `/docs`). Check with `findMatch` on the sorted pages.
 - [x] ⚪ `[id=integer]` (SvelteKit matcher) built as a param named "id=integer"; the build now rejects it. Warning reads "No page serves" (prefix may be dynamic).
 - [ ] ⚪ One `parseSegment()` returning `{rank, name}` or an error: `SEGMENT` runs 2–3× per segment, and `checkParams` keeps its own bracket regex.

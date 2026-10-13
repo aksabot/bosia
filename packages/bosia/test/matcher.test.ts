@@ -95,11 +95,10 @@ describe("compileRoutes / findMatch — escaping & priority", () => {
 		expect(findMatch(compileRoutes([a, { pattern: "/x" }]), "/x")?.route).toBe(a);
 	});
 
-	test("several trailing slashes are stripped", () => {
-		const routes = compile(["/[lang]/[...rest]", "/[...rest]"]);
-		expect(findMatch(routes, "/en/a//")?.params).toEqual({ lang: "en", rest: "a" });
-		expect(findMatch(routes, "/en//")?.route.pattern).toBe("/[...rest]");
-		expect(findMatch(routes, "/en//")?.params).toEqual({ rest: "en" });
+	test("a long run of slashes stays fast (one slash stripped, no regex)", () => {
+		const t = performance.now();
+		findMatch(compile(["/[...rest]"]), "/" + "/".repeat(40000) + "a/");
+		expect(performance.now() - t).toBeLessThan(50);
 	});
 });
 
