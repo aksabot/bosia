@@ -82,8 +82,9 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 					`path traversal characters are not allowed in dynamic segment values.`,
 			);
 		}
-		resolved = resolved.replace(`[...${key}]`, value);
-		resolved = resolved.replace(`[${key}]`, value);
+		// Function replacers: a `$&` or `$'` in value stays literal.
+		resolved = resolved.replace(`[...${key}]`, () => value);
+		resolved = resolved.replace(`[${key}]`, () => value);
 	}
 	return resolved;
 }

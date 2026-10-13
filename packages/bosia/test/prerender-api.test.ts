@@ -38,4 +38,8 @@ describe("substituteParams() — API rest-segment cases", () => {
 			"/api/skills/bosia-svelte-runes",
 		);
 	});
+
+	test("`$&` in a value stays literal", () => {
+		expect(substituteParams("/blog/[slug]", { slug: "a$&b" })).toBe("/blog/a$&b");
+	});
 });

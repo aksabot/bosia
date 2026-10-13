@@ -286,9 +286,11 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 			}
 			const name = segmentName(seg);
 			if (rank === 2 && i !== segs.length - 1) fail(`${seg} must be the last part of the route`);
-			// params is a plain object: assigning "__proto__" sets the prototype, not a key.
+			const dots = rank === 2 ? "..." : "";
 			if (name.includes("="))
-				fail(`${seg}: param matchers aren't supported, use [${name.split("=")[0]}]`);
+				fail(`${seg}: param matchers aren't supported, use [${dots}${name.split("=")[0]}]`);
+			if (name.endsWith("...")) fail(`${seg}: did you mean [...${name.slice(0, -3)}]?`);
+			// params is a plain object: assigning "__proto__" sets the prototype, not a key.
 			if (name === "__proto__") fail(`"__proto__" can't be a param name`);
 			if (names.has(name)) fail(`the param "${name}" is used twice`);
 			names.add(name);

@@ -49,6 +49,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A catch-all with a `-` in its name, like `/docs/[...my-path]`, now works.
 - The build no longer warns about `/[lang]/[...rest]` when a `/[lang]` or `/[slug]` page exists.
 - A param name starting with a digit, like `[1st]`, no longer breaks the generated types.
+- Prerendered paths keep a `$&` in an `entries()` value as-is instead of mangling it.
+- The build catches the `[path...]` typo and suggests `[...path]`.
 
 ### Changed
 

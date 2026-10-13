@@ -221,6 +221,16 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("param matchers aren't supported, use [id]");
 	});
 
+	test("a catch-all matcher suggests the catch-all back", () => {
+		write("docs/[...path=rest]/+page.svelte");
+		expect(conflict()?.message).toContain("use [...path]");
+	});
+
+	test("trailing dots ask for a leading-dot catch-all", () => {
+		write("docs/[path...]/+page.svelte");
+		expect(conflict()?.message).toContain("did you mean [...path]?");
+	});
+
 	test("a dot-led param name fails the build", () => {
 		write("[.hidden]/+page.svelte");
 		expect(conflict()?.message).toContain("[.hidden] needs a param name");
