@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Navigation skill: a form redirect reloads all data; no manual `invalidateAll()` needed.
 - Response cache skill: `invalidate()` raced by `goto()` no longer leaves stale data.
 - Navigation guide: `goto()` to a page still loading waits for it to finish.
+- Navigation guide: a loader redirect counts as its own `goto` navigation, even after Back.
 
 ## [0.8.25] - 2026-10-12
 

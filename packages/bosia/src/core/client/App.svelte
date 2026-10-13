@@ -234,7 +234,10 @@
 			// Initial hydration — data already in SSR props, no fetch needed. Unless a
 			// child's onMount (its effects run first) already invalidated or navigated:
 			// then fall through and run it as a normal nav from the server's route.
-			if (currentTick === 0 && path === router.hydratedRoute) return;
+			if (currentTick === 0 && path === router.hydratedRoute) {
+				router.loading = false; // a nav away and back before this run started
+				return;
+			}
 		}
 
 		// Decided here, not at settle: a run superseded or redirected before it
@@ -396,10 +399,12 @@
 					// owedRefresh stays set: the destination owes this run's invalidation.
 					// Replace: Back must skip the redirecting URL, not bounce off it again.
 					// navigate() resets suppressScroll; a noScroll goto keeps it through its redirect.
+					// The hop is a cancellable push nav: Back/hydration hand it on as "goto".
 					const keepNoScroll = router.suppressScroll;
+					const from = router.lastNavType;
 					const r = router.navigate(result.redirect, {
 						replace: true,
-						source: router.lastNavType,
+						source: from === "popstate" || from === "enter" ? "goto" : from,
 					});
 					if (r === "started") {
 						router.suppressScroll = keepNoScroll;

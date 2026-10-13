@@ -161,6 +161,9 @@ export const router = new (class Router {
 				history.pushState({ bosiaIndex: historyIndex }, "", finalPath);
 			}
 		}
+		// Set now, not when App's effect runs a microtask later: a same-tick goto() to
+		// this URL must already see it loading.
+		this.loading = true;
 		return "started";
 	}
 

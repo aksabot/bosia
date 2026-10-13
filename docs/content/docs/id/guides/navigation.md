@@ -154,6 +154,7 @@ interface Navigation {
 - `type` — bagaimana navigasi dipicu.
 - `willUnload` — `true` saat browser akan membongkar halaman (tab ditutup, tautan eksternal). Untuk peristiwa ini `cancel()` tidak berefek; gunakan `addEventListener("beforeunload", ...)` langsung untuk meminta konfirmasi pengguna.
 - `cancel()` pada navigasi `popstate` (back/forward) juga tidak berefek — browser sudah memindahkan pointer history-nya saat listener berjalan.
+- Redirect dari loader adalah navigasi tersendiri bertipe `goto` (atau `link`/`form`, mengikuti navigasi sebelumnya), juga setelah Back — jadi `cancel()` berlaku.
 
 ## Indikator Loading
 

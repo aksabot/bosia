@@ -154,6 +154,7 @@ interface Navigation {
 - `type` — how the navigation was triggered.
 - `willUnload` — `true` when the browser is about to tear down the page (closed tab, external link). For these events `cancel()` is a no-op; use `addEventListener("beforeunload", ...)` directly to prompt the user.
 - `cancel()` on a `popstate` (back/forward) navigation is also a no-op — the browser has already moved its history pointer by the time the listener runs.
+- A loader redirect is its own navigation of type `goto` (or `link`/`form`, as the nav it follows), even after Back — so `cancel()` works on it.
 
 ## Loading indicators
 

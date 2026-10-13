@@ -29,7 +29,7 @@
 - [x] 🟡 A child's `onMount` `goto('/other')` before App's first effect: hydration now books the server's route (`router.hydratedRoute`, set in hydrate.ts after canonicalizing, before any await) and runs `/other` as a normal nav; it hung before.
 - [x] 🟡 A `+loading.svelte` chunk resolving after its run settled no longer re-shows the skeleton over the loaded page (pre-existing).
 - [ ] ⚪ A `use:enhance` redirect cancelled by `beforeNavigate` clears `form` and doesn't refetch, though the action mutated. Needs `go()` to expose its NavResult.
-- [x] 🟡 Loader redirects `replace` the redirecting entry (and keep the nav type), so Back no longer bounces off it.
+- [x] 🟡 Loader redirects `replace` the redirecting entry, so Back no longer bounces off it. The hop keeps the nav type, but `popstate`/`enter` become `goto` (it is a cancellable push).
 - [ ] ⚪ `owedRefresh` re-runs every loader with `fresh`; keeping the cancelled run's dirty set until it applies would refetch less.
 - [x] 🟠 `owedRefresh` clears only when fresh data applies (error/failed-fetch branch kept it); `lastNavKey`/`lastSettledPath` set only after the redirect check.
 - [x] 🟡 A cancelled run's chunk rejection is swallowed, so `hydrate.ts` doesn't reload the page the user moved on to.
@@ -43,6 +43,9 @@
 - [ ] ⚪ Relative `goto("#x")` matches no route, leaves via `location.href`, and the null-state popstate resets `historyIndex` to 0 (pre-existing).
 - [ ] ⚪ A loader redirect back to the previous URL leaves two adjacent entries with the same URL; Back between them doesn't restore scroll/snapshot.
 - [x] 🟡 A failed `+loading.svelte` chunk is swallowed: no skeleton, and no `hydrate.ts` reload of a page that loaded fine.
+- [x] 🟢 `navigate()` sets `router.loading` on `started`, so a same-tick `goto()` to that URL waits; hydration's early return clears it.
+- [ ] ⚪ Back onto a 404 entry while hydration chunks load skips the hard load (first run forces `moved` false).
+- [ ] ⚪ A redirect back to the shown page superseded before settling leaves `lastNavKey = ""`: next Back refetches and clears `form`.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

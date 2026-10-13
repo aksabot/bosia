@@ -40,6 +40,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Clicking a link while the app is still starting now shows the right page's data.
 - A page that redirects you back to where you were now reloads it properly.
 - A redirect to another site no longer traps the Back button.
+- Calling `goto()` twice to the same page now waits for it to load both times.
+- After Back, a page redirect is reported as `goto`, not `popstate`, so guards can cancel it.
 
 ## [1.2.2] - 2026-10-12
 
