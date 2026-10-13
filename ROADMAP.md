@@ -15,6 +15,8 @@
 - [ ] ⚪ A non-entries error (unreadable route file) still drops the collected `entries()` errors.
 - [x] 🟡 A last-part `index` value fails: written as `<parent>/index.html`, it replaced the parent URL's page (even a live one). `.html`/`.json` checks only the last part.
 - [x] ⚪ Clash check dedupes repeated values, compares every folder level ignoring case (`A/x` vs `a/y`) and includes `__bosia/data` files (`/` vs `/index`).
+- [x] 🟡 Clash check: a file and a folder at one path clash (`a.json` vs `a.json/edit`); dedupe keys on slash mode; the saved `404.html` is owned. Values can't start with `.`.
+- [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 

@@ -1,0 +1,247 @@
+// Regression table for prerender entries() values and output clashes.
+// Every row is a case a review once found. Add a row for each new finding before fixing it,
+// and never delete one: a row that has to change means a decided rule is being reopened.
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { dirname, join } from "path";
+import {
+	detectPrerenderRoutes,
+	findPrerenderClash,
+	PrerenderEntriesError,
+	type PrerenderTarget,
+	substituteParams,
+} from "../src/core/prerender.ts";
+
+// ─── substituteParams(): values that must build ───────────
+
+const ACCEPT: [pattern: string, value: string, path: string][] = [
+	["/blog/[slug]", "hello-world", "/blog/hello-world"],
+	["/blog/[slug]", "Hello_World-2.0~x", "/blog/Hello_World-2.0~x"],
+	["/compare/[range]", "v1..v2", "/compare/v1..v2"], // `..` inside a part is text, not traversal
+	["/blog/[slug]", "_draft", "/blog/_draft"], // leading `_` is common, only `.` is hidden
+	["/blog/[slug]", "console", "/blog/console"], // not a device name, only starts with `con`
+	["/blog/[slug]", "post.htm", "/blog/post.htm"],
+	["/docs/[...p]", "guide/intro", "/docs/guide/intro"],
+	["/docs/[...p]", "guide/intro/", "/docs/guide/intro"], // one trailing `/` is dropped
+	["/docs/[...p]", "guide/v1..v2/intro", "/docs/guide/v1..v2/intro"],
+	["/docs/[...p]", "index/a", "/docs/index/a"], // `index` only matters as the last part
+	["/docs/[...p]", "release.html/notes", "/docs/release.html/notes"], // only the last part names a file
+	["/[slug]/edit", "index", "/index/edit"], // the param isn't the URL's last part
+	["/[slug]/edit", "a.json", "/a.json/edit"],
+];
+
+describe("substituteParams() accepts", () => {
+	for (const [pattern, value, path] of ACCEPT)
+		test(`${pattern} ← ${JSON.stringify(value)}`, () => {
+			const name = pattern.match(/\[(?:\.\.\.)?(\w+)\]/)![1]!;
+			expect(substituteParams(pattern, { [name]: value })).toBe(path);
+		});
+});
+
+// ─── substituteParams(): values that must fail ────────────
+
+const CHARS = /use only ASCII letters/;
+const REJECT: [pattern: string, value: string, error: RegExp][] = [
+	// Not unreserved ASCII: the fetched URL, the file and a static host's lookup would disagree.
+	["/blog/[slug]", "50%-off", CHARS],
+	["/blog/[slug]", "100%", CHARS],
+	["/blog/[slug]", "%2e%2e", CHARS], // the URL parser folds it into `..`
+	["/blog/[slug]", "a%2Fb", CHARS],
+	["/blog/[slug]", "what%3F", CHARS],
+	["/blog/[slug]", "caf%C3%A9", CHARS],
+	["/blog/[slug]", "café", CHARS],
+	["/blog/[slug]", "a b", CHARS],
+	["/blog/[slug]", "foo ", CHARS], // the URL parser strips a trailing space
+	["/blog/[slug]", "a\tb", CHARS], // the URL parser drops tab/LF/CR
+	["/blog/[slug]", "a\nb", CHARS],
+	["/blog/[slug]", "a\x7fb", CHARS],
+	["/blog/[slug]", "a?b", CHARS],
+	["/blog/[slug]", "a#b", CHARS],
+	["/blog/[slug]", "a\\b", CHARS],
+	["/blog/[slug]", "a/b", CHARS], // `/` only in a catch-all
+	["/blog/[slug]", "[draft]", CHARS],
+	["/blog/[slug]", "a$&b", CHARS],
+	["/docs/[...p]", "a/50%", CHARS],
+	// Empty parts and `.`/`..`: the page would land on the parent route's file.
+	["/blog/[slug]", "", CHARS],
+	["/blog/[slug]", ".", CHARS],
+	["/blog/[slug]", "..", CHARS],
+	["/docs/[...p]", "a//b", CHARS],
+	["/docs/[...p]", "/", CHARS],
+	["/docs/[...p]", "a/../b", CHARS],
+	// Windows drops trailing dots (`v1.` → `v1`, `...` → ``).
+	["/blog/[slug]", "...", CHARS],
+	["/blog/[slug]", "v1.", CHARS],
+	["/docs/[...p]", "a.../b", CHARS],
+	// Static hosts hide dotfiles.
+	["/blog/[slug]", ".env", CHARS],
+	["/docs/[...p]", "a/.git/b", CHARS],
+	// Windows device names.
+	["/blog/[slug]", "con", /device names/],
+	["/blog/[slug]", "NUL", /device names/],
+	["/blog/[slug]", "aux.txt", /device names/],
+	["/docs/[...p]", "com1/a", /device names/],
+	["/blog/[slug]", "lpt9", /device names/],
+	// The URL's last part names the file.
+	["/[slug]", "index", /can't be `index`/], // `index.html` would serve `/`
+	["/blog/[slug]", "Index", /can't be `index`/],
+	["/docs/[...p]", "a/index", /can't be `index`/],
+	["/blog/[slug]", "post.html", /\.html or \.json/], // `post.html.html`, never served
+	["/blog/[slug]", "a.JSON", /\.html or \.json/],
+];
+
+describe("substituteParams() rejects", () => {
+	for (const [pattern, value, error] of REJECT)
+		test(`${pattern} ← ${JSON.stringify(value)}`, () => {
+			const name = pattern.match(/\[(?:\.\.\.)?(\w+)\]/)![1]!;
+			expect(() => substituteParams(pattern, { [name]: value })).toThrow(error);
+		});
+
+	test("a missing value fails", () => {
+		expect(() => substituteParams("/blog/[slug]/[id]", { id: "5" })).toThrow("no value for [slug]");
+		expect(() => substituteParams("/blog/[slug]", { slug: undefined as any })).toThrow("no value");
+		expect(() => substituteParams("/blog/[slug]", { slug: null as any })).toThrow("no value");
+	});
+
+	test("the error quotes the value: a newline can't split it, a BigInt can't crash it", () => {
+		expect(() => substituteParams("/blog/[slug]", { slug: "a\nb" })).toThrow('"a\\nb"');
+		expect(() => substituteParams("/blog/[slug]", { slug: { id: 1n } as any })).toThrow(
+			'"[object Object]"',
+		);
+	});
+});
+
+// ─── findPrerenderClash(): two targets, one file ──────────
+
+const page = (path: string, trailingSlash: PrerenderTarget["trailingSlash"] = "never") =>
+	({ path, kind: "page", trailingSlash }) as PrerenderTarget;
+const api = (path: string) => ({ path, kind: "api", trailingSlash: "never" }) as PrerenderTarget;
+
+const CLASH: [why: string, targets: PrerenderTarget[], error: string][] = [
+	// macOS and Windows ignore case.
+	[
+		"files differ only by case",
+		[page("/c/About"), page("/c/about")],
+		"/c/About and /c/about write the same file",
+	],
+	[
+		"folders differ only by case",
+		[page("/d/A/x"), page("/d/a/y")],
+		"/d/A/x and /d/a/y write the same path",
+	],
+	// The data payload counts: `/` and `/index` both write `__bosia/data/index.json`.
+	[
+		"two pages, one data file",
+		[page("/", "always"), page("/index", "always")],
+		"__bosia/data/index.json",
+	],
+	// A file and a folder can't share a path: `a.json` vs `a.json/edit.json`.
+	["file vs folder", [page("/a"), page("/a.json/edit")], "/a and /a.json/edit write the same path"],
+	[
+		"file vs folder (catch-all)",
+		[page("/docs/a"), page("/docs/a.html/b")],
+		"/docs/a and /docs/a.html/b",
+	],
+	// Same URL from two routes with different slash modes: both write its data file.
+	[
+		"one URL, two slash modes",
+		[page("/about", "always"), page("/about", "never")],
+		"/about and /about write the same file",
+	],
+	// generateStaticSite copies prerendered/ over the saved 404 page.
+	["a slug named 404", [page("/404")], "the 404 page and /404 write the same file"],
+	["an API and a page data file", [page("/x"), api("/__bosia/data/x")], "/x and /__bosia/data/x"],
+];
+
+const NO_CLASH: [why: string, targets: PrerenderTarget[]][] = [
+	["siblings", [page("/a"), page("/b"), page("/a/b")]],
+	["same folder, exact case", [page("/docs/A/x"), page("/docs/A/y")]],
+	["a 404 folder in always mode", [page("/404", "always")]],
+	["root and a page", [page("/", "always"), page("/about", "always")]],
+	["pages and APIs", [page("/blog"), api("/api/blog")]],
+];
+
+describe("findPrerenderClash()", () => {
+	for (const [why, targets, error] of CLASH)
+		test(`fails: ${why}`, () => {
+			const clashes = findPrerenderClash(targets);
+			// One ❌ per clashing route, even when its HTML and data file both clash.
+			expect(clashes).toHaveLength(1);
+			expect(clashes[0]).toContain(error);
+		});
+
+	for (const [why, targets] of NO_CLASH)
+		test(`passes: ${why}`, () => {
+			expect(findPrerenderClash(targets)).toEqual([]);
+		});
+});
+
+// ─── detectPrerenderRoutes(): end to end over real route files ─
+
+describe("detectPrerenderRoutes()", () => {
+	const cwdBefore = process.cwd();
+	let dir = "";
+	const route = (pattern: string, file: string, server: string, trailingSlash = "never") => {
+		mkdirSync(dirname(join(dir, "src/routes", file)), { recursive: true });
+		writeFileSync(join(dir, "src/routes", file), server);
+		return { pattern, pageServer: file, trailingSlash };
+	};
+	const entries = (...values: string[]) =>
+		`export const prerender = true;\nexport const entries = () => ${JSON.stringify(values.map((slug) => ({ slug })))};\n`;
+	const detect = (pages: unknown[]) =>
+		detectPrerenderRoutes({ pages, apis: [], errorPage: null } as any).catch((e) => e);
+
+	beforeEach(() => {
+		dir = mkdtempSync(join(tmpdir(), "bosia-detect-"));
+		process.chdir(dir);
+	});
+	afterEach(() => {
+		process.chdir(cwdBefore);
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	test("lists every broken route at once, one ❌ each, causes kept", async () => {
+		const err = await detect([
+			route("/a/[slug]", "a/[slug]/+page.server.ts", "export const prerender = true;\n"),
+			route("/b/[slug]", "b/[slug]/+page.server.ts", entries("50%-off")),
+		]);
+		expect(err).toBeInstanceOf(PrerenderEntriesError);
+		const lines = err.message.split("\n").filter((l: string) => l.startsWith("❌"));
+		expect(lines).toHaveLength(2);
+		expect(lines[0]).toContain(
+			"/a/[slug]: prerender = true on a dynamic route needs an entries() export",
+		);
+		expect(lines[1]).toContain('/b/[slug]: entries() value "50%-off"');
+		expect(err.cause).toHaveLength(2);
+	});
+
+	test("a multi-line error stays under one ❌", async () => {
+		const server = `export const prerender = true;\nexport const entries = () => { throw new Error("one\\ntwo"); };\n`;
+		const err = await detect([route("/z/[slug]", "z/[slug]/+page.server.ts", server)]);
+		expect(err.message).toBe("❌ Prerender failed for /z/[slug]: one\ntwo");
+	});
+
+	test("a repeated value (a tag on two posts) is written once", async () => {
+		const targets = await detect([
+			route("/t/[slug]", "t/[slug]/+page.server.ts", entries("js", "js")),
+		]);
+		expect(targets).toEqual([{ path: "/t/js", kind: "page", trailingSlash: "never" }]);
+	});
+
+	test("one URL from a static and a dynamic route is a clash, not a silent drop", async () => {
+		const err = await detect([
+			route("/about", "about/+page.server.ts", "export const prerender = true;\n", "always"),
+			route("/[slug]", "[slug]/+page.server.ts", entries("about")),
+		]);
+		expect(err).toBeInstanceOf(PrerenderEntriesError);
+		expect(err.message).toContain("/about and /about write the same file");
+	});
+
+	test("case-only twins fail end to end", async () => {
+		const err = await detect([
+			route("/c/[slug]", "c/[slug]/+page.server.ts", entries("About", "about")),
+		]);
+		expect(err.message).toContain("/c/About and /c/about write the same file");
+	});
+});

@@ -55,7 +55,7 @@ const PRERENDER_CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 6;
 
 // ─── Prerendering ─────────────────────────────────────────
 
-interface PrerenderTarget {
+export interface PrerenderTarget {
 	path: string;
 	kind: "page" | "api";
 	/** Page targets only; APIs always write a single `.json` file regardless of slash mode. */
@@ -89,11 +89,12 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			// fetched URL, the file written and a static host's lookup all agree, with nothing to
 			// percent-encode or decode. `50%-off`, `café`, `what%3F` fail by design: slugify them.
 			// No part may end in `.`: the URL parser folds `.`/`..`, and Windows drops trailing
-			// dots (`v1.` → `v1`), so the page would land on another route's file.
+			// dots (`v1.` → `v1`), so the page would land on another route's file. No part may
+			// start with `.` either: static hosts hide dotfiles (`.env`).
 			const parts = rank === 2 ? value.split("/") : [value];
-			if (!parts.every((part) => /^[A-Za-z0-9._~-]*[A-Za-z0-9_~-]$/.test(part)))
+			if (!parts.every((part) => /^(?!\.)[A-Za-z0-9._~-]*[A-Za-z0-9_~-]$/.test(part)))
 				bad(
-					`use only ASCII letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts or trailing \`.\``,
+					`use only ASCII letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts or leading/trailing \`.\``,
 				);
 			// Windows device names: writing `nul.html` hits the device, not a file.
 			if (parts.some((part) => /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(part)))
@@ -130,6 +131,11 @@ export function prerenderOutPath(routePath: string, ts: TrailingSlash): string {
 /** Data-payload filename for a prerendered route — matches client `dataUrl()`. */
 export function prerenderDataPath(routePath: string): string {
 	return routePath === "/" ? "/index.json" : `${routePath.replace(/\/$/, "")}.json`;
+}
+
+/** Where a page's data payload is written. */
+export function prerenderDataOutPath(routePath: string): string {
+	return `${OUT_DIR}/prerendered/__bosia/data${prerenderDataPath(routePath)}`;
 }
 
 /**
@@ -208,40 +214,57 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 		throw new PrerenderEntriesError(failed.map((e) => `❌ ${e.message}`).join("\n"), {
 			cause: failed,
 		});
-	// A repeated entries() value (a tag on two posts) is written once.
+	// A repeated entries() value (a tag on two posts) is written once. Same path from two
+	// routes with different slash modes stays, so the clash check below reports it.
 	const all = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-	const targets = [...new Map(all.map((t) => [`${t.kind} ${t.path}`, t])).values()];
-	// Two routes may not write one file, and macOS/Windows ignore case: `About` and `about`
-	// (or folders `A/` and `a/`) would merge. Every folder level and the data file count.
+	const targets = [
+		...new Map(all.map((t) => [`${t.kind} ${t.path} ${t.trailingSlash}`, t])).values(),
+	];
+	const clash = findPrerenderClash(targets);
+	if (clash.length) throw new PrerenderEntriesError(clash.join("\n"));
+	return targets;
+}
+
+/**
+ * Files two targets would both write. macOS/Windows ignore case, so `About` and `about`
+ * (or folders `A/` and `a/`) merge; a file and a folder can't share a path either.
+ * Every folder level counts, and so do data payloads and the saved 404.html.
+ */
+export function findPrerenderClash(targets: PrerenderTarget[]): string[] {
 	const owners = new Map<string, { path: string; route: string; file: boolean }>();
+	// generateStaticSite copies prerendered/ over static/, where the 404 probe saves 404.html.
+	owners.set(`${OUT_DIR}/prerendered/404.html`, {
+		path: `${OUT_DIR}/prerendered/404.html`,
+		route: "the 404 page",
+		file: true,
+	});
 	const clashes: string[] = [];
 	for (const t of targets) {
 		const files =
 			t.kind === "api"
 				? [prerenderApiOutPath(t.path)]
-				: [
-						prerenderOutPath(t.path, t.trailingSlash),
-						`${OUT_DIR}/prerendered/__bosia/data${prerenderDataPath(t.path)}`,
-					];
-		for (const out of files) {
+				: [prerenderOutPath(t.path, t.trailingSlash), prerenderDataOutPath(t.path)];
+		// One ❌ per route: stop at its first clash.
+		route: for (const out of files) {
 			const segs = out.split("/");
 			for (let i = 1; i <= segs.length; i++) {
 				const path = segs.slice(0, i).join("/");
 				const file = i === segs.length;
-				const prev = owners.get(path.toLowerCase());
-				if (!prev) owners.set(path.toLowerCase(), { path, route: t.path, file });
-				else if (prev.path !== path || (file && prev.file)) {
-					const what = file && prev.file ? "file" : "folder";
+				const key = path.toLowerCase();
+				const prev = owners.get(key);
+				if (!prev) owners.set(key, { path, route: t.path, file });
+				// Only two folders with the exact same name may share a path.
+				else if (prev.path !== path || file || prev.file) {
+					const what = file && prev.file ? "file" : "path";
 					clashes.push(
 						`❌ Prerender: ${prev.route} and ${t.path} write the same ${what} (${path})`,
 					);
-					break;
+					break route;
 				}
 			}
 		}
 	}
-	if (clashes.length) throw new PrerenderEntriesError(clashes.join("\n"));
-	return targets;
+	return clashes;
 }
 
 export async function prerenderStaticRoutes(
@@ -368,7 +391,7 @@ export async function prerenderStaticRoutes(
 				});
 				if (dataRes.ok) {
 					const dataJson = await dataRes.text();
-					const dataOutPath = `${OUT_DIR}/prerendered/__bosia/data${dataPath}`;
+					const dataOutPath = prerenderDataOutPath(routePath);
 					mkdirSync(dataOutPath.substring(0, dataOutPath.lastIndexOf("/")), {
 						recursive: true,
 					});
