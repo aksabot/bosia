@@ -21,7 +21,7 @@
 - [x] 🟠 An invalidated run cancelled or loader-redirected before applying data sets `owedRefresh`; the next run refetches every loader (logout via a redirecting `/` kept stale layouts).
 - [ ] ⚪ A loader redirect that is cancelled (or canonicalizes to `same`) leaves the URL on the new route with the old page shown; the awaited `goto()` resolves anyway (pre-existing).
 - [x] 🟠 A rejected route chain (stale chunk, throwing module) tears down the loading UI, drains resolvers, then rethrows so `hydrate.ts` still runs its cache-busting reload.
-- [x] 🟡 Reload fallbacks use `location.reload()`: `href = path` with a `#hash` only scrolled, leaving the page and awaited `goto()` stuck.
+- [x] 🟡 Reload fallbacks use `hardLoad()`: `href` = path without its `#hash` (with it, `href` only scrolled; `reload()` could re-POST a native form entry).
 - [x] 🟡 An `invalidate()`/`goto(sameUrl, { invalidateAll })` from a child's `onMount` refetches; hydration's first effect absorbed the tick and hung the `goto()`.
 - [x] 🟢 A loader redirect that doesn't start a nav resets `suppressScroll`.
 - [x] 🟡 No-match exit (server-rendered 404) drains resolvers; a same-URL `goto(invalidateAll)` there hung. Error-chunk reload skips cancelled runs.
@@ -30,7 +30,10 @@
 - [ ] ⚪ A `use:enhance` redirect cancelled by `beforeNavigate` clears `form` and doesn't refetch, though the action mutated. Needs `go()` to expose its NavResult.
 - [ ] 🟡 Loader redirects `pushState`, so Back returns to the redirecting URL and bounces again; should `replace` (pre-existing).
 - [ ] ⚪ `owedRefresh` re-runs every loader with `fresh`; keeping the cancelled run's dirty set until it applies would refetch less.
-- [ ] ⚪ Resolver draining lives at four exits (`settle`, hash shortcut, redirect, `go()`); a per-run token would cover all, incl. `if (!match) return`.
+- [x] 🟠 `owedRefresh` clears only when fresh data applies (error/failed-fetch branch kept it); `lastNavKey`/`lastSettledPath` set only after the redirect check.
+- [x] 🟡 A cancelled run's chunk rejection is swallowed, so `hydrate.ts` doesn't reload the page the user moved on to.
+- [ ] 🟡 Per-run state (`seenRoute`, `navPending`, `owedRefresh`, `suppressScroll`, resolvers) lives in module flags that leak across runs; a per-run object committed on apply would replace the special cases.
+- [ ] ⚪ `suppressScroll` is global: a `noScroll` goto superseded before settling passes it to the newer nav (pre-existing).
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

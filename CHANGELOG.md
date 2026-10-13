@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A page that fails to load no longer leaves the loading bar or a saving form stuck.
 - Refreshing data on a "not found" page no longer hangs.
 - Waiting on `goto()` to a page that is still loading now waits until it has loaded.
+- A page that must reload after an error no longer resends a form or runs its action twice.
+- Data owed a refresh (e.g. after logout) stays owed when the next page shows an error.
 
 ## [1.2.2] - 2026-10-12
 

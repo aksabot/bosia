@@ -137,13 +137,23 @@
 	// A run that ends without settling (no route, a redirect that didn't start a nav,
 	// a rejected chain): drop the loading UI and the scroll it owed, and release
 	// waiting goto()/use:enhance calls.
-	function abandonRun() {
+	function dropLoadingUI() {
 		navigating = false;
 		showLoading = false;
 		LoadingComponent = null;
+	}
+	function abandonRun() {
+		dropLoadingUI();
 		navPending = false;
 		router.suppressScroll = false;
 		drainNavResolvers();
+	}
+
+	// Full GET load of `path`, which the address bar already shows. reload() could
+	// re-POST an entry a native form submit made; href= the same URL with a #hash
+	// would only scroll — so drop the hash.
+	function hardLoad(path: string) {
+		window.location.href = path.split("#")[0];
 	}
 
 	function settleScroll(replaced = false) {
@@ -228,9 +238,7 @@
 		if (navKey === lastNavKey && currentTick === lastTick && !owedRefresh) {
 			// Back to the settled page before an in-flight nav finished: its run was
 			// cancelled, so drop the progress bar and skeleton it left up.
-			navigating = false;
-			showLoading = false;
-			LoadingComponent = null;
+			dropLoadingUI();
 			settleScroll();
 			// goto("#x") waits on this nav like any other.
 			drainNavResolvers();
@@ -361,8 +369,6 @@
 				const errorShown = skeletonShown ? null : appState.errorComponent;
 				showLoading = false;
 				LoadingComponent = null;
-				lastSettledPath = pathname;
-				lastNavKey = navKey;
 				navDoneTimer = setTimeout(() => {
 					navDone = false;
 				}, 400);
@@ -373,7 +379,10 @@
 					if (router.navigate(result.redirect) !== "started") abandonRun();
 					return;
 				}
-				owedRefresh = false;
+				// Recorded only once something renders for it: a redirected route never
+				// counts as settled, so Back to it refetches instead of taking the shortcut.
+				lastSettledPath = pathname;
+				lastNavKey = navKey;
 				if (result?.error || (result === null && match.route.hasServerData)) {
 					// New shape: { error: { status, message }, errorDepth, errorOrigin }
 					const errInfo = result?.error;
@@ -393,8 +402,7 @@
 					const picked = pickErrorPage(match.route.errorPages ?? [], errDepth, errOrigin);
 					if (!picked) {
 						// No nested boundary — full reload so server can render global error page
-						// The address bar already shows `path`; assigning it with a #hash would only scroll.
-						window.location.reload();
+						hardLoad(path);
 						return;
 					}
 					try {
@@ -440,11 +448,13 @@
 						settleScroll(!errorShown);
 						settle({ url, params: match.params });
 					} catch {
-						// The address bar already shows `path`; assigning it with a #hash would only scroll.
-						if (!cancelled) window.location.reload();
+						if (!cancelled) hardLoad(path);
 					}
 					return;
 				}
+				// Fresh data is applied below; the error branch above applied none, so it
+				// left any owed refresh for the next run.
+				owedRefresh = false;
 				// Layout paths are recorded only once they render: a redirect above
 				// leaves the mounted ones in place.
 				const shared = sharedDepth(currentLayoutPaths, destLayoutPaths);
@@ -576,7 +586,10 @@
 				// A rejected chunk or a throwing page module: tear down this run's loading UI
 				// and release waiting goto()/use:enhance calls, then rethrow — a stale-deploy
 				// chunk error must still reach hydrate.ts's unhandledrejection recovery.
-				if (!cancelled) abandonRun();
+				// A run the user already left must not trigger hydrate.ts's reload of the
+				// page they're on now; navigating there again retries the chunk.
+				if (cancelled) return;
+				abandonRun();
 				throw err;
 			});
 
