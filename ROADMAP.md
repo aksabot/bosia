@@ -9,11 +9,15 @@
 
 - [x] 🟠 `invalidate*()`/`use:enhance` on the same URL jumped to top: `settleScroll` read a leftover `router.isPush`. The nav effect now sets `navPending` on a route change; it survives superseded/redirected runs.
 - [x] 🟡 An error page replacing the page (or the page replacing it) on a same-URL re-run scrolls to top.
-- [x] 🟡 `use:enhance` redirects go through internal `go(..., "page")`: page loader only, like a success; a same-page redirect (post/redirect/get) now refetches.
+- [x] 🟠 `use:enhance` redirects go through internal `go(..., invalidateAll)`: every loader re-runs (logout must refresh layouts), a same-page redirect refetches, and a stale `form` is cleared.
 - [x] 🟡 `goto(sameUrl, { invalidateAll: true })` bumps the tick and refetches; it used to resolve with stale data.
 - [x] 🟡 `router.navigate()` returns `started`/`same`/`cancelled`/`left`; `goto()` marks dirty, bumps, and sets `noScroll` only for a nav that happens. Test: `goto.test.ts`.
 - [x] 🟡 Hash-only shortcut drains `goto()` resolvers (a `#hash` redirect hung `use:enhance`) and is skipped when `dirty.all` is set.
 - [x] 🟢 `/about/` on `/about` returns `same` after canonicalizing; no duplicate history entry.
+- [x] 🟠 A loader redirect that doesn't start a nav (cancelled/same/left) drains resolvers; awaited `use:enhance` hung on it.
+- [x] 🟡 `go()` resolves only its own Promise on a no-op; draining the queue released a nav still loading.
+- [x] 🟡 Back to the settled page mid-nav takes the hash shortcut: it now clears the stuck progress bar and skeleton.
+- [ ] ⚪ Error ↔ page swap on the same URL scrolls to top even with `noScroll` or a `#hash`.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

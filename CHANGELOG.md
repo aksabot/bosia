@@ -19,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A cancelled or off-site `goto()` no longer reloads the current page's data.
 - A link to the current page with an extra `/` no longer adds a history entry.
 - A page that loads after a redirect now scrolls to the top like other new pages.
+- A form whose redirect is cancelled no longer hangs.
+- Going Back while a page is loading no longer leaves the loading bar stuck.
+- After a form redirects, an old error message from an earlier try is cleared.
 
 ## [1.2.2] - 2026-10-12
 

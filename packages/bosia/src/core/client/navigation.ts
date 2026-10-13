@@ -126,39 +126,34 @@ export function goto(url: string, opts: GotoOptions = {}): Promise<void> {
 	return go(
 		url,
 		{ replace: opts.replaceState, noScroll: opts.noScroll, source: "goto" },
-		opts.invalidateAll ? "all" : null,
+		!!opts.invalidateAll,
 	);
 }
 
-/**
- * Internal — `goto()` and `use:enhance` redirects. `invalidate` picks what to
- * reload: "all" loaders, just the "page" loader (what a successful action
- * reloads), or nothing.
- */
+/** Internal — `goto()` and `use:enhance` redirects (which always pass `invalidateAll`). */
 export function go(
 	url: string,
 	opts: { replace?: boolean; noScroll?: boolean; source?: NavType },
-	invalidate: "all" | "page" | null,
+	invalidateAll: boolean,
 ): Promise<void> {
 	if (typeof window === "undefined") return Promise.resolve();
 
 	return new Promise<void>((resolve) => {
-		appState.navResolvers.push(resolve);
 		const result = router.navigate(url, { replace: opts.replace, source: opts.source });
 		// The nav effect runs after this, so marks set now still reach it — and a nav
 		// that never starts (cancelled, left the app) leaves none behind for the next one.
 		if (result === "started" && opts.noScroll) router.suppressScroll = true;
-		if (invalidate && (result === "started" || result === "same")) {
-			if (invalidate === "all") appState.dirty.all = true;
-			else appState.loaderCache.page = null;
+		const refetch = invalidateAll && (result === "started" || result === "same");
+		if (refetch) {
+			appState.dirty.all = true;
 			// The tick wakes the effect on the same URL, and on a new one it keeps a
 			// prefetch holding pre-mutation data from standing in for the refetch.
 			bumpTick();
-		} else if (result !== "started") {
-			// Same URL, cancelled, or a full page load — the nav effect won't settle
-			// anything, so nothing would drain the resolver. Resolve now.
-			drainNavResolvers();
 		}
+		// Nothing for the nav effect to settle: resolve just this call — draining the
+		// queue would also release a nav still loading.
+		if (result === "started" || refetch) appState.navResolvers.push(resolve);
+		else resolve();
 	});
 }
 

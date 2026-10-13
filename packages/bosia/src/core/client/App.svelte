@@ -203,7 +203,12 @@
 		// Hash-only change (same pathname+search, no invalidation): scroll, don't
 		// refetch. A static host can't answer the parent-snapshot POST a refetch may
 		// issue, which would otherwise render the error page.
-		if (navKey === lastNavKey && currentTick === lastTick && !appState.dirty.all) {
+		if (navKey === lastNavKey && currentTick === lastTick) {
+			// Back to the settled page before an in-flight nav finished: its run was
+			// cancelled, so drop the progress bar and skeleton it left up.
+			navigating = false;
+			showLoading = false;
+			LoadingComponent = null;
 			settleScroll();
 			// goto("#x") waits on this nav like any other.
 			drainNavResolvers();
@@ -337,7 +342,12 @@
 				navDone = false;
 			}, 400);
 			if (result?.redirect) {
-				router.navigate(result.redirect);
+				// A redirect that doesn't start a nav (cancelled, same URL, left the app)
+				// gets no run to settle it — release the waiting goto()/use:enhance here.
+				if (router.navigate(result.redirect) !== "started") {
+					navPending = false;
+					drainNavResolvers();
+				}
 				return;
 			}
 			if (result?.error || (result === null && match.route.hasServerData)) {

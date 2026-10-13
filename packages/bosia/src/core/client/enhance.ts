@@ -37,9 +37,11 @@ async function applyResult(
 	const invalidateAll = opts.invalidateAll !== false;
 
 	if (result.type === "redirect") {
-		// The action changed data: reload the page loader like a success does — also
-		// when it redirects to this same page (post/redirect/get).
-		await go(result.location, { source: "form" }, invalidateAll ? "page" : null);
+		// The action changed data — maybe the session (login/logout) — so reload every
+		// loader, also on a redirect to this same page (post/redirect/get). Its result
+		// is spent: an earlier failure's message must not outlive it.
+		appState.form = null;
+		await go(result.location, { source: "form" }, invalidateAll);
 		return;
 	}
 	if (result.type === "error") {

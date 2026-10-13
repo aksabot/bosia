@@ -15,7 +15,6 @@ const router = {
 const appState = {
 	invalidationTick: 0,
 	dirty: { all: false },
-	loaderCache: { page: {} as object | null },
 	navResolvers: [] as (() => void)[],
 };
 mock.module("../src/core/client/router.svelte.ts", () => ({ router }));
@@ -35,7 +34,6 @@ beforeEach(() => {
 	router.suppressScroll = false;
 	appState.invalidationTick = 0;
 	appState.dirty.all = false;
-	appState.loaderCache.page = {};
 	appState.navResolvers = [];
 });
 
@@ -73,10 +71,13 @@ describe("goto", () => {
 });
 
 describe("go (use:enhance redirect)", () => {
-	test("page scope drops only the page cache and bumps the tick", () => {
-		go("/a", {}, "page");
-		expect(appState.loaderCache.page).toBe(null);
-		expect(appState.dirty.all).toBe(false);
-		expect(appState.invalidationTick).toBe(1);
+	test("a no-op call resolves itself, not a nav still loading", async () => {
+		const loading = goto("/b");
+		let loadingDone = false;
+		loading.then(() => (loadingDone = true));
+		await go("/b", {}, false);
+		await Promise.resolve();
+		expect(loadingDone).toBe(false);
+		expect(appState.navResolvers.length).toBe(1);
 	});
 });
