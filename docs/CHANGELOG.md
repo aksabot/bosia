@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Routing guide and skill: route priority is compared segment by segment; a fixed name wins first.
 - Routing guide and skill: a catch-all can follow a param and must be the last part of a route.
 - Routing guide and skill: brackets wrap a whole folder; `[id].json`, `[[x]]`, `[x?]`, `[x=y]` fail.
-- Security guide: prerender rejects bad values; `entries()` errors or a missing export fail the build.
+- Security guide: prerender rejects bad values; an `entries()` error or missing export fails.
 
 ## [0.8.25] - 2026-10-12
 
