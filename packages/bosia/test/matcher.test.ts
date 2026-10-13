@@ -99,4 +99,10 @@ describe("findMatch — catch-all after a [param] segment", () => {
 		expect(findMatch(routes(), "/en/docs/intro")?.params).toEqual(want);
 		expect(findMatch(routes(), "/en")).toBeNull();
 	});
+
+	test("mid-pattern and hyphenated catch-alls bind their real name", () => {
+		const routes = compileRoutes([{ pattern: "/docs/[...my-path]/edit" }]);
+		expect(findMatch(routes, "/docs/a/b/edit")?.params).toEqual({ "my-path": "a/b" });
+		expect(findMatch(routes, "/docs/edit")).toBeNull();
+	});
 });

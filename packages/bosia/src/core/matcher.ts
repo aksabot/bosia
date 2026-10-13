@@ -17,6 +17,13 @@ interface CompiledRoute {
 
 // ─── Pattern Compiler ────────────────────────────────────
 
+/** How every part of Bosia reads one route segment (matcher, sortRoutes, scanner):
+ *  0 static, 1 `[param]`, 2 `[...rest]`. Doubles as the sort rank. */
+export function segmentRank(seg: string): 0 | 1 | 2 {
+	if (!seg.startsWith("[") || !seg.endsWith("]")) return 0;
+	return seg.startsWith("[...") ? 2 : 1;
+}
+
 /** Escape regex special chars in a literal string segment. */
 function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -34,17 +41,16 @@ function compilePattern(pattern: string): CompiledRoute {
 	const paramNames: string[] = [];
 
 	// /blog/[slug]/comments → ^\/blog\/([^/]+)\/comments$
-	// A trailing /[...rest] takes the rest of the path (at least one char), so
-	// /[lang]/[...rest] works too, not only a static prefix.
+	// [...rest] spans one or more segments, anywhere: /[lang]/[...rest], /docs/[...path]/edit.
 	const segments = pattern.split("/").filter(Boolean);
 	let regexStr = "^";
-	for (const [i, seg] of segments.entries()) {
+	for (const seg of segments) {
 		regexStr += "\\/";
-		const rest = i === segments.length - 1 && seg.match(/^\[\.\.\.(\w+)\]$/);
-		if (rest) {
-			paramNames.push(rest[1]!);
+		const rank = segmentRank(seg);
+		if (rank === 2) {
+			paramNames.push(seg.slice(4, -1));
 			regexStr += "(.+)";
-		} else if (seg.startsWith("[") && seg.endsWith("]")) {
+		} else if (rank === 1) {
 			paramNames.push(seg.slice(1, -1));
 			regexStr += "([^/]+)";
 		} else {
@@ -128,9 +134,8 @@ export function findMatch<T extends { pattern: string }>(
 	}
 
 	for (const route of routes) {
-		// Uncompiled arrays (no compileRoutes call) compile per lookup: same rules, slower.
-		const compiled =
-			((route as any)._compiled as CompiledRoute | undefined) ?? compilePattern(route.pattern);
+		// Arrays that skipped compileRoutes compile lazily, once per route.
+		const compiled: CompiledRoute = ((route as any)._compiled ??= compilePattern(route.pattern));
 		// Exact routes already covered by the Map lookup above — skip them.
 		if (exact && compiled.isExact) continue;
 		const params = matchCompiled(compiled, route.pattern, pathname);

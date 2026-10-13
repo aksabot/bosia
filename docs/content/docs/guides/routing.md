@@ -59,6 +59,8 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 `params.catchall` contains the full matched sub-path (e.g. `"a/b/c"`).
 
+A catch-all can follow a param or sit mid-path: `[lang]/[...rest]` matches `/en/a/b`, and `docs/[...path]/edit` matches `/docs/a/b/edit` with `params.path = "a/b"`.
+
 ## Route Groups
 
 Directories wrapped in parentheses are **invisible in the URL** but let you share layouts:

@@ -222,3 +222,28 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()).toBe(null);
 	});
 });
+
+describe("scanRoutes() catch-all prefix warning", () => {
+	function warnings(): string[] {
+		const seen: string[] = [];
+		const orig = console.warn;
+		console.warn = (msg: string) => seen.push(msg);
+		try {
+			scanRoutes();
+		} finally {
+			console.warn = orig;
+		}
+		return seen;
+	}
+
+	test("a page at a [param] prefix covers its catch-all", () => {
+		write("[lang]/+page.svelte");
+		write("[lang]/[...rest]/+page.svelte");
+		expect(warnings()).toEqual([]);
+	});
+
+	test("a missing prefix page still warns, hyphenated names too", () => {
+		write("docs/[...my-path]/+page.svelte");
+		expect(warnings().join("")).toContain('No exact route for "/docs"');
+	});
+});

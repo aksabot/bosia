@@ -111,8 +111,9 @@ describe("sortRoutes() — static segment beats dynamic beats catch-all", () => 
 		expect(order("/[lang]/about", "/blog/[...slug]")).toEqual(["/blog/[...slug]", "/[lang]/about"]);
 	});
 
-	test("[...x] mid-pattern ranks as a param, like the matcher reads it", () => {
-		expect(order("/a/[y]/[z]", "/a/[...x]/b")).toEqual(["/a/[...x]/b", "/a/[y]/[z]"]);
+	test("[...x] is a catch-all anywhere, whatever its name", () => {
+		expect(order("/a/[...x]/b", "/a/[y]/b")).toEqual(["/a/[y]/b", "/a/[...x]/b"]);
+		expect(order("/[...my-rest]", "/[slug]")).toEqual(["/[slug]", "/[...my-rest]"]);
 	});
 
 	test("exact before dynamic before catch-all at the same spot", () => {

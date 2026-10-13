@@ -51,7 +51,7 @@
 - [x] ⚪ `await goto()` resolves before scroll-to-top is applied, so a `scrollTo()` right after it gets overwritten.
 - [x] 🟠 Route order: `sortRoutes` tie-broke same-tier routes by `localeCompare` (`[` < letters), so `/[a]/[b]` beat `/label/[id]`. Now per segment: static > dynamic > catch-all.
 - [x] 🟡 `compilePattern` copied a catch-all's prefix literally: `/[lang]/[...rest]` never matched. Legacy `matchPattern` (same bug) removed; uncompiled arrays compile per lookup.
-- [ ] ⚪ Segment kinds are parsed three ways (`compilePattern`, `segmentRank`, scanner `preventConflicts`); one shared `segmentKind()` would keep them in step.
+- [x] 🟡 Segment kinds were parsed four ways (matcher, sort, scanner, route types) and disagreed on mid-path/hyphenated `[...x]`; one `segmentRank()` in `matcher.ts` now feeds all.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts

@@ -47,6 +47,8 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 `params.catchall` berisi seluruh sub-path yang cocok (misalnya `"a/b/c"`).
 
+Catch-all bisa ada setelah param atau di tengah path: `[lang]/[...rest]` cocok dengan `/en/a/b`, dan `docs/[...path]/edit` cocok dengan `/docs/a/b/edit` dengan `params.path = "a/b"`.
+
 ## Route Groups
 
 Direktori yang dibungkus dalam tanda kurung **tidak terlihat di URL** tetapi memungkinkan Anda berbagi layout:

@@ -2,6 +2,7 @@ import { writeFileSync, mkdirSync } from "fs";
 import type { RouteManifest } from "./types.ts";
 import { currentBase } from "./appBase.ts";
 import { toPosix } from "./paths.ts";
+import { segmentRank } from "./matcher.ts";
 
 /**
  * The pattern the *client* router matches against. It sees real browser URLs, so
@@ -28,29 +29,26 @@ function clientPattern(pattern: string): string {
 //   serverRoutes  — used by SSR renderer (+ pageServer + layoutServers)
 //   apiRoutes     — used by API handler
 
-// static beats dynamic beats catch-all — classified the way matcher.ts compiles
-// them: `[...x]` is a catch-all only as the last segment, `[x]` must be whole.
-function segmentRank(seg: string, last: boolean): number {
-	if (!seg.startsWith("[") || !seg.endsWith("]")) return 0;
-	return last && /^\[\.\.\.\w+\]$/.test(seg) ? 2 : 1;
-}
-
 /** Most specific first: compared segment by segment, the first differing kind
  *  decides (so `/label/[id]` beats `/[a]/[b]`, `/blog/[...r]` beats `/[a]/about`).
  *  Ties fall back to more segments first, then alphabetical. findMatch takes the
  *  first match, so this order is the routing precedence. */
 export function sortRoutes<T extends { pattern: string }>(routes: T[]): T[] {
-	return [...routes].sort((a, b) => {
-		const sa = a.pattern.split("/").filter(Boolean);
-		const sb = b.pattern.split("/").filter(Boolean);
-		for (let i = 0; i < Math.min(sa.length, sb.length); i++) {
-			const d = segmentRank(sa[i]!, i === sa.length - 1) - segmentRank(sb[i]!, i === sb.length - 1);
-			if (d !== 0) return d;
-		}
-		if (sa.length !== sb.length) return sb.length - sa.length;
-		// plain code-unit compare: same order on every machine, unlike localeCompare
-		return a.pattern < b.pattern ? -1 : a.pattern > b.pattern ? 1 : 0;
-	});
+	return routes
+		.map((route) => ({ route, ranks: route.pattern.split("/").filter(Boolean).map(segmentRank) }))
+		.sort((a, b) => {
+			const ra = a.ranks;
+			const rb = b.ranks;
+			for (let i = 0; i < Math.min(ra.length, rb.length); i++) {
+				if (ra[i] !== rb[i]) return ra[i]! - rb[i]!;
+			}
+			if (ra.length !== rb.length) return rb.length - ra.length;
+			// plain code-unit compare: same order on every machine, unlike localeCompare
+			const pa = a.route.pattern;
+			const pb = b.route.pattern;
+			return pa < pb ? -1 : pa > pb ? 1 : 0;
+		})
+		.map((x) => x.route);
 }
 
 /** `defaultTitle` is what a page with no title of its own is called: app.html's

@@ -87,6 +87,26 @@ describe("generateRouteTypes() — Params extraction", () => {
 		expect(out).toContain("export type Params = { path: string };");
 	});
 
+	test("hyphenated catch-all name is quoted", () => {
+		const m: RouteManifest = {
+			pages: [
+				{
+					pattern: "/docs/[...my-path]",
+					page: "docs/[...my-path]/+page.svelte",
+					layouts: [],
+					pageServer: null,
+					layoutServers: [],
+					trailingSlash: "never",
+				},
+			],
+			apis: [],
+			errorPage: null,
+		};
+		generateRouteTypes(m);
+		const out = readTypes("docs", "[...my-path]");
+		expect(out).toContain('export type Params = { "my-path": string };');
+	});
+
 	test("multiple dynamic segments combined", () => {
 		const m: RouteManifest = {
 			pages: [

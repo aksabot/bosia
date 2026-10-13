@@ -1,6 +1,7 @@
 import { readdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { PageRoute, ApiRoute, RouteManifest, TrailingSlash } from "./types.ts";
+import { segmentRank } from "./matcher.ts";
 
 // ─── Route Scanner ───────────────────────────────────────
 // Walks src/routes/ and produces a RouteManifest.
@@ -192,16 +193,15 @@ export function scanRoutes(): RouteManifest {
 
 	walk("", [], [], [], [], "never", null);
 
-	// Warn when a catch-all exists but no exact route covers its prefix.
-	// e.g. "/[...slug]" matches everything EXCEPT "/" (which needs its own +page.svelte).
-	const exactPatterns = new Set(
-		pages.filter((p) => !p.pattern.includes("[")).map((p) => p.pattern),
-	);
+	// Warn when a trailing catch-all exists but no page covers its prefix.
+	// e.g. "/[...slug]" matches everything EXCEPT "/" (which needs its own +page.svelte),
+	// "/[lang]/[...rest]" needs "/[lang]" for "/en".
+	const pagePatterns = new Set(pages.map((p) => p.pattern));
 	for (const p of pages) {
-		const m = p.pattern.match(/^(.*?)\/\[\.\.\.(\w+)\]$/);
-		if (m) {
-			const exactEquivalent = m[1] || "/";
-			if (!exactPatterns.has(exactEquivalent)) {
+		const cut = p.pattern.lastIndexOf("/");
+		if (segmentRank(p.pattern.slice(cut + 1)) === 2) {
+			const exactEquivalent = p.pattern.slice(0, cut) || "/";
+			if (!pagePatterns.has(exactEquivalent)) {
 				console.warn(
 					`⚠️  No exact route for "${exactEquivalent}" — the catch-all "${p.pattern}" will NOT match it.\n` +
 						`   Add a +page.svelte at the "${exactEquivalent}" level to serve that URL.`,
@@ -228,7 +228,8 @@ export function scanRoutes(): RouteManifest {
 function preventConflicts<T extends { pattern: string }>(routes: T[], fileOf: (r: T) => string) {
 	const seen = new Map<string, T>();
 	for (const r of routes) {
-		const key = r.pattern.replace(/\[\.\.\.\w+\]/g, "[...]").replace(/\[\w+\]/g, "[]");
+		const kinds = ["", "[]", "[...]"];
+		const key = r.pattern.replace(/[^/]+/g, (seg) => kinds[segmentRank(seg)] || seg);
 		const first = seen.get(key);
 		if (!first) {
 			seen.set(key, r);
