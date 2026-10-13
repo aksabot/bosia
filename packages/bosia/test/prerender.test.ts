@@ -39,12 +39,18 @@ describe("substituteParams()", () => {
 	});
 
 	test("rejects backslash in any segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "a\\b" })).toThrow(/use only letters/);
-		expect(() => substituteParams("/docs/[...path]", { path: "a\\b" })).toThrow(/use only letters/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a\\b" })).toThrow(
+			/use only ASCII letters/,
+		);
+		expect(() => substituteParams("/docs/[...path]", { path: "a\\b" })).toThrow(
+			/use only ASCII letters/,
+		);
 	});
 
 	test("rejects `/` in non-rest dynamic segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "a/b" })).toThrow(/use only letters/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a/b" })).toThrow(
+			/use only ASCII letters/,
+		);
 	});
 
 	test("allows `/` inside catch-all `[...rest]` value", () => {

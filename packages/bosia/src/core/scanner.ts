@@ -279,7 +279,7 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 			const rank = segmentRank(seg);
 			if (!rank) {
 				// `[...]`, `[.x]` would match only their literal text.
-				if (/^\[(\.\.\.)?[^[\]/]*\]$/.test(seg)) fail(BAD_NAME(seg));
+				if (/^\[[^[\]/]*\]$/.test(seg)) fail(BAD_NAME(seg));
 				// `[id].json`, `post-[slug]`, `[[lang]]`.
 				if (/[[\]]/.test(seg)) fail(`${seg} must be a whole segment like [slug] or [...rest]`);
 				continue;
@@ -295,10 +295,12 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 	}
 }
 
-// A TypeScript identifier (ASCII), so `params.name` always works: `[slug]`, `[x123]`, `[user_id]`, `[_id]`, `[$id]`.
+// Strict on purpose (decided 2026-10-14): an ASCII TypeScript identifier, so `params.name`
+// always works: `[slug]`, `[x123]`, `[user_id]`, `[_id]`, `[$id]`. `[post-id]`, `[file.name]`,
+// `[slüg]` fail by design, with one message (no per-typo hints).
 const PARAM_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const BAD_NAME = (seg: string) =>
-	`${seg}: a param name uses letters, digits, _ and $, and can't start with a digit (like [slug], [user_id] or [...rest])`;
+	`${seg}: a param name uses ASCII letters, digits, _ and $, and can't start with a digit (like [slug], [user_id] or [...rest])`;
 
 /** A route tree the build refuses (two files at one URL, or an invalid param).
  *  Callers print `message` and exit. */

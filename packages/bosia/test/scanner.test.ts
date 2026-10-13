@@ -217,7 +217,9 @@ describe("scanRoutes() route conflicts", () => {
 		for (const seg of bad) {
 			rmSync(join(tmpDir, "src"), { recursive: true, force: true });
 			write(`x/${seg}/+page.svelte`);
-			expect(conflict()?.message).toContain(`${seg}: a param name uses letters, digits, _ and $`);
+			expect(conflict()?.message).toContain(
+				`${seg}: a param name uses ASCII letters, digits, _ and $`,
+			);
 		}
 	});
 

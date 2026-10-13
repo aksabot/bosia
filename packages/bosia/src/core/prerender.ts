@@ -85,14 +85,23 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 					`entries() value ${JSON.stringify(String(entry[name]))} for ${seg} is unsafe — ${why}`,
 				);
 			};
-			// Unreserved URL characters only: the fetched URL, the file written and a static
-			// host's lookup all agree, with nothing to percent-encode or decode (`50%-off` → `50-off`).
+			// Strict on purpose (decided 2026-10-14): ASCII unreserved URL characters only, so the
+			// fetched URL, the file written and a static host's lookup all agree, with nothing to
+			// percent-encode or decode. `50%-off`, `café`, `what%3F` fail by design: slugify them.
 			const parts = rank === 2 ? value.split("/") : [value];
 			if (!parts.every((part) => /^[A-Za-z0-9._~-]+$/.test(part)))
-				bad(`use only letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts`);
+				bad(
+					`use only ASCII letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts`,
+				);
 			// The URL parser folds a `.`/`..` part, and Windows drops a part's trailing dots
 			// (`v1.` → `v1`, `...` → ``), so the page would land on another route's file.
 			if (parts.some((part) => part.endsWith("."))) bad("a part can't end with `.`");
+			// `post.html` would be written as `post.html.html`; a static host serves `post.html` instead.
+			if (parts.some((part) => /\.(html|json)$/i.test(part)))
+				bad("a part can't end with .html or .json");
+			// Windows device names: writing `nul.html` hits the device, not a file.
+			if (parts.some((part) => /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(part)))
+				bad("Windows device names (con, nul, com1, …) are not allowed");
 			return value;
 		})
 		.join("/");
@@ -196,8 +205,23 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 	if (other) throw other;
 	// One `❌` per route; a multi-line message (a ZodError) stays under its own mark.
 	if (failed.length)
-		throw new PrerenderEntriesError(failed.map((e) => `❌ ${e.message}`).join("\n"));
-	return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+		throw new PrerenderEntriesError(failed.map((e) => `❌ ${e.message}`).join("\n"), {
+			cause: failed,
+		});
+	const targets = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+	// macOS and Windows file systems ignore case: `About` and `about` would be one file.
+	const seen = new Map<string, string>();
+	const clashes: string[] = [];
+	for (const t of targets) {
+		const out =
+			t.kind === "api" ? prerenderApiOutPath(t.path) : prerenderOutPath(t.path, t.trailingSlash);
+		const key = out.toLowerCase();
+		const first = seen.get(key);
+		if (first) clashes.push(`❌ Prerender: ${first} and ${t.path} write the same file (${out})`);
+		else seen.set(key, t.path);
+	}
+	if (clashes.length) throw new PrerenderEntriesError(clashes.join("\n"));
+	return targets;
 }
 
 export async function prerenderStaticRoutes(

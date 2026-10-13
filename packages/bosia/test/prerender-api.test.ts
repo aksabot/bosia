@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -71,8 +71,10 @@ describe("substituteParams() — API rest-segment cases", () => {
 	test("any other character fails, encoded or not", () => {
 		const slugs = ["50%-off", "100%", "%2e%2e", "a%2Fb", "what%3F", "café", "a b", "foo ", "a\tb"];
 		for (const slug of [...slugs, "a?b", "a#b", "a/b", "[draft]", "a$&b", "a\\b", "a\x7fb"])
-			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/use only letters/);
-		expect(() => substituteParams("/docs/[...p]", { p: "a/50%" })).toThrow(/use only letters/);
+			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/use only ASCII letters/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a/50%" })).toThrow(
+			/use only ASCII letters/,
+		);
 	});
 
 	test("empty parts and parts ending in `.` fail (they'd land on another route's file)", () => {
@@ -86,6 +88,15 @@ describe("substituteParams() — API rest-segment cases", () => {
 		expect(() => substituteParams("/docs/[...p]", { p: "a/../b" })).toThrow(/can't end with `\.`/);
 	});
 
+	test("`.html`/`.json` endings and Windows device names fail", () => {
+		for (const slug of ["post.html", "a.JSON"])
+			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/\.html or \.json/);
+		for (const slug of ["con", "NUL", "aux.txt", "com1", "lpt9"])
+			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/device names/);
+		expect(substituteParams("/blog/[slug]", { slug: "console" })).toBe("/blog/console");
+		expect(substituteParams("/blog/[slug]", { slug: "post.htm" })).toBe("/blog/post.htm");
+	});
+
 	test("the error quotes the value, so a newline can't split the message", () => {
 		expect(() => substituteParams("/blog/[slug]", { slug: { id: 1n } as any })).toThrow(
 			'"[object Object]"',
@@ -95,35 +106,45 @@ describe("substituteParams() — API rest-segment cases", () => {
 });
 
 describe("detectPrerenderRoutes()", () => {
+	const cwdBefore = process.cwd();
+	let dir = "";
+	const route = (name: string, server: string) => {
+		mkdirSync(join(dir, "src/routes", name, "[slug]"), { recursive: true });
+		writeFileSync(join(dir, "src/routes", name, "[slug]/+page.server.ts"), server);
+		return {
+			pattern: `/${name}/[slug]`,
+			pageServer: `${name}/[slug]/+page.server.ts`,
+			trailingSlash: "never",
+		};
+	};
+	const detect = (pages: unknown[]) =>
+		detectPrerenderRoutes({ pages, apis: [], errorPage: null } as any).catch((e) => e);
+
+	beforeEach(() => {
+		dir = mkdtempSync(join(tmpdir(), "bosia-detect-"));
+		process.chdir(dir);
+	});
+	afterEach(() => {
+		process.chdir(cwdBefore);
+		rmSync(dir, { recursive: true, force: true });
+	});
+
 	test("lists every broken entries() route in one error", async () => {
-		const cwdBefore = process.cwd();
-		const dir = mkdtempSync(join(tmpdir(), "bosia-detect-"));
-		try {
-			for (const name of ["a", "b"]) {
-				mkdirSync(join(dir, "src/routes", name, "[slug]"), { recursive: true });
-				writeFileSync(
-					join(dir, "src/routes", name, "[slug]/+page.server.ts"),
-					"export const prerender = true;\n",
-				);
-			}
-			process.chdir(dir);
-			const page = (name: string) => ({
-				pattern: `/${name}/[slug]`,
-				pageServer: `${name}/[slug]/+page.server.ts`,
-				trailingSlash: "never",
-			});
-			const err = await detectPrerenderRoutes({
-				pages: [page("a"), page("b")],
-				apis: [],
-				errorPage: null,
-			} as any).catch((e) => e);
-			expect(err).toBeInstanceOf(PrerenderEntriesError);
-			expect(err.message).toContain("/a/[slug]");
-			expect(err.message).toContain("/b/[slug]");
-			expect(err.message.split("\n").filter((l: string) => l.startsWith("❌"))).toHaveLength(2);
-		} finally {
-			process.chdir(cwdBefore);
-			rmSync(dir, { recursive: true, force: true });
-		}
+		const pages = ["a", "b"].map((n) => route(n, "export const prerender = true;\n"));
+		const err = await detect(pages);
+		expect(err).toBeInstanceOf(PrerenderEntriesError);
+		expect(err.message).toContain("/a/[slug]");
+		expect(err.message).toContain("/b/[slug]");
+		expect(err.message.split("\n").filter((l: string) => l.startsWith("❌"))).toHaveLength(2);
+		expect(err.cause).toHaveLength(2);
+	});
+
+	test("values that differ only by case fail (one file on macOS/Windows)", async () => {
+		const server = `export const prerender = true;
+export const entries = () => [{ slug: "About" }, { slug: "about" }];
+`;
+		const err = await detect([route("c", server)]);
+		expect(err).toBeInstanceOf(PrerenderEntriesError);
+		expect(err.message).toContain("/c/About and /c/about write the same file");
 	});
 });

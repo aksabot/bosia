@@ -87,6 +87,27 @@ describe("generateRouteTypes() — Params extraction", () => {
 		expect(out).toContain("export type Params = { path: string };");
 	});
 
+	test("a name that skipped the scanner check is quoted", () => {
+		const m: RouteManifest = {
+			pages: [
+				{
+					pattern: "/docs/[...my-path]",
+					page: "docs/[...my-path]/+page.svelte",
+					layouts: [],
+					pageServer: null,
+					layoutServers: [],
+					trailingSlash: "never",
+				},
+			],
+			apis: [],
+			errorPage: null,
+		};
+		generateRouteTypes(m);
+		expect(readTypes("docs", "[...my-path]")).toContain(
+			'export type Params = { "my-path": string };',
+		);
+	});
+
 	test("a quote in a dir name stays a valid import", () => {
 		const m: RouteManifest = {
 			pages: [

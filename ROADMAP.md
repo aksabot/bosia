@@ -8,8 +8,12 @@
 ## bosia 1.2.4 (2026-10-14) — prerender `entries()` value fixes
 
 - [x] 🟡 Prerender `entries()` values: unreserved URL chars only (`A-Za-z0-9-_.~`, `/` in catch-alls); no `%`/space/control/non-ASCII, so URL, file and static-host lookup agree. A part ending in `.` fails (`..`, and Windows drops trailing dots).
-- [x] ⚪ Param names are ASCII TS identifiers (`^[A-Za-z_$][A-Za-z0-9_$]*$`); one error message replaces the `=`/`?`/dots hints; no Windows-only test case; routeTypes' quoting branch removed.
+- [x] ⚪ Param names are ASCII TS identifiers (`^[A-Za-z_$][A-Za-z0-9_$]*$`); one error message replaces the `=`/`?`/dots hints; no Windows-only test case; routeTypes keeps its quoted fallback for cached manifests.
 - [x] ⚪ Prerender lists every bad `entries()` route at once (`Promise.allSettled`), one `❌` line each; values are JSON-quoted in errors.
+- [x] 🟡 Prerender fails on output paths equal ignoring case (`About`/`about` are one file on macOS/Windows); values ending `.html`/`.json` and Windows device names (`con`, `nul`) fail too.
+- [x] ⚪ Combined `PrerenderEntriesError` keeps every route's error in `cause`. Strict name/value rules carry "decided 2026-10-14" comments in code.
+- [ ] ⚪ A non-entries error (unreadable route file) still drops the collected `entries()` errors.
+- [ ] ⚪ Slug `index` under `/blog/[slug]` can clash with `/blog/` on static hosts when both are prerendered.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 

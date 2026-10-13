@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Routing guide and skill: param names follow TypeScript variable rules.
 - Routing and security guides, routing skill: `entries()` values allow only `A-Za-z0-9-_.~`.
+- Security guide: `.html`/`.json` endings, Windows device names and case-only twins fail the build.
 
 ## [0.8.26] - 2026-10-13
 
