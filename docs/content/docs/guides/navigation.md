@@ -161,7 +161,7 @@ Bosia shows a thin progress bar at the top of the page during every client navig
 
 ## Form actions
 
-Form actions that throw `redirect(303, "/x")` navigate via the router automatically when wrapped with `use:enhance`. The loaders re-run, so a redirect back to the same page shows the updated data:
+Form actions that throw `redirect(303, "/x")` navigate via the router automatically when wrapped with `use:enhance`. The page loader re-runs (as after any successful action), so a redirect back to the same page shows the updated data:
 
 ```svelte
 <form method="POST" action="?/logout" use:enhance>

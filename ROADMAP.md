@@ -7,12 +7,13 @@
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 
-- [x] 🟠 `invalidate*()`/`use:enhance` on the same URL jumped to top: `settleScroll` read a leftover `router.isPush`. It now scrolls only when the route differs from the last settled one.
-- [x] 🟡 An error page replacing the page on a same-URL re-run scrolls to top, so the error is in view.
-- [x] 🟡 `use:enhance` redirects go through `goto(..., { invalidateAll })`: a redirect to the same page (post/redirect/get) now refetches.
+- [x] 🟠 `invalidate*()`/`use:enhance` on the same URL jumped to top: `settleScroll` read a leftover `router.isPush`. The nav effect now sets `navPending` on a route change; it survives superseded/redirected runs.
+- [x] 🟡 An error page replacing the page (or the page replacing it) on a same-URL re-run scrolls to top.
+- [x] 🟡 `use:enhance` redirects go through internal `go(..., "page")`: page loader only, like a success; a same-page redirect (post/redirect/get) now refetches.
 - [x] 🟡 `goto(sameUrl, { invalidateAll: true })` bumps the tick and refetches; it used to resolve with stale data.
-- [x] 🟢 `goto(url, { noScroll: true })` sets `suppressScroll` only when the nav starts, so a no-op can't swallow the next nav's scroll. Test: `goto.test.ts`.
-- [ ] ⚪ `goto(..., { invalidateAll: true })` cancelled by `beforeNavigate` still refetches the current page. Skip the bump on cancel if it matters.
+- [x] 🟡 `router.navigate()` returns `started`/`same`/`cancelled`/`left`; `goto()` marks dirty, bumps, and sets `noScroll` only for a nav that happens. Test: `goto.test.ts`.
+- [x] 🟡 Hash-only shortcut drains `goto()` resolvers (a `#hash` redirect hung `use:enhance`) and is skipped when `dirty.all` is set.
+- [x] 🟢 `/about/` on `/about` returns `same` after canonicalizing; no duplicate history entry.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A form that redirects back to its own page now shows the updated data.
 - `goto()` to the current page with `invalidateAll` now reloads the data.
 - `goto()` with `noScroll` that goes nowhere no longer stops the next page from scrolling up.
+- A form that redirects to a `#section` of its own page no longer hangs.
+- A cancelled or off-site `goto()` no longer reloads the current page's data.
+- A link to the current page with an extra `/` no longer adds a history entry.
+- A page that loads after a redirect now scrolls to the top like other new pages.
 
 ## [1.2.2] - 2026-10-12
 

@@ -118,7 +118,8 @@
 	let currentLayoutPaths: string[] = [];
 	let lastSettledPath = "";
 	let lastNavKey = ""; // pathname + search of the last processed nav
-	let settledRoute = ""; // full route (with hash) settleScroll last ran for
+	let seenRoute = ""; // full route (with hash) the nav effect last ran for
+	let navPending = false; // a route change not yet scrolled for; outlives superseded/redirected runs
 	let lastTick = 0; // invalidationTick value last processed
 	// Skip bar on the very first effect run (initial hydration — data already present)
 	let firstNav = true;
@@ -128,11 +129,11 @@
 	// back/forward navs restore the position saved for that history entry.
 	// Runs after tick() so the destination page's real height is in the DOM.
 	// goto({ noScroll: true }) flips `router.suppressScroll` for one nav.
-	// A re-run on the URL already settled (`invalidate*()`, `use:enhance`) isn't a
-	// nav and keeps its scroll — unless `replaced`: an error page took the page's place.
-	function settleScroll(route: string, replaced = false) {
-		const navigated = route !== settledRoute;
-		settledRoute = route;
+	// A re-run with no route change (`invalidate*()`, `use:enhance`) isn't a nav and
+	// keeps its scroll — unless `replaced`: an error page and the page swapped places.
+	function settleScroll(replaced = false) {
+		const navigated = navPending;
+		navPending = false;
 		if (!navigated) {
 			if (replaced) tick().then(() => window.scrollTo(0, 0));
 		} else if (router.isPush && !router.suppressScroll) {
@@ -187,18 +188,25 @@
 			navTitle = ssrTitle ? collapseTitle(ssrTitle) : document.title === base ? base : null;
 			lastSettledPath = pathname;
 			lastNavKey = navKey;
-			settledRoute = path;
+			seenRoute = path;
 			lastTick = currentTick;
 			// Restore-after-reload: router.init() staged this entry's snapshot.
 			settleSnapshot();
 			return; // Initial hydration — data already in SSR props, no fetch needed
 		}
 
+		// Decided here, not at settle: a run superseded or redirected before it
+		// settles still owes the scroll its route change asked for.
+		if (path !== seenRoute) navPending = true;
+		seenRoute = path;
+
 		// Hash-only change (same pathname+search, no invalidation): scroll, don't
 		// refetch. A static host can't answer the parent-snapshot POST a refetch may
 		// issue, which would otherwise render the error page.
-		if (navKey === lastNavKey && currentTick === lastTick) {
-			settleScroll(path);
+		if (navKey === lastNavKey && currentTick === lastTick && !appState.dirty.all) {
+			settleScroll();
+			// goto("#x") waits on this nav like any other.
+			drainNavResolvers();
 			return;
 		}
 		// A prefetch saved before an invalidation holds pre-mutation data — after a
@@ -394,7 +402,7 @@
 							(kept > 0 ? chainTitles[kept - 1] : null) ?? errorTitle(errStatus, errMessage);
 						navTitle = document.title;
 					}
-					settleScroll(path, !errorShown);
+					settleScroll(!errorShown);
 					settle({ url, params: match.params });
 				} catch {
 					window.location.href = path;
@@ -488,7 +496,7 @@
 			appState.errorProps = null;
 			appState.errorDepth = null;
 
-			settleScroll(path);
+			settleScroll(!pageShown);
 
 			// Re-emit the head from server metadata. `data-bosia-meta` (html.ts `OWNED`)
 			// marks exactly the tags metadata() owns, so headExtras, the framework's own

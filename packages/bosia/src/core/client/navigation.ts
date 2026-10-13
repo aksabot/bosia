@@ -12,7 +12,7 @@
 
 import { onDestroy } from "svelte";
 import { appState } from "./appState.svelte.ts";
-import { router } from "./router.svelte.ts";
+import { router, type NavType } from "./router.svelte.ts";
 import {
 	afterListeners,
 	beforeListeners,
@@ -106,7 +106,7 @@ export function invalidateAll(): Promise<void> {
 export interface GotoOptions {
 	/** Use `history.replaceState` instead of `history.pushState`. */
 	replaceState?: boolean;
-	/** Mark every loader dirty so the next nav re-runs all of them. */
+	/** Re-run every loader for the destination — also when it is the current URL. */
 	invalidateAll?: boolean;
 	/** Skip the default scroll-to-top after navigation. */
 	noScroll?: boolean;
@@ -118,30 +118,45 @@ export interface GotoOptions {
 
 /**
  * Navigate to `url` via the client router. Returns a Promise that resolves
- * after the navigation has settled (loaders ran, components mounted) or
- * immediately if the URL matches the current route.
+ * after the navigation has settled (loaders ran, components mounted). On the
+ * current URL it resolves immediately — unless `invalidateAll` is set, then
+ * after the loaders re-ran in place.
  */
 export function goto(url: string, opts: GotoOptions = {}): Promise<void> {
+	return go(
+		url,
+		{ replace: opts.replaceState, noScroll: opts.noScroll, source: "goto" },
+		opts.invalidateAll ? "all" : null,
+	);
+}
+
+/**
+ * Internal — `goto()` and `use:enhance` redirects. `invalidate` picks what to
+ * reload: "all" loaders, just the "page" loader (what a successful action
+ * reloads), or nothing.
+ */
+export function go(
+	url: string,
+	opts: { replace?: boolean; noScroll?: boolean; source?: NavType },
+	invalidate: "all" | "page" | null,
+): Promise<void> {
 	if (typeof window === "undefined") return Promise.resolve();
-
-	if (opts.invalidateAll) {
-		appState.dirty.all = true;
-	}
-
-	const beforePath = router.currentRoute;
 
 	return new Promise<void>((resolve) => {
 		appState.navResolvers.push(resolve);
-		router.navigate(url, { replace: opts.replaceState, source: "goto" });
-		if (router.currentRoute !== beforePath) {
-			// Set after navigate() so a nav that never starts can't carry it to the next one.
-			if (opts.noScroll) router.suppressScroll = true;
-		} else if (opts.invalidateAll) {
-			// Same URL: no nav effect from the route, so wake it with the tick to refetch.
+		const result = router.navigate(url, { replace: opts.replace, source: opts.source });
+		// The nav effect runs after this, so marks set now still reach it — and a nav
+		// that never starts (cancelled, left the app) leaves none behind for the next one.
+		if (result === "started" && opts.noScroll) router.suppressScroll = true;
+		if (invalidate && (result === "started" || result === "same")) {
+			if (invalidate === "all") appState.dirty.all = true;
+			else appState.loaderCache.page = null;
+			// The tick wakes the effect on the same URL, and on a new one it keeps a
+			// prefetch holding pre-mutation data from standing in for the refetch.
 			bumpTick();
-		} else {
-			// `navigate()` short-circuited (same URL or cancelled) — the nav effect
-			// won't fire, so nothing will drain the resolver. Resolve now.
+		} else if (result !== "started") {
+			// Same URL, cancelled, or a full page load — the nav effect won't settle
+			// anything, so nothing would drain the resolver. Resolve now.
 			drainNavResolvers();
 		}
 	});

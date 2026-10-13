@@ -161,7 +161,7 @@ Bosia menampilkan bilah progres tipis di bagian atas halaman selama setiap navig
 
 ## Form actions
 
-Form action yang melempar `redirect(303, "/x")` bernavigasi melalui router secara otomatis saat dibungkus dengan `use:enhance`. Loader dijalankan ulang, jadi redirect ke halaman yang sama menampilkan data terbaru:
+Form action yang melempar `redirect(303, "/x")` bernavigasi melalui router secara otomatis saat dibungkus dengan `use:enhance`. Loader halaman dijalankan ulang (seperti setelah action sukses), jadi redirect ke halaman yang sama menampilkan data terbaru:
 
 ```svelte
 <form method="POST" action="?/logout" use:enhance>

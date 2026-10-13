@@ -14,6 +14,9 @@ import { withBase } from "../basePath.ts";
 // pushes exactly the URL that was in the link, untouched.
 
 export type NavType = "link" | "goto" | "popstate" | "form" | "enter";
+/** What `router.navigate()` did: started a client nav, found the URL already current,
+ *  was cancelled by `beforeNavigate`, or handed off to a full page load. */
+export type NavResult = "started" | "same" | "cancelled" | "left";
 
 function buildTarget(path: string): { url: URL; params: Record<string, string> } | null {
 	if (typeof window === "undefined") return null;
@@ -94,8 +97,8 @@ export const router = new (class Router {
 	/** Captured snapshot for the entry a popstate/reload landed on; consumed once by App.svelte. `undefined` = nothing to restore. */
 	pendingSnapshot: unknown = undefined;
 
-	navigate(path: string, opts: { replace?: boolean; source?: NavType } = {}) {
-		if (this.currentRoute === path) return;
+	navigate(path: string, opts: { replace?: boolean; source?: NavType } = {}): NavResult {
+		if (this.currentRoute === path) return "same";
 		// Unknown route — let the server handle it (renders +error.svelte with 404)
 		const queryHash = path.slice(path.split("?")[0].split("#")[0].length);
 		const pathname = path.split("?")[0].split("#")[0];
@@ -115,11 +118,13 @@ export const router = new (class Router {
 				);
 			}
 			window.location.href = path;
-			return;
+			return "left";
 		}
 		// Canonicalize trailing slash before navigating (matches server 308 behavior)
 		const canonical = canonicalPathname(pathname, (match.route as any).trailingSlash ?? "never");
 		const finalPath = canonical !== null ? canonical + queryHash : path;
+		// `/about/` on `/about`: nothing to do, and no duplicate history entry.
+		if (this.currentRoute === finalPath) return "same";
 
 		const navType: NavType = opts.source ?? "link";
 		const fromTarget = buildTarget(this.currentRoute);
@@ -131,7 +136,7 @@ export const router = new (class Router {
 			willUnload: false,
 			cancel: () => {},
 		};
-		if (!fireBeforeNavigate(nav)) return;
+		if (!fireBeforeNavigate(nav)) return "cancelled";
 
 		this.lastNavType = navType;
 		this.isPush = true;
@@ -148,6 +153,7 @@ export const router = new (class Router {
 				history.pushState({ bosiaIndex: historyIndex }, "", finalPath);
 			}
 		}
+		return "started";
 	}
 
 	init() {

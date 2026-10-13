@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Navigation guide and skill: refreshing data on the same page keeps the scroll position.
 - Navigation guide and skill: `goto()` to the current page with `invalidateAll` reloads its data.
-- Navigation guide: a form that redirects back to its own page shows the updated data.
+- Navigation guide: a form redirect reloads the page's data, also when it goes back to the same page.
 
 ## [0.8.25] - 2026-10-12
 
