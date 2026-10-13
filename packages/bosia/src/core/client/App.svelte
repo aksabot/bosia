@@ -117,7 +117,7 @@
 	// How many layouts wrap the leaf: the shared ones under a skeleton, the error's depth.
 	const outerDepth = $derived(
 		showLoading && LoadingComponent
-			? loadingDepth
+			? Math.min(loadingDepth, layoutComponents.length)
 			: ErrorComponent
 				? Math.min(errorDepth ?? 0, layoutComponents.length)
 				: layoutComponents.length,
@@ -364,10 +364,12 @@
 						.catch(() => null)
 				: Promise.resolve(null);
 
+		// Scrolls first: waiting goto()/use:enhance calls resume after the scroll.
 		const settle = (
 			target: { url: URL; params: Record<string, string> } | null,
-			scrolled?: Promise<void>,
+			replaced: boolean,
 		) => {
+			const scrolled = settleScroll(replaced);
 			const nav: Navigation = {
 				from: null,
 				to: target,
@@ -456,12 +458,10 @@
 							...match.route.layouts.slice(0, K).map((l: any) => l()),
 						]);
 						if (cancelled) return;
-						// Error page to error page: the layouts both share stay mounted and
+						// The layouts both routes share stay mounted (one render tree) and
 						// never write their title again. Same error component under all of
 						// them too: nothing remounts, so a <title> it wrote stays — keep it.
-						const kept = errorShown
-							? sharedDepth(currentLayoutPaths, destLayoutPaths.slice(0, K))
-							: 0;
+						const kept = sharedDepth(currentLayoutPaths, destLayoutPaths.slice(0, K));
 						const prev = appState.errorProps?.error;
 						const keepTitle =
 							errorShown === errMod.default &&
@@ -493,7 +493,7 @@
 						// chunk's await): a cancelled or redirected run never counts as settled.
 						lastSettledPath = pathname;
 						lastNavKey = navKey;
-						settle({ url, params: match.params }, settleScroll(!errorShown));
+						settle({ url, params: match.params }, !errorShown);
 					} catch {
 						if (!cancelled) hardLoad(path);
 					}
@@ -591,8 +591,6 @@
 				appState.errorProps = null;
 				appState.errorDepth = null;
 
-				const scrolled = settleScroll(!pageShown);
-
 				// Re-emit the head from server metadata. `data-bosia-meta` (html.ts `OWNED`)
 				// marks exactly the tags metadata() owns, so headExtras, the framework's own
 				// static tags and <svelte:head> output are never touched. `result === null`
@@ -629,7 +627,7 @@
 				}
 				titleNav.seq++; // the probes read again as this flushes
 
-				settle({ url, params: match.params }, scrolled);
+				settle({ url, params: match.params }, !pageShown);
 			})
 			.catch((err) => {
 				// A rejected chunk or a throwing page module: tear down this run's loading UI

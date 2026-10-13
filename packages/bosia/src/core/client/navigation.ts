@@ -171,6 +171,7 @@ export function drainNavResolvers(after?: Promise<unknown>): void {
 			}
 		}
 	};
-	if (after) after.then(run);
+	// A throwing flush rejects the scroll; the waiters must not hang on it.
+	if (after) after.then(run, run);
 	else run();
 }
