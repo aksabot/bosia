@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Routing guide and skill: a catch-all can follow a param and must be the last part of a route.
 - Routing guide and skill: brackets wrap a whole folder; `[id].json`, `[[x]]`, `[x?]`, `[x=y]` fail.
 - Security guide: prerender rejects bad values; an `entries()` error or missing export fails.
-- Routing guide and skill: which characters a param name may use; `%2e%2e` note in the security guide.
+- Routing guide and skill: which characters a param name may use; security guide notes `%2e%2e`.
 
 ## [0.8.25] - 2026-10-12
 

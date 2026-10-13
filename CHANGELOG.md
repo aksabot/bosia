@@ -51,7 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A param name starting with a digit, like `[1st]`, no longer breaks the generated types.
 - Prerendered paths keep a `$&` in an `entries()` value as-is instead of mangling it.
 - The build catches `[path...]`, `[path..]` or `[…path]` typos and suggests `[...path]`.
-- Prerender checks `entries()` values after decoding, so `%2e%2e` can't save the home page as a post.
+- Prerender checks `entries()` values decoded, so `%2e%2e` can't save the home page as a post.
 - A failed `entries()` now prints one clear `❌` line instead of a stack trace.
 - Prerender rejects a missing, empty, `.`, `?` or `#` param value; values like `[draft]` stay as-is.
 - A catch-all `entries()` value may end in `/` again, like `guide/intro/`.
