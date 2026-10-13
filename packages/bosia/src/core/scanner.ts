@@ -1,7 +1,7 @@
 import { readdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { PageRoute, ApiRoute, RouteManifest, TrailingSlash } from "./types.ts";
-import { segmentRank } from "./matcher.ts";
+import { segmentName, segmentRank } from "./matcher.ts";
 
 // ─── Route Scanner ───────────────────────────────────────
 // Walks src/routes/ and produces a RouteManifest.
@@ -212,8 +212,8 @@ export function scanRoutes(): RouteManifest {
 
 	preventConflicts(pages, (p) => p.page);
 	preventConflicts(apis, (a) => a.server);
-	oneCatchAll(pages, (p) => p.page);
-	oneCatchAll(apis, (a) => a.server);
+	checkParams(pages, (p) => p.page);
+	checkParams(apis, (a) => a.server);
 
 	const errorPage = existsSync(join(ROUTES_DIR, "+error.svelte")) ? "+error.svelte" : null;
 
@@ -254,23 +254,39 @@ function routeKey(pattern: string): string {
 }
 
 /**
- * Fail when a route has more than one `[...rest]`. Each compiles to `(.+)`, and
- * three of them backtrack for seconds on a long URL (ReDoS). One is all a route
- * needs; SvelteKit-style `[...a]/x/[...b]` can be added with an anchored regex.
+ * Fail on params the matcher can't serve: a `[...rest]` that isn't the last
+ * segment, a param with no name, or one name bound twice. Mid-path catch-alls
+ * (`docs/[...path]/edit`) are left out on purpose: each is an unanchored `(.+)`
+ * (several backtrack for seconds on a long URL) and they need span-aware ranking.
+ * Add both together if that route shape is ever needed.
  */
-function oneCatchAll<T extends { pattern: string }>(routes: T[], fileOf: (r: T) => string) {
+function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) => string) {
 	for (const r of routes) {
-		if (r.pattern.split("/").filter((seg) => segmentRank(seg) === 2).length > 1) {
-			throw new RouteConflictError(
-				`The "${r.pattern}" route has more than one [...rest] catch-all:\n` +
-					`   src/routes/${fileOf(r)}\n` +
-					`   Keep one; use [param] for the others.`,
-			);
+		const segs = r.pattern.split("/").filter(Boolean);
+		const names = new Set<string>();
+		for (const [i, seg] of segs.entries()) {
+			const rank = segmentRank(seg);
+			if (!rank) continue;
+			const name = segmentName(seg);
+			const problem =
+				rank === 2 && i !== segs.length - 1
+					? `${seg} must be the last part of the route`
+					: !name
+						? `${seg} needs a name, like [slug] or [...rest]`
+						: names.has(name)
+							? `the param "${name}" is used twice`
+							: null;
+			if (problem) {
+				throw new RouteConflictError(
+					`The "${r.pattern}" route is invalid: ${problem}.\n   src/routes/${fileOf(r)}`,
+				);
+			}
+			names.add(name);
 		}
 	}
 }
 
-/** A route tree the build refuses (two files at one URL, or several catch-alls).
+/** A route tree the build refuses (two files at one URL, or an invalid param).
  *  Callers print `message` and exit. */
 export class RouteConflictError extends Error {
 	override name = "RouteConflictError";

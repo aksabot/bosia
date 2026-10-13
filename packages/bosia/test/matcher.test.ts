@@ -83,7 +83,7 @@ describe("compileRoutes / findMatch — escaping & priority", () => {
 		expect(findMatch(routes, "/fooXbar")).toBe(null);
 	});
 
-	test("first match wins (caller pre-sorts exact → dynamic → catch-all)", () => {
+	test("first match wins (caller pre-sorts with sortRoutes)", () => {
 		const routes = compile(["/about", "/[slug]", "/[...rest]"]);
 		expect(findMatch(routes, "/about")?.route.pattern).toBe("/about");
 		expect(findMatch(routes, "/contact")?.route.pattern).toBe("/[slug]");
@@ -100,9 +100,15 @@ describe("findMatch — catch-all after a [param] segment", () => {
 		expect(findMatch(routes(), "/en")).toBeNull();
 	});
 
-	test("mid-pattern and hyphenated catch-alls bind their real name", () => {
-		const routes = compileRoutes([{ pattern: "/docs/[...my-path]/edit" }]);
-		expect(findMatch(routes, "/docs/a/b/edit")?.params).toEqual({ "my-path": "a/b" });
-		expect(findMatch(routes, "/docs/edit")).toBeNull();
+	test("hyphenated catch-all binds its real name", () => {
+		const routes = compileRoutes([{ pattern: "/docs/[...my-path]" }]);
+		expect(findMatch(routes, "/docs/a/b")?.params).toEqual({ "my-path": "a/b" });
+	});
+
+	test("a route pushed after compileRoutes still matches", () => {
+		const routes: { pattern: string }[] = compileRoutes([{ pattern: "/a" }]);
+		routes.push({ pattern: "/[x]" }, { pattern: "/b" });
+		expect(findMatch(routes, "/zz")?.params).toEqual({ x: "zz" });
+		expect(findMatch(routes, "/b")?.route.pattern).toBe("/[x]");
 	});
 });

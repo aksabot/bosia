@@ -59,7 +59,7 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 `params.catchall` contains the full matched sub-path (e.g. `"a/b/c"`).
 
-A catch-all can follow a param or sit mid-path: `[lang]/[...rest]` matches `/en/a/b`, and `docs/[...path]/edit` matches `/docs/a/b/edit` with `params.path = "a/b"`. A route may have only one catch-all; the build fails on more.
+A catch-all can follow a param: `[lang]/[...rest]` matches `/en/a/b`. It must be the last part of the route — `docs/[...path]/edit` fails the build.
 
 ## Route Groups
 
@@ -87,8 +87,6 @@ When multiple routes could match a URL, Bosia compares them segment by segment, 
 3. **Catch-all** — `[...rest]`
 
 So `/label/[id]` wins over `/[folder]/[thread]` for `/label/inbox`, and `/blog/[...slug]` wins over `/[lang]/about` for `/blog/about`.
-
-Positions are counted as written, so a mid-path catch-all can lose to params of the right length: with `[...path]/edit` and `[a]/[b]`, `/x/edit` goes to `[a]/[b]`.
 
 ## Layouts
 

@@ -1,7 +1,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import type { RouteManifest } from "./types.ts";
-import { segmentRank } from "./matcher.ts";
+import { segmentName, segmentRank } from "./matcher.ts";
 import { toPosix } from "./paths.ts";
 
 // ─── Route Types Generator ────────────────────────────────
@@ -24,8 +24,7 @@ function paramsForDir(dir: string): string[] {
 		.filter((s) => !/^\(.*\)$/.test(s));
 	const out: string[] = [];
 	for (const seg of segs) {
-		const rank = segmentRank(seg);
-		if (rank) out.push(seg.slice(rank === 2 ? 4 : 1, -1));
+		if (segmentRank(seg)) out.push(segmentName(seg));
 	}
 	return out;
 }

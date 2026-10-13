@@ -206,9 +206,19 @@ describe("scanRoutes() route conflicts", () => {
 		expect(msg).toContain("src/routes/(app)/blog/[slug]/+page.svelte");
 	});
 
-	test("more than one catch-all in a route fails the build", () => {
-		write("[...a]/x/[...b]/+page.svelte");
-		expect(conflict()?.message).toContain("more than one [...rest] catch-all");
+	test("a catch-all that isn't last fails the build", () => {
+		write("docs/[...path]/edit/+page.svelte");
+		expect(conflict()?.message).toContain("[...path] must be the last part of the route");
+	});
+
+	test("a param with no name fails the build", () => {
+		write("[...]/+page.svelte");
+		expect(conflict()?.message).toContain("[...] needs a name");
+	});
+
+	test("one param name used twice fails the build", () => {
+		write("[id]/x/[...id]/+page.svelte");
+		expect(conflict()?.message).toContain('the param "id" is used twice');
 	});
 
 	test("duplicate +server.ts API routes conflict", () => {

@@ -111,8 +111,7 @@ describe("sortRoutes() — static segment beats dynamic beats catch-all", () => 
 		expect(order("/[lang]/about", "/blog/[...slug]")).toEqual(["/blog/[...slug]", "/[lang]/about"]);
 	});
 
-	test("[...x] is a catch-all anywhere, whatever its name", () => {
-		expect(order("/a/[...x]/b", "/a/[y]/b")).toEqual(["/a/[y]/b", "/a/[...x]/b"]);
+	test("[...x] is a catch-all whatever its name", () => {
 		expect(order("/[...my-rest]", "/[slug]")).toEqual(["/[slug]", "/[...my-rest]"]);
 	});
 

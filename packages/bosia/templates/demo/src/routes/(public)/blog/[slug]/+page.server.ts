@@ -29,7 +29,7 @@ This page lives at routes/(public)/blog/[slug]/+page.svelte but is served at /bl
 
 The matched value is available as params.slug inside +page.server.ts load() and inside the page component via the params prop.
 
-The route matcher uses 3-pass priority: exact matches first, then dynamic segments, then catch-all routes.`,
+The route matcher compares routes part by part: a fixed name beats a param, which beats a catch-all.`,
 	},
 };
 

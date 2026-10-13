@@ -7,6 +7,7 @@ import type { RuntimeTarget } from "./types/plugin.ts";
 import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
+import { isDynamic } from "./matcher.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
 export function getEphemeralPort(): Promise<number> {
@@ -158,7 +159,7 @@ async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Prerender
 			return [];
 		}
 		const ts = route.trailingSlash;
-		if (route.pattern.includes("[")) return expandDynamicRoute(route.pattern, filePath, "page", ts);
+		if (isDynamic(route.pattern)) return expandDynamicRoute(route.pattern, filePath, "page", ts);
 		return [{ path: route.pattern, kind: "page", trailingSlash: ts }];
 	});
 
@@ -166,7 +167,7 @@ async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Prerender
 		const filePath = join("src", "routes", route.server);
 		const content = await Bun.file(filePath).text();
 		if (!wantsPrerender(content)) return [];
-		if (route.pattern.includes("["))
+		if (isDynamic(route.pattern))
 			return expandDynamicRoute(route.pattern, filePath, "api", "never");
 		return [{ path: route.pattern, kind: "api", trailingSlash: "never" }];
 	});

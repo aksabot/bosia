@@ -50,12 +50,13 @@
 - [x] 🟡 Navigating to a route with `+loading.svelte` remounts its layouts (skeleton branch renders them separately): layout state like an open sidebar resets.
 - [x] ⚪ `await goto()` resolves before scroll-to-top is applied, so a `scrollTo()` right after it gets overwritten.
 - [x] 🟠 Route order: `sortRoutes` tie-broke same-tier routes by `localeCompare` (`[` < letters), so `/[a]/[b]` beat `/label/[id]`. Now per segment: static > dynamic > catch-all.
-- [x] 🟡 `compilePattern` copied a catch-all's prefix literally: `/[lang]/[...rest]` never matched. Legacy `matchPattern` (same bug) removed; uncompiled arrays compile per lookup.
+- [x] 🟡 `compilePattern` copied a catch-all's prefix literally: `/[lang]/[...rest]` never matched. Legacy `matchPattern` (same bug) removed; `findMatch` compiles an unseen array once.
 - [x] 🟡 Segment kinds were parsed four ways (matcher, sort, scanner, route types) and disagreed on mid-path/hyphenated `[...x]`; one `segmentRank()` in `matcher.ts` now feeds all.
-- [x] 🟠 Mid-path catch-alls let `[...a]/[...b]/[...c]` compile to nested `(.+)`: 3 s per 4 KB URL (ReDoS). The build now allows one catch-all per route.
-- [ ] ⚪ Mid-path catch-all ranks by written position: `/x/edit` goes to `[a]/[b]` over `[...path]/edit`. Rank by matched span if it bites (documented).
+- [x] 🟠 Mid-path catch-alls (`[...a]/[...b]/[...c]`) compiled to nested `(.+)`: 3 s per 4 KB URL (ReDoS). Build now rejects a non-last `[...rest]`, nameless or duplicate params.
+- [x] ⚪ `isExact` and prerender used `includes("[")`; both now use `isDynamic()` (segmentRank), so `/api/[id].json` is static everywhere.
+- [ ] ⚪ Mid-path catch-alls (`docs/[...path]/edit`): needs an anchored regex + span-aware ranking (SvelteKit sorts them last). Add both together if asked.
 - [ ] ⚪ Malformed segments `[a]-[b]`, `[[lang]]` read as params with odd names (types + matcher). Reject or warn at build.
-- [ ] ⚪ `compilePattern` `isExact` and prerender's dynamic check still use `includes("[")`: static `v[1]` counts as dynamic. Use `segmentRank`.
+- [ ] ⚪ Catch-all prefix warning fires even when a shorter catch-all (`/[...all]`) already serves the prefix URL.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts

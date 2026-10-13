@@ -19,8 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Navigation guide: a loader redirect counts as its own `goto` navigation, even after Back.
 - Navigation guide and skill: `await goto()` resumes after the scroll, so a `scrollTo()` sticks.
 - Routing guide and skill: route priority is compared segment by segment; a fixed name wins first.
-- Routing guide and skill: a catch-all can follow a param or sit in the middle of a path.
-- Routing guide and skill: a route may have only one catch-all.
+- Routing guide and skill: a catch-all can follow a param and must be the last part of a route.
 
 ## [0.8.25] - 2026-10-12
 

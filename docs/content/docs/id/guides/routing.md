@@ -47,7 +47,7 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 `params.catchall` berisi seluruh sub-path yang cocok (misalnya `"a/b/c"`).
 
-Catch-all bisa ada setelah param atau di tengah path: `[lang]/[...rest]` cocok dengan `/en/a/b`, dan `docs/[...path]/edit` cocok dengan `/docs/a/b/edit` dengan `params.path = "a/b"`. Satu route hanya boleh punya satu catch-all; build gagal jika lebih.
+Catch-all bisa ada setelah param: `[lang]/[...rest]` cocok dengan `/en/a/b`. Catch-all harus jadi bagian terakhir route — `docs/[...path]/edit` membuat build gagal.
 
 ## Route Groups
 
@@ -75,8 +75,6 @@ Ketika beberapa route bisa cocok dengan URL, Bosia membandingkannya segmen demi 
 3. **Catch-all** — `[...rest]`
 
 Jadi `/label/[id]` menang atas `/[folder]/[thread]` untuk `/label/inbox`, dan `/blog/[...slug]` menang atas `/[lang]/about` untuk `/blog/about`.
-
-Posisi dihitung sesuai yang tertulis, jadi catch-all di tengah path bisa kalah dari param yang panjangnya pas: dengan `[...path]/edit` dan `[a]/[b]`, `/x/edit` masuk ke `[a]/[b]`.
 
 ## Layouts
 
