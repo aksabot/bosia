@@ -247,12 +247,10 @@
 		// issue, which would otherwise render the error page.
 		if (navKey === lastNavKey && currentTick === lastTick && !owedRefresh) {
 			// Back to the settled page before an in-flight nav finished: its run was
-			// cancelled, so drop the progress bar and skeleton it left up.
-			dropLoadingUI();
-			router.loading = false;
+			// cancelled, so drop the loading UI it left up. goto("#x") waits on this nav
+			// like any other, so abandonRun() releases it too.
 			settleScroll();
-			// goto("#x") waits on this nav like any other.
-			drainNavResolvers();
+			abandonRun();
 			return;
 		}
 		// A prefetch saved before an invalidation holds pre-mutation data — after a
@@ -364,8 +362,10 @@
 			// Cleared here, not with the loading UI: an error chunk await or a redirect
 			// hop is still loading for a goto() to the same URL.
 			router.loading = false;
-			fireAfterNavigate(nav);
+			// Drain first: a goto() an afterNavigate listener starts must wait for its own
+			// nav. Awaiters still resume after the listeners — resolve() is async.
 			drainNavResolvers();
+			fireAfterNavigate(nav);
 		};
 
 		Promise.all([
@@ -401,8 +401,12 @@
 						replace: true,
 						source: router.lastNavType,
 					});
-					if (r === "started") router.suppressScroll = keepNoScroll;
-					else abandonRun();
+					if (r === "started") {
+						router.suppressScroll = keepNoScroll;
+						// The target may be the page already shown (/admin → /): forget the
+						// settled key so it runs as a real nav, not the hash-only shortcut.
+						lastNavKey = "";
+					} else abandonRun();
 					return;
 				}
 				if (result?.error || (result === null && match.route.hasServerData)) {

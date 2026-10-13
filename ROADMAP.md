@@ -39,6 +39,8 @@
 - [x] 🟡 `goto()` to the current URL waits on `router.loading` (set by App's run), not the resolver queue — it missed link-click navs.
 - [x] 🟢 `hardLoad()` uses `location.replace` (no extra entry); a loader redirect keeps a `noScroll` goto's flag; same-page hash clicks reset `suppressScroll`.
 - [x] 🟡 Hydration seeds the loader cache from `router.hydratedRoute`, stages the snapshot only for the hydrated page, and settled marks wait for the error chunk; `router.loading` clears at settle.
+- [x] 🟡 A loader redirect back to the shown page runs as a real nav (forgets `lastNavKey`); off-app redirects `location.replace`; `settle()` drains before `afterNavigate` so a listener's `goto()` waits.
+- [ ] ⚪ Relative `goto("#x")` matches no route, leaves via `location.href`, and the null-state popstate resets `historyIndex` to 0 (pre-existing).
 - [ ] ⚪ A loader redirect back to the previous URL leaves two adjacent entries with the same URL; Back between them doesn't restore scroll/snapshot.
 - [x] 🟡 A failed `+loading.svelte` chunk is swallowed: no skeleton, and no `hydrate.ts` reload of a page that loaded fine.
 

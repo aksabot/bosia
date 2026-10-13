@@ -122,7 +122,9 @@ export const router = new (class Router {
 					`[bosia] "${path}" matched no route and is leaving the app — it is mounted at "${base}". Use "${withBase(base, path)}".`,
 				);
 			}
-			window.location.href = path;
+			// A replace (loader redirect) must not leave a Back-button trap behind.
+			if (opts.replace) window.location.replace(path);
+			else window.location.href = path;
 			return "left";
 		}
 		// Canonicalize trailing slash before navigating (matches server 308 behavior)

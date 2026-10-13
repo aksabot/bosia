@@ -38,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A `goto()` with `noScroll` that gets interrupted no longer stops the next page scrolling up.
 - Opening a page at a URL with an extra `/` no longer reloads its data on first load.
 - Clicking a link while the app is still starting now shows the right page's data.
+- A page that redirects you back to where you were now reloads it properly.
+- A redirect to another site no longer traps the Back button.
 
 ## [1.2.2] - 2026-10-12
 
