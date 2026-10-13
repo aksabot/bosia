@@ -28,21 +28,25 @@ function clientPattern(pattern: string): string {
 //   serverRoutes  — used by SSR renderer (+ pageServer + layoutServers)
 //   apiRoutes     — used by API handler
 
-function routePriority(pattern: string): number {
-	if (!pattern.includes("[")) return 0; // exact
-	if (!pattern.includes("[...")) return 1; // dynamic
-	return 2; // catch-all
+// static beats dynamic beats catch-all
+function segmentRank(seg: string): number {
+	if (!seg.startsWith("[")) return 0;
+	return seg.startsWith("[...") ? 2 : 1;
 }
 
-function sortRoutes<T extends { pattern: string }>(routes: T[]): T[] {
+/** Most specific first: compared segment by segment, the first differing kind
+ *  decides (so `/label/[id]` beats `/[a]/[b]`, `/blog/[...r]` beats `/[a]/about`).
+ *  Ties fall back to more segments first, then alphabetical. findMatch takes the
+ *  first match, so this order is the routing precedence. */
+export function sortRoutes<T extends { pattern: string }>(routes: T[]): T[] {
 	return [...routes].sort((a, b) => {
-		const pa = routePriority(a.pattern);
-		const pb = routePriority(b.pattern);
-		if (pa !== pb) return pa - pb;
-		// same tier: more segments first, then alphabetical
-		const sa = a.pattern.split("/").length;
-		const sb = b.pattern.split("/").length;
-		if (sa !== sb) return sb - sa;
+		const sa = a.pattern.split("/").filter(Boolean);
+		const sb = b.pattern.split("/").filter(Boolean);
+		for (let i = 0; i < Math.min(sa.length, sb.length); i++) {
+			const d = segmentRank(sa[i]!) - segmentRank(sb[i]!);
+			if (d !== 0) return d;
+		}
+		if (sa.length !== sb.length) return sb.length - sa.length;
 		return a.pattern.localeCompare(b.pattern);
 	});
 }

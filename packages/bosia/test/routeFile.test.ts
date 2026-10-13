@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { generateRoutesFile } from "../src/core/routeFile.ts";
+import { generateRoutesFile, sortRoutes } from "../src/core/routeFile.ts";
 import { DEFAULT_TITLE } from "../src/core/headScan.ts";
 import type { RouteManifest } from "../src/core/types.ts";
 
@@ -93,5 +93,25 @@ describe("generateRoutesFile() — server import thunks", () => {
 		const client = readFileSync(join(tmpDir, ".bosia", "routes.client.ts"), "utf-8");
 		expect(client).not.toContain("once(");
 		expect(client).toContain('page: () => import("../src/routes/blog/+page.ts")');
+	});
+});
+
+describe("sortRoutes() — static segment beats dynamic beats catch-all", () => {
+	const order = (...patterns: string[]) =>
+		sortRoutes(patterns.map((pattern) => ({ pattern }))).map((r) => r.pattern);
+
+	test("static first segment wins over dynamic at the same length", () => {
+		expect(order("/[folder]/[thread]", "/label/[id]")).toEqual([
+			"/label/[id]",
+			"/[folder]/[thread]",
+		]);
+	});
+
+	test("catch-all under a static segment wins over a dynamic first segment", () => {
+		expect(order("/[lang]/about", "/blog/[...slug]")).toEqual(["/blog/[...slug]", "/[lang]/about"]);
+	});
+
+	test("exact before dynamic before catch-all at the same spot", () => {
+		expect(order("/[...rest]", "/[slug]", "/about")).toEqual(["/about", "/[slug]", "/[...rest]"]);
 	});
 });

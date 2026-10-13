@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Navigation guide: `goto()` to a page still loading waits for it to finish.
 - Navigation guide: a loader redirect counts as its own `goto` navigation, even after Back.
 - Navigation guide and skill: `await goto()` resumes after the scroll, so a `scrollTo()` sticks.
+- Routing guide and skill: route priority is compared segment by segment; a fixed name wins first.
 
 ## [0.8.25] - 2026-10-12
 

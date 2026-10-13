@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - After Back, a page redirect is reported as `goto`, not `popstate`, so guards can cancel it.
 - A loading skeleton no longer resets the layout around it (e.g. an open sidebar).
 - `await goto()` now resumes after the page scrolled, so your own `scrollTo()` sticks.
+- A fixed path like `/label/[id]` now wins over `/[folder]/[thread]` instead of returning 404.
 
 ## [1.2.2] - 2026-10-12
 

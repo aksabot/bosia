@@ -66,11 +66,13 @@ Karena grup tidak terlihat, dua file bisa berakhir di URL yang sama — misalnya
 
 ## Prioritas Route
 
-Ketika beberapa route bisa cocok dengan URL, Bosia menyelesaikannya secara berurutan:
+Ketika beberapa route bisa cocok dengan URL, Bosia membandingkannya segmen demi segmen, dari kiri ke kanan. Pada segmen pertama yang berbeda, yang lebih spesifik menang:
 
-1. **Pencocokan tepat** — route statis seperti `/about`
-2. **Segmen dinamis** — route `[param]`
-3. **Catch-all** — route `[...rest]`
+1. **Statis** — nama tetap seperti `label`
+2. **Dinamis** — `[param]`
+3. **Catch-all** — `[...rest]`
+
+Jadi `/label/[id]` menang atas `/[folder]/[thread]` untuk `/label/inbox`, dan `/blog/[...slug]` menang atas `/[lang]/about` untuk `/blog/about`.
 
 ## Layouts
 

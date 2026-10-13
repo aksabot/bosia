@@ -78,11 +78,13 @@ Because groups vanish, two files can end up at the same URL — e.g. `src/routes
 
 ## Route Priority
 
-When multiple routes could match a URL, Bosia resolves them in order:
+When multiple routes could match a URL, Bosia compares them segment by segment, left to right. At the first segment that differs, the more specific one wins:
 
-1. **Exact matches** — static routes like `/about`
-2. **Dynamic segments** — `[param]` routes
-3. **Catch-all** — `[...rest]` routes
+1. **Static** — a fixed name like `label`
+2. **Dynamic** — `[param]`
+3. **Catch-all** — `[...rest]`
+
+So `/label/[id]` wins over `/[folder]/[thread]` for `/label/inbox`, and `/blog/[...slug]` wins over `/[lang]/about` for `/blog/about`.
 
 ## Layouts
 
