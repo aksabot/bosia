@@ -98,7 +98,9 @@ export function generateRouteTypes(manifest: RouteManifest): void {
 
 		if (info.pageServer) {
 			lines.push(``);
-			lines.push(`import type { load as _pageLoad } from '${srcBase}+page.server.ts';`);
+			lines.push(
+				`import type { load as _pageLoad } from ${JSON.stringify(srcBase + "+page.server.ts")};`,
+			);
 			lines.push(`export type PageServerLoad = (event: _LoadEvent) => any;`);
 			lines.push(
 				`export type PageMetadataLoad = (event: _MetadataEvent) => Metadata | Promise<Metadata>;`,
@@ -128,7 +130,9 @@ export function generateRouteTypes(manifest: RouteManifest): void {
 		// ActionData — union of all action return types, unwrapping ActionFailure
 		if (info.pageServer) {
 			lines.push(``);
-			lines.push(`import type { actions as _actions } from '${srcBase}+page.server.ts';`);
+			lines.push(
+				`import type { actions as _actions } from ${JSON.stringify(srcBase + "+page.server.ts")};`,
+			);
 			lines.push(
 				`type _ActionReturn<T> = T extends (...args: any[]) => infer R ? Awaited<R> : never;`,
 			);
@@ -141,7 +145,9 @@ export function generateRouteTypes(manifest: RouteManifest): void {
 		}
 
 		if (info.layoutServer) {
-			lines.push(`\nimport type { load as _layoutLoad } from '${srcBase}+layout.server.ts';`);
+			lines.push(
+				`\nimport type { load as _layoutLoad } from ${JSON.stringify(srcBase + "+layout.server.ts")};`,
+			);
 			lines.push(`export type LayoutServerLoad = (event: _LoadEvent) => any;`);
 			lines.push(`export type LayoutData = Awaited<ReturnType<typeof _layoutLoad>>;`);
 			lines.push(`export type LayoutProps = { data: LayoutData; params: Params; children: any };`);

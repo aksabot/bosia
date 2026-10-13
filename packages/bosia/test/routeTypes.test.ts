@@ -127,6 +127,25 @@ describe("generateRouteTypes() — Params extraction", () => {
 		expect(out).toContain('export type Params = { "1st": string };');
 	});
 
+	test("a quote in a dir name stays a valid import", () => {
+		const m: RouteManifest = {
+			pages: [
+				{
+					pattern: "/[it's]",
+					page: "[it's]/+page.svelte",
+					layouts: [],
+					pageServer: "[it's]/+page.server.ts",
+					layoutServers: [],
+					trailingSlash: "never",
+				},
+			],
+			apis: [],
+			errorPage: null,
+		};
+		generateRouteTypes(m);
+		expect(readTypes("[it's]")).toContain(`[it's]/+page.server.ts";`);
+	});
+
 	test("multiple dynamic segments combined", () => {
 		const m: RouteManifest = {
 			pages: [

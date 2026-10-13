@@ -51,6 +51,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A param name starting with a digit, like `[1st]`, no longer breaks the generated types.
 - Prerendered paths keep a `$&` in an `entries()` value as-is instead of mangling it.
 - The build catches the `[path...]` typo and suggests `[...path]`.
+- Prerender fails clearly when `entries()` leaves a param out, instead of writing a `[slug]` folder.
+- A folder name with a `'` no longer breaks the generated route types.
 
 ### Changed
 

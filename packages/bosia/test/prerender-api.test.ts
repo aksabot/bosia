@@ -42,4 +42,8 @@ describe("substituteParams() — API rest-segment cases", () => {
 	test("`$&` in a value stays literal", () => {
 		expect(substituteParams("/blog/[slug]", { slug: "a$&b" })).toBe("/blog/a$&b");
 	});
+
+	test("a missing param fails instead of writing a literal [slug] path", () => {
+		expect(() => substituteParams("/blog/[slug]/[id]", { id: "5" })).toThrow("still has a [param]");
+	});
 });

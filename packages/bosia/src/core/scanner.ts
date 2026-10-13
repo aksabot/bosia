@@ -207,8 +207,8 @@ export function scanRoutes(): RouteManifest {
 			const exactEquivalent = p.pattern.slice(0, cut) || "/";
 			if (!pageKeys.has(routeKey(exactEquivalent))) {
 				console.warn(
-					`⚠️  No page serves "${exactEquivalent}" — the catch-all "${p.pattern}" will NOT match it.\n` +
-						`   Add a +page.svelte at the "${exactEquivalent}" level to serve that URL.`,
+					`⚠️  The catch-all "${p.pattern}" doesn't match "${exactEquivalent}" itself.\n` +
+						`   Add a +page.svelte at "${exactEquivalent}" unless another route already serves it.`,
 				);
 			}
 		}

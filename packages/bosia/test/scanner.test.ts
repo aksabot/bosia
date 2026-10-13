@@ -314,6 +314,6 @@ describe("scanRoutes() catch-all prefix warning", () => {
 
 	test("a missing prefix page still warns, hyphenated names too", () => {
 		write("docs/[...my-path]/+page.svelte");
-		expect(warnings().join("")).toContain('No page serves "/docs"');
+		expect(warnings().join("")).toContain(`doesn't match "/docs" itself`);
 	});
 });

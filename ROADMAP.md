@@ -58,8 +58,8 @@
 - [ ] ⚪ Mid-path catch-alls (`docs/[...path]/edit`): needs an anchored regex + span-aware ranking (SvelteKit sorts them last). Add both together if asked.
 - [x] ⚪ Partial brackets (`[id].json`, `post-[slug]`) matched literally; `[[lang]]` was a param named "[lang]". The build now rejects all three. Exact Map is first-wins like the scan.
 - [ ] ⚪ Catch-all prefix warning fires when another route already serves the prefix (`/[...all]`, or `/[page]` for `/docs`). Check with `findMatch` on the sorted pages.
-- [x] ⚪ `[id=integer]` (SvelteKit matcher) built as a param named "id=integer"; the build now rejects it. Warning reads "No page serves" (prefix may be dynamic).
-- [x] ⚪ `[path...]` built as a one-segment param (now "did you mean [...path]?"); `[...p=x]` hint kept the `...`; prerender `replace` read `$&` in values (function replacer now).
+- [x] ⚪ `[id=integer]` (SvelteKit matcher) built as a param named "id=integer"; the build now rejects it. Prefix warning now says "unless another route already serves it".
+- [x] ⚪ `[path...]` built as a one-segment param (now "did you mean [...path]?"); `[...p=x]` hint kept the `...`; prerender `replace` read `$&` in values (function replacer now). Prerender throws on a leftover `[param]`; type imports use JSON-quoted paths.
 - [ ] ⚪ One `parseSegment()` returning `{rank, name}` or an error: `SEGMENT` runs 2–3× per segment, and `checkParams` keeps its own bracket regex.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 

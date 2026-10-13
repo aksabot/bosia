@@ -86,6 +86,10 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 		resolved = resolved.replace(`[...${key}]`, () => value);
 		resolved = resolved.replace(`[${key}]`, () => value);
 	}
+	if (isDynamic(resolved))
+		throw new Error(
+			`Prerender entries(): ${resolved} still has a [param]; give every param a value.`,
+		);
 	return resolved;
 }
 
