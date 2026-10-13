@@ -75,18 +75,21 @@ describe("substituteParams() — API rest-segment cases", () => {
 		expect(() => substituteParams("/docs/[...p]", { p: "a/50%" })).toThrow(/use only letters/);
 	});
 
-	test("empty, `.` and `..` parts fail (they'd land on another route's file)", () => {
+	test("empty parts and parts ending in `.` fail (they'd land on another route's file)", () => {
+		for (const slug of ["...", "v1.", "a.."])
+			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/can't end with `\.`/);
 		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/no empty parts/);
 		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/no empty parts/);
 		expect(() => substituteParams("/docs/[...p]", { p: "/" })).toThrow(/no empty parts/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/`\.` and `\.\.` parts/);
-		expect(() => substituteParams("/blog/[slug]", { slug: ".." })).toThrow(/`\.` and `\.\.` parts/);
-		expect(() => substituteParams("/docs/[...p]", { p: "a/../b" })).toThrow(
-			/`\.` and `\.\.` parts/,
-		);
+		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/can't end with `\.`/);
+		expect(() => substituteParams("/blog/[slug]", { slug: ".." })).toThrow(/can't end with `\.`/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a/../b" })).toThrow(/can't end with `\.`/);
 	});
 
 	test("the error quotes the value, so a newline can't split the message", () => {
+		expect(() => substituteParams("/blog/[slug]", { slug: { id: 1n } as any })).toThrow(
+			'"[object Object]"',
+		);
 		expect(() => substituteParams("/blog/[slug]", { slug: "a\nb" })).toThrow('"a\\nb"');
 	});
 });
@@ -117,7 +120,7 @@ describe("detectPrerenderRoutes()", () => {
 			expect(err).toBeInstanceOf(PrerenderEntriesError);
 			expect(err.message).toContain("/a/[slug]");
 			expect(err.message).toContain("/b/[slug]");
-			expect(err.message.split("\n")).toHaveLength(2);
+			expect(err.message.split("\n").filter((l: string) => l.startsWith("❌"))).toHaveLength(2);
 		} finally {
 			process.chdir(cwdBefore);
 			rmSync(dir, { recursive: true, force: true });

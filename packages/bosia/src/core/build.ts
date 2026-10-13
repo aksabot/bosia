@@ -405,8 +405,7 @@ if (!devBuild) {
 		await prerenderStaticRoutes(manifest, target);
 	} catch (err) {
 		if (!(err instanceof PrerenderEntriesError)) throw err;
-		// One line per broken route.
-		for (const line of err.message.split("\n")) console.error(`❌ ${line}`);
+		console.error(err.message);
 		process.exit(1);
 	}
 }

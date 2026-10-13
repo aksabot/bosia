@@ -87,54 +87,14 @@ describe("generateRouteTypes() — Params extraction", () => {
 		expect(out).toContain("export type Params = { path: string };");
 	});
 
-	test("hyphenated catch-all name is quoted", () => {
-		const m: RouteManifest = {
-			pages: [
-				{
-					pattern: "/docs/[...my-path]",
-					page: "docs/[...my-path]/+page.svelte",
-					layouts: [],
-					pageServer: null,
-					layoutServers: [],
-					trailingSlash: "never",
-				},
-			],
-			apis: [],
-			errorPage: null,
-		};
-		generateRouteTypes(m);
-		const out = readTypes("docs", "[...my-path]");
-		expect(out).toContain('export type Params = { "my-path": string };');
-	});
-
-	test("param name starting with a digit is quoted", () => {
-		const m: RouteManifest = {
-			pages: [
-				{
-					pattern: "/docs/[1st]",
-					page: "docs/[1st]/+page.svelte",
-					layouts: [],
-					pageServer: null,
-					layoutServers: [],
-					trailingSlash: "never",
-				},
-			],
-			apis: [],
-			errorPage: null,
-		};
-		generateRouteTypes(m);
-		const out = readTypes("docs", "[1st]");
-		expect(out).toContain('export type Params = { "1st": string };');
-	});
-
 	test("a quote in a dir name stays a valid import", () => {
 		const m: RouteManifest = {
 			pages: [
 				{
-					pattern: "/[it's]",
-					page: "[it's]/+page.svelte",
+					pattern: "/it's",
+					page: "it's/+page.svelte",
 					layouts: [],
-					pageServer: "[it's]/+page.server.ts",
+					pageServer: "it's/+page.server.ts",
 					layoutServers: [],
 					trailingSlash: "never",
 				},
@@ -143,7 +103,7 @@ describe("generateRouteTypes() — Params extraction", () => {
 			errorPage: null,
 		};
 		generateRouteTypes(m);
-		expect(readTypes("[it's]")).toContain(`[it's]/+page.server.ts";`);
+		expect(readTypes("it's")).toContain(`it's/+page.server.ts";`);
 	});
 
 	test("multiple dynamic segments combined", () => {

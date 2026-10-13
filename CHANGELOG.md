@@ -12,7 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Param names follow TypeScript variable rules: `[user_id]`, `[_id]` ok; `[post-id]` fails.
 - Prerender `entries()` values allow only letters, digits, `- _ . ~` (and `/` in catch-alls).
-- `entries()` values like `v1..v2` are allowed; only a whole `.` or `..` part fails.
+- `entries()` values like `v1..v2` are allowed; a part ending in `.` (`v1.`, `..`) fails.
+- Upgrading: rename params like `[post-id]` or `[file.name]` to `[post_id]` or `[fileName]`.
+- Upgrading: prerender slugs like `50%-off` or `café` must become `50-off` or `cafe`.
 - The build lists every broken `entries()` route at once, one `❌` line each.
 
 ## [1.2.3] - 2026-10-13

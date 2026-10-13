@@ -82,7 +82,7 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			const value = rank === 2 ? String(entry[name]).replace(/\/$/, "") : String(entry[name]);
 			const bad = (why: string): never => {
 				throw new Error(
-					`entries() value ${JSON.stringify(entry[name])} for ${seg} is unsafe — ${why}`,
+					`entries() value ${JSON.stringify(String(entry[name]))} for ${seg} is unsafe — ${why}`,
 				);
 			};
 			// Unreserved URL characters only: the fetched URL, the file written and a static
@@ -90,9 +90,9 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			const parts = rank === 2 ? value.split("/") : [value];
 			if (!parts.every((part) => /^[A-Za-z0-9._~-]+$/.test(part)))
 				bad(`use only letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts`);
-			// The URL parser folds a `.` or `..` part, so the page would land on another route's file.
-			if (parts.some((part) => part === "." || part === ".."))
-				bad("`.` and `..` parts are not allowed");
+			// The URL parser folds a `.`/`..` part, and Windows drops a part's trailing dots
+			// (`v1.` → `v1`, `...` → ``), so the page would land on another route's file.
+			if (parts.some((part) => part.endsWith("."))) bad("a part can't end with `.`");
 			return value;
 		})
 		.join("/");
@@ -194,7 +194,9 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 	const failed = results.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
 	const other = failed.find((e) => !(e instanceof PrerenderEntriesError));
 	if (other) throw other;
-	if (failed.length) throw new PrerenderEntriesError(failed.map((e) => e.message).join("\n"));
+	// One `❌` per route; a multi-line message (a ZodError) stays under its own mark.
+	if (failed.length)
+		throw new PrerenderEntriesError(failed.map((e) => `❌ ${e.message}`).join("\n"));
 	return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 }
 

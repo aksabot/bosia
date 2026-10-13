@@ -221,7 +221,7 @@ ini?") tempatnya di loader atau action yang membaca data tersebut.
 
 Penayangan file statis dan halaman prerendered memvalidasi bahwa path file yang telah diselesaikan tetap berada dalam direktori yang diizinkan, mencegah serangan traversal `../`.
 
-Pada waktu build, nilai `entries()` untuk prerender juga divalidasi: tiap bagian hanya boleh memakai huruf, angka, `-`, `_`, `.` dan `~` (`/` hanya di dalam catch-all `[...rest]`), dan bagian kosong, `.` atau `..` ditolak. Jadi `50%-off`, `café` atau `what%3F` gagal; ubah jadi slug seperti `50-off`. Nilai yang hilang juga ditolak. Error apa pun di `entries()`, atau tidak adanya export `entries()`, menggagalkan build. Build yang mengembalikan nilai tidak aman akan gagal lebih awal dengan pesan error yang jelas, alih-alih diam-diam menulis HTML ke luar direktori output.
+Pada waktu build, nilai `entries()` untuk prerender juga divalidasi: tiap bagian hanya boleh memakai huruf, angka, `-`, `_`, `.` dan `~` (`/` hanya di dalam catch-all `[...rest]`), dan bagian kosong atau berakhiran `.` (`.`, `..`, `v1.`) ditolak, karena Windows membuang titik di akhir. Jadi `50%-off`, `café` atau `what%3F` gagal; ubah jadi slug seperti `50-off`. Nilai yang hilang juga ditolak. Error apa pun di `entries()`, atau tidak adanya export `entries()`, menggagalkan build. Build yang mengembalikan nilai tidak aman akan gagal lebih awal dengan pesan error yang jelas, alih-alih diam-diam menulis HTML ke luar direktori output.
 
 ## Proteksi Open-Redirect
 

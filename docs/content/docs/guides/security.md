@@ -239,7 +239,7 @@ action that reads it.
 
 Static file and prerendered page serving validates that resolved file paths stay within their allowed directories, preventing `../` traversal attacks.
 
-At build time, prerender `entries()` values are also validated: each part may use only letters, digits, `-`, `_`, `.` and `~` (`/` only inside a catch-all `[...rest]`), and empty, `.` or `..` parts are rejected. So `50%-off`, `café` or `what%3F` fail; turn them into a slug like `50-off`. A missing value is rejected too. Any `entries()` error, or a missing `entries()` export, fails the build. A build that returns an unsafe value fails fast with a clear error rather than silently writing HTML outside the output tree.
+At build time, prerender `entries()` values are also validated: each part may use only letters, digits, `-`, `_`, `.` and `~` (`/` only inside a catch-all `[...rest]`), and empty parts or parts ending in `.` (`.`, `..`, `v1.`) are rejected, since Windows drops trailing dots. So `50%-off`, `café` or `what%3F` fail; turn them into a slug like `50-off`. A missing value is rejected too. Any `entries()` error, or a missing `entries()` export, fails the build. A build that returns an unsafe value fails fast with a clear error rather than silently writing HTML outside the output tree.
 
 ## Open-Redirect Protection
 

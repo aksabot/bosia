@@ -32,8 +32,10 @@ describe("substituteParams()", () => {
 	});
 
 	test("rejects `..` in any segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "../etc" })).toThrow(/use only letters/);
-		expect(() => substituteParams("/docs/[...path]", { path: "a/../b" })).toThrow(/`\.\.` parts/);
+		expect(() => substituteParams("/blog/[slug]", { slug: ".." })).toThrow(/can't end with `\.`/);
+		expect(() => substituteParams("/docs/[...path]", { path: "a/../b" })).toThrow(
+			/can't end with `\.`/,
+		);
 	});
 
 	test("rejects backslash in any segment value", () => {
