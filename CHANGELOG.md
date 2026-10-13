@@ -23,7 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Going Back while a page is loading no longer leaves the loading bar stuck.
 - After a form redirects, an old error message from an earlier try is cleared.
 - Data refreshed after logout stays fresh even if the next page redirects again.
-- A page whose code fails to load (after a new deploy) now reloads instead of freezing.
+- A page whose code fails to load after a new deploy reloads fresh again, safe from reload loops.
+- A page that must reload after an error now does so even when its link has a `#section`.
+- Refreshing data right when a page first loads now works and no longer hangs.
 
 ## [1.2.2] - 2026-10-12
 

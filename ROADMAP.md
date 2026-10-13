@@ -21,6 +21,13 @@
 - [x] 🟠 An invalidated run cancelled or loader-redirected before applying data sets `owedRefresh`; the next run refetches every loader (logout via a redirecting `/` kept stale layouts).
 - [x] 🟡 A failed route chunk import (stale deploy) falls back to a full load; awaited `use:enhance` hung on it.
 - [ ] ⚪ A loader redirect cancelled by `beforeNavigate` leaves the URL on the new route with the old page shown (pre-existing).
+- [x] 🟠 Dropped the round-4 `.catch` on the route chain: it swallowed stale-chunk rejections that `hydrate.ts` recovers with a cache-busting reload + loop guard.
+- [x] 🟡 Reload fallbacks use `location.reload()`: `href = path` with a `#hash` only scrolled, leaving the page and awaited `goto()` stuck.
+- [x] 🟡 An `invalidate()`/`goto(sameUrl, { invalidateAll })` from a child's `onMount` refetches; hydration's first effect absorbed the tick and hung the `goto()`.
+- [x] 🟢 A loader redirect that doesn't start a nav resets `suppressScroll`.
+- [ ] 🟡 Loader redirects `pushState`, so Back returns to the redirecting URL and bounces again; should `replace` (pre-existing).
+- [ ] ⚪ `owedRefresh` re-runs every loader with `fresh`; keeping the cancelled run's dirty set until it applies would refetch less.
+- [ ] ⚪ Resolver draining lives at four exits (`settle`, hash shortcut, redirect, `go()`); a per-run token would cover all, incl. `if (!match) return`.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 

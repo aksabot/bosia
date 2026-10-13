@@ -82,7 +82,7 @@ This works identically in `+layout.server.ts`, and the tag propagates to every p
 
 R2.1. **`invalidate` from `bosia/client` and from `bosia/server` are different functions.** The client one re-runs loaders in the browser; the server one evicts rendered HTML. A mutation that changes SSR output needs **both** — calling only the client one updates the live UI and lets the next refresh revert it.
 
-Also, the client `invalidate()` **resolves immediately**: it flags the loader and bumps a tick without waiting for the refetch, so `await invalidate(...)` carries no ordering guarantee. Never race it against `goto()` — the navigation supersedes the in-flight refetch after the dirty flag was already consumed, and the stale value sticks. Await the `goto()` first, then invalidate.
+Also, the client `invalidate()` **resolves immediately**: it flags the loader and bumps a tick without waiting for the refetch, so `await invalidate(...)` carries no ordering guarantee. If a `goto()` supersedes the in-flight refetch, the next navigation re-runs every loader, so nothing stale sticks — but to refresh _and_ move, prefer one `goto(url, { invalidateAll: true })` and await it.
 
 R3. **Opt out per route when the cost outweighs the benefit.** Pages that change on every request (live ticker, per-second counter) or pages with personalised content not covered by `CACHE_KEYS` should opt out.
 
