@@ -20,8 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Navigation guide and skill: `await goto()` resumes after the scroll, so a `scrollTo()` sticks.
 - Routing guide and skill: route priority is compared segment by segment; a fixed name wins first.
 - Routing guide and skill: a catch-all can follow a param and must be the last part of a route.
-- Routing guide and skill: brackets wrap a whole folder; `[id].json`, `[[x]]`, `[id?]`, `[id=x]` fail.
-- Security guide: prerender rejects missing, empty or `.` values; any `entries()` error fails the build.
+- Routing guide and skill: brackets wrap a whole folder; `[id].json`, `[[x]]`, `[x?]`, `[x=y]` fail.
+- Security guide: prerender rejects missing, empty or `.` values; `entries()` errors fail the build.
 
 ## [0.8.25] - 2026-10-12
 
