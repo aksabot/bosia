@@ -236,6 +236,16 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("did you mean [...path]?");
 	});
 
+	test("a leading ellipsis (macOS autocorrect) asks for a catch-all", () => {
+		write("docs/[…rest]/+page.svelte");
+		expect(conflict()?.message).toContain("did you mean [...rest]?");
+	});
+
+	test("spaces or quotes in a param name fail the build", () => {
+		write("blog/[ slug]/+page.svelte");
+		expect(conflict()?.message).toContain("letters, digits, _, $, - and inner dots only");
+	});
+
 	test("two dots or an ellipsis ask for a catch-all too", () => {
 		write("docs/[path..]/+page.svelte");
 		expect(conflict()?.message).toContain("did you mean [...path]?");

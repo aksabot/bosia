@@ -18,7 +18,7 @@ import { makeBosiaPlugin } from "./plugin.ts";
 import { makeBosiaSvelteCompiler, svelteMapCache } from "./svelteCompiler.ts";
 import { finalizeComponentCss } from "./componentCss.ts";
 import { buildPreloadMap } from "./preloadMap.ts";
-import { prerenderStaticRoutes, generateStaticSite } from "./prerender.ts";
+import { prerenderStaticRoutes, generateStaticSite, PrerenderEntriesError } from "./prerender.ts";
 import { precompressDir } from "./precompress.ts";
 import { loadEnv, classifyEnvVars } from "./env.ts";
 import { generateEnvModules } from "./envCodegen.ts";
@@ -400,7 +400,15 @@ await bundleRuntimeUserFiles(process.cwd());
 const devBuild = process.env.BOSIA_DEV_BUILD === "1";
 
 // 9. Prerender static routes
-if (!devBuild) await prerenderStaticRoutes(manifest, target);
+if (!devBuild) {
+	try {
+		await prerenderStaticRoutes(manifest, target);
+	} catch (err) {
+		if (!(err instanceof PrerenderEntriesError)) throw err;
+		console.error(`❌ ${err.message}`);
+		process.exit(1);
+	}
+}
 
 // 10. Generate static site output (HTML + client assets + public → dist/static/)
 if (!devBuild) generateStaticSite();

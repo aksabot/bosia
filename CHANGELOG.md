@@ -50,7 +50,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The build no longer warns about `/[lang]/[...rest]` when a `/[lang]` or `/[slug]` page exists.
 - A param name starting with a digit, like `[1st]`, no longer breaks the generated types.
 - Prerendered paths keep a `$&` in an `entries()` value as-is instead of mangling it.
-- The build catches `[path...]` or `[path..]` typos and suggests `[...path]`.
+- The build catches `[path...]`, `[path..]` or `[…path]` typos and suggests `[...path]`.
+- Prerender checks `entries()` values after decoding, so `%2e%2e` can't save the home page as a post.
+- A failed `entries()` now prints one clear `❌` line instead of a stack trace.
 - Prerender rejects a missing, empty, `.`, `?` or `#` param value; values like `[draft]` stay as-is.
 - A catch-all `entries()` value may end in `/` again, like `guide/intro/`.
 - A folder name with a `'` no longer breaks the generated route types.
@@ -62,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Upgrading: a route like `docs/[...path]/edit` only half-worked before; put `[...path]` last.
 - The build now fails on SvelteKit matchers like `[id=integer]`; use `[id]` and check it in `load`.
 - The build now fails on optional `[id?]` params; use `[id]`.
+- Param names use letters, digits, `_`, `$`, `-` and inner dots; spaces or quotes fail the build.
 - Upgrading: an `entries()` error, or a missing `entries()` export, now fails the build.
 - Upgrading: rename `[[lang]]` to `[lang]`; it gave `params["[lang]"]` and now fails the build.
 - Upgrading: `[post-id]` beside `[slug]` in one folder now fails as a conflict; both hit every URL.

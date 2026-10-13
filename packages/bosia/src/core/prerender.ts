@@ -77,19 +77,26 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			if (!rank) return seg;
 			const name = segmentName(seg);
 			if (entry[name] == null || !Object.hasOwn(entry, name))
-				throw new Error(`Prerender entries(): no value for ${seg} in ${pattern}.`);
+				throw new Error(`entries() gave no value for ${seg}`);
 			// A catch-all may end in one "/" ("guide/intro/"); the out path drops it.
 			const value = rank === 2 ? String(entry[name]).replace(/\/$/, "") : String(entry[name]);
-			const bad = (why: string) => {
-				throw new Error(`Prerender entries(): unsafe value "${entry[name]}" for ${seg} — ${why}.`);
+			const bad = (why: string): never => {
+				throw new Error(`entries() value "${entry[name]}" for ${seg} is unsafe — ${why}`);
 			};
+			// Check what the server will see: `%2e%2e` and `%2F` decode to `..` and `/`.
+			let decoded = value;
+			try {
+				decoded = decodeURIComponent(value);
+			} catch {
+				bad("invalid percent-encoding");
+			}
 			// `..` and `\` let a build write outside the output tree.
-			if (/\\|\.\./.test(value)) bad("path traversal characters are not allowed");
+			if (/\\|\.\./.test(decoded)) bad("path traversal characters are not allowed");
 			// The fetched URL would differ from the file written.
-			if (/[?#]/.test(value)) bad("`?` and `#` are not allowed");
-			if (rank === 1 && value.includes("/")) bad("`/` is only allowed in a [...rest] param");
+			if (/[?#]/.test(decoded)) bad("`?` and `#` are not allowed");
+			if (rank === 1 && decoded.includes("/")) bad("`/` is only allowed in a [...rest] param");
 			// An empty or "." part would land on the parent route's file.
-			if (value.split("/").some((part) => part === "" || part === "."))
+			if (decoded.split("/").some((part) => part === "" || part === "."))
 				bad("empty or `.` parts are not allowed");
 			return value;
 		})
@@ -130,6 +137,11 @@ export function prerenderApiOutPath(routePath: string): string {
 	return `${OUT_DIR}/prerendered${routePath.replace(/\/$/, "")}.json`;
 }
 
+/** A dynamic prerender route whose entries() can't be used. build.ts prints `message` and exits. */
+export class PrerenderEntriesError extends Error {
+	override name = "PrerenderEntriesError";
+}
+
 /** Dynamic route → import module, call entries(), expand to concrete targets. */
 async function expandDynamicRoute(
 	pattern: string,
@@ -149,9 +161,8 @@ async function expandDynamicRoute(
 		}));
 	} catch (err) {
 		// Fail the build: skipping the route would silently drop every page it lists.
-		throw new Error(`Failed to resolve entries() for ${pattern}: ${(err as Error).message}`, {
-			cause: err,
-		});
+		const why = err instanceof Error ? err.message : String(err);
+		throw new PrerenderEntriesError(`Prerender failed for ${pattern}: ${why}`, { cause: err });
 	}
 }
 

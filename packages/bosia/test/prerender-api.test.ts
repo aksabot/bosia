@@ -56,6 +56,15 @@ describe("substituteParams() — API rest-segment cases", () => {
 		expect(() => substituteParams("/docs/[...p]", { p: "/" })).toThrow(/empty or `\.` parts/);
 	});
 
+	test("percent-encoded dots and slashes are checked decoded", () => {
+		expect(() => substituteParams("/blog/[slug]", { slug: "%2e%2e" })).toThrow(/path traversal/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a%2Fb" })).toThrow(/only allowed in a/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "%E0%A4%A" })).toThrow(
+			/percent-encoding/,
+		);
+		expect(substituteParams("/blog/[slug]", { slug: "caf%C3%A9" })).toBe("/blog/caf%C3%A9");
+	});
+
 	test("a catch-all value may end in one slash", () => {
 		expect(substituteParams("/docs/[...p]", { p: "guide/intro/" })).toBe("/docs/guide/intro");
 	});

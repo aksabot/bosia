@@ -239,7 +239,7 @@ action that reads it.
 
 Static file and prerendered page serving validates that resolved file paths stay within their allowed directories, preventing `../` traversal attacks.
 
-At build time, prerender `entries()` values are also validated: `..` and `\` are never allowed in any segment, `/` is only allowed inside catch-all (`[...rest]`) segments, and a missing, empty, `.`, `?` or `#` value is rejected. Any `entries()` error, or a missing `entries()` export, fails the build. A build that returns an unsafe value fails fast with a clear error rather than silently writing HTML outside the output tree.
+At build time, prerender `entries()` values are also validated: `..` and `\` are never allowed in any segment, `/` is only allowed inside catch-all (`[...rest]`) segments (checked after percent-decoding, so `%2e%2e` and `%2F` count), and a missing, empty, `.`, `?` or `#` value is rejected. Any `entries()` error, or a missing `entries()` export, fails the build. A build that returns an unsafe value fails fast with a clear error rather than silently writing HTML outside the output tree.
 
 ## Open-Redirect Protection
 
