@@ -46,6 +46,7 @@
 - [x] 🟢 `navigate()` sets `router.loading` on `started`, so a same-tick `goto()` to that URL waits; hydration's early return clears it.
 - [ ] ⚪ Back onto a 404 entry while hydration chunks load skips the hard load (first run forces `moved` false).
 - [ ] ⚪ A redirect back to the shown page superseded before settling leaves `lastNavKey = ""`: next Back refetches and clears `form`.
+- [ ] 🟠 `export const cache = false` in `+page.server.ts` is silently ignored (only `+page.svelte` is read; v0.6.0 promised both): personalised data stays cached. Honor it, or warn at build.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts
 
