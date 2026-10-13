@@ -90,3 +90,13 @@ describe("compileRoutes / findMatch — escaping & priority", () => {
 		expect(findMatch(routes, "/a/b")?.route.pattern).toBe("/[...rest]");
 	});
 });
+
+describe("findMatch — catch-all after a [param] segment", () => {
+	test("/[lang]/[...rest] matches, compiled or not", () => {
+		const routes = () => [{ pattern: "/[lang]/[...rest]" }];
+		const want = { lang: "en", rest: "docs/intro" };
+		expect(findMatch(compileRoutes(routes()), "/en/docs/intro")?.params).toEqual(want);
+		expect(findMatch(routes(), "/en/docs/intro")?.params).toEqual(want);
+		expect(findMatch(routes(), "/en")).toBeNull();
+	});
+});

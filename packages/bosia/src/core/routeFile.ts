@@ -28,10 +28,11 @@ function clientPattern(pattern: string): string {
 //   serverRoutes  — used by SSR renderer (+ pageServer + layoutServers)
 //   apiRoutes     — used by API handler
 
-// static beats dynamic beats catch-all
-function segmentRank(seg: string): number {
-	if (!seg.startsWith("[")) return 0;
-	return seg.startsWith("[...") ? 2 : 1;
+// static beats dynamic beats catch-all — classified the way matcher.ts compiles
+// them: `[...x]` is a catch-all only as the last segment, `[x]` must be whole.
+function segmentRank(seg: string, last: boolean): number {
+	if (!seg.startsWith("[") || !seg.endsWith("]")) return 0;
+	return last && /^\[\.\.\.\w+\]$/.test(seg) ? 2 : 1;
 }
 
 /** Most specific first: compared segment by segment, the first differing kind
@@ -43,11 +44,12 @@ export function sortRoutes<T extends { pattern: string }>(routes: T[]): T[] {
 		const sa = a.pattern.split("/").filter(Boolean);
 		const sb = b.pattern.split("/").filter(Boolean);
 		for (let i = 0; i < Math.min(sa.length, sb.length); i++) {
-			const d = segmentRank(sa[i]!) - segmentRank(sb[i]!);
+			const d = segmentRank(sa[i]!, i === sa.length - 1) - segmentRank(sb[i]!, i === sb.length - 1);
 			if (d !== 0) return d;
 		}
 		if (sa.length !== sb.length) return sb.length - sa.length;
-		return a.pattern.localeCompare(b.pattern);
+		// plain code-unit compare: same order on every machine, unlike localeCompare
+		return a.pattern < b.pattern ? -1 : a.pattern > b.pattern ? 1 : 0;
 	});
 }
 

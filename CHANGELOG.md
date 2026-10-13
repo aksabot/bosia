@@ -45,6 +45,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A loading skeleton no longer resets the layout around it (e.g. an open sidebar).
 - `await goto()` now resumes after the page scrolled, so your own `scrollTo()` sticks.
 - A fixed path like `/label/[id]` now wins over `/[folder]/[thread]` instead of returning 404.
+- A catch-all after a param, like `/[lang]/[...rest]`, now matches instead of returning 404.
+
+### Changed
+
+- Route priority is now checked part by part: `/blog/[...slug]` beats `/[lang]/about` for `/blog/about`.
 
 ## [1.2.2] - 2026-10-12
 
