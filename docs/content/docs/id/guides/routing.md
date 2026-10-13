@@ -49,6 +49,8 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 Catch-all bisa ada setelah param: `[lang]/[...rest]` cocok dengan `/en/a/b`. Catch-all harus jadi bagian terakhir route — `docs/[...path]/edit` membuat build gagal.
 
+Kurung harus membungkus satu segmen utuh: `[id].json`, `post-[slug]`, dan optional `[[lang]]` tidak didukung dan membuat build gagal.
+
 ## Route Groups
 
 Direktori yang dibungkus dalam tanda kurung **tidak terlihat di URL** tetapi memungkinkan Anda berbagi layout:

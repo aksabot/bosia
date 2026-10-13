@@ -13,6 +13,8 @@ interface CompiledRoute {
 	regex: RegExp;
 	paramNames: string[];
 	isExact: boolean;
+	/** Set by compileRoutes for exact routes it put in the Map, so findMatch can skip them. */
+	inMap?: boolean;
 }
 
 // ─── Pattern Compiler ────────────────────────────────────
@@ -91,7 +93,10 @@ export function compileRoutes<T extends { pattern: string }>(
 		const compiled = compilePattern(route.pattern);
 		(route as any)._compiled = compiled;
 		// Exact patterns contain no dynamic segments, so pattern === pathname.
-		if (compiled.isExact) exact.set(route.pattern, route);
+		if (compiled.isExact) {
+			exact.set(route.pattern, route);
+			compiled.inMap = true;
+		}
 	}
 	exactMaps.set(routes, exact);
 	return routes as (T & { _compiled: CompiledRoute })[];
@@ -151,7 +156,7 @@ export function findMatch<T extends { pattern: string }>(
 		// A route pushed after compileRoutes compiles here, once.
 		const compiled: CompiledRoute = ((route as any)._compiled ??= compilePattern(route.pattern));
 		// Exact routes in the Map were checked above — skip them.
-		if (compiled.isExact && exact.get(route.pattern) === route) continue;
+		if (compiled.inMap) continue;
 		const params = matchCompiled(compiled, route.pattern, pathname);
 		if (params !== null) return { route, params };
 	}

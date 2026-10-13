@@ -254,8 +254,8 @@ function routeKey(pattern: string): string {
 }
 
 /**
- * Fail on params the matcher can't serve: a `[...rest]` that isn't the last
- * segment, a param with no name, or one name bound twice. Mid-path catch-alls
+ * Fail on params the matcher can't serve: brackets that don't wrap a whole
+ * segment, a `[...rest]` that isn't the last segment, or one name bound twice. Mid-path catch-alls
  * (`docs/[...path]/edit`) are left out on purpose: each is an unanchored `(.+)`
  * (several backtrack for seconds on a long URL) and they need span-aware ranking.
  * Add both together if that route shape is ever needed.
@@ -264,23 +264,23 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 	for (const r of routes) {
 		const segs = r.pattern.split("/").filter(Boolean);
 		const names = new Set<string>();
+		const fail = (problem: string) => {
+			throw new RouteConflictError(
+				`The "${r.pattern}" route is invalid: ${problem}.\n   src/routes/${fileOf(r)}`,
+			);
+		};
 		for (const [i, seg] of segs.entries()) {
-			const rank = segmentRank(seg);
-			if (!rank) continue;
-			const name = segmentName(seg);
-			const problem =
-				rank === 2 && i !== segs.length - 1
-					? `${seg} must be the last part of the route`
-					: !name
-						? `${seg} needs a name, like [slug] or [...rest]`
-						: names.has(name)
-							? `the param "${name}" is used twice`
-							: null;
-			if (problem) {
-				throw new RouteConflictError(
-					`The "${r.pattern}" route is invalid: ${problem}.\n   src/routes/${fileOf(r)}`,
-				);
+			if (!seg.includes("[") && !seg.includes("]")) continue;
+			// Brackets must wrap the whole segment: `[id].json`, `post-[slug]` and
+			// SvelteKit's optional `[[lang]]` would match only their literal text.
+			if (!/^\[(\.\.\.)?[\w-]+\]$/.test(seg)) {
+				fail(`${seg} must be a whole segment like [slug] or [...rest]`);
 			}
+			const name = segmentName(seg);
+			if (segmentRank(seg) === 2 && i !== segs.length - 1) {
+				fail(`${seg} must be the last part of the route`);
+			}
+			if (names.has(name)) fail(`the param "${name}" is used twice`);
 			names.add(name);
 		}
 	}

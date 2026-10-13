@@ -55,8 +55,8 @@
 - [x] 🟠 Mid-path catch-alls (`[...a]/[...b]/[...c]`) compiled to nested `(.+)`: 3 s per 4 KB URL (ReDoS). Build now rejects a non-last `[...rest]`, nameless or duplicate params.
 - [x] ⚪ `isExact` and prerender used `includes("[")`; both now use `isDynamic()` (segmentRank), so `/api/[id].json` is static everywhere.
 - [ ] ⚪ Mid-path catch-alls (`docs/[...path]/edit`): needs an anchored regex + span-aware ranking (SvelteKit sorts them last). Add both together if asked.
-- [ ] ⚪ Malformed segments `[a]-[b]`, `[[lang]]` read as params with odd names (types + matcher). Reject or warn at build.
-- [ ] ⚪ Catch-all prefix warning fires even when a shorter catch-all (`/[...all]`) already serves the prefix URL.
+- [x] ⚪ Partial/doubled brackets (`[id].json`, `post-[slug]`, `[[lang]]`) only ever matched literally; the build now rejects them. `findMatch` skips Map'd exact routes via `inMap`.
+- [ ] ⚪ Catch-all prefix warning fires when another route already serves the prefix (`/[...all]`, or `/[page]` for `/docs`). Check with `findMatch` on the sorted pages.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 
 ## bosia 1.2.2 (2026-10-12) — 404.html for static hosts

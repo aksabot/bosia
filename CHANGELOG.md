@@ -53,7 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Route priority is checked part by part: `/blog/[...slug]` beats `/[lang]/about` on `/blog/about`.
-- The build now fails on a `[...rest]` that isn't last, a param with no name, or a name used twice.
+- The build now fails on a `[...rest]` that isn't last, a name used twice, or `[id].json`/`[[x]]`.
 
 ## [1.2.2] - 2026-10-12
 

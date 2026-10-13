@@ -213,7 +213,17 @@ describe("scanRoutes() route conflicts", () => {
 
 	test("a param with no name fails the build", () => {
 		write("[...]/+page.svelte");
-		expect(conflict()?.message).toContain("[...] needs a name");
+		expect(conflict()?.message).toContain("[...] must be a whole segment");
+	});
+
+	test("partial brackets fail the build", () => {
+		write("api/[id].json/+server.ts");
+		expect(conflict()?.message).toContain("[id].json must be a whole segment");
+	});
+
+	test("SvelteKit optional [[param]] fails the build", () => {
+		write("[[lang]]/about/+page.svelte");
+		expect(conflict()?.message).toContain("[[lang]] must be a whole segment");
 	});
 
 	test("one param name used twice fails the build", () => {

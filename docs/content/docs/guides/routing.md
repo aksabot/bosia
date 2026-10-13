@@ -61,6 +61,8 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 A catch-all can follow a param: `[lang]/[...rest]` matches `/en/a/b`. It must be the last part of the route — `docs/[...path]/edit` fails the build.
 
+Brackets must wrap a whole segment: `[id].json`, `post-[slug]` and optional `[[lang]]` are not supported and fail the build.
+
 ## Route Groups
 
 Directories wrapped in parentheses are **invisible in the URL** but let you share layouts:
