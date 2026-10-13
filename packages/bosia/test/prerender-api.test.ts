@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { prerenderApiOutPath, substituteParams } from "../src/core/prerender.ts";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import {
+	detectPrerenderRoutes,
+	PrerenderEntriesError,
+	prerenderApiOutPath,
+	substituteParams,
+} from "../src/core/prerender.ts";
 
 describe("prerenderApiOutPath()", () => {
 	test("flat API path → .json file", () => {
@@ -39,44 +47,80 @@ describe("substituteParams() — API rest-segment cases", () => {
 		);
 	});
 
-	test("`$&` in a value stays literal", () => {
-		expect(substituteParams("/blog/[slug]", { slug: "a$&b" })).toBe("/blog/a$&b");
-	});
-
 	test("a missing param fails instead of writing a literal [slug] path", () => {
 		expect(() => substituteParams("/blog/[slug]/[id]", { id: "5" })).toThrow("no value for [slug]");
-	});
-
-	test("null, undefined, empty or '.' values fail instead of writing a wrong file", () => {
 		expect(() => substituteParams("/blog/[slug]", { slug: undefined as any })).toThrow("no value");
 		expect(() => substituteParams("/blog/[slug]", { slug: null as any })).toThrow("no value");
-		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/empty or `\.` parts/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/empty or `\.` parts/);
-		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/empty or `\.` parts/);
-		expect(() => substituteParams("/docs/[...p]", { p: "/" })).toThrow(/empty or `\.` parts/);
 	});
 
-	test("percent-encoded dots and slashes are checked decoded", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "%2e%2e" })).toThrow(/path traversal/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "a%2Fb" })).toThrow(/only allowed in a/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "%E0%A4%A" })).toThrow(
-			/percent-encoding/,
+	test("unreserved URL characters pass; a catch-all also takes /", () => {
+		expect(substituteParams("/blog/[slug]", { slug: "Hello_World-2.0~x" })).toBe(
+			"/blog/Hello_World-2.0~x",
 		);
-		expect(substituteParams("/blog/[slug]", { slug: "caf%C3%A9" })).toBe("/blog/caf%C3%A9");
+		expect(substituteParams("/compare/[range]", { range: "v1..v2" })).toBe("/compare/v1..v2");
+		expect(substituteParams("/docs/[...p]", { p: "guide/v1..v2/intro" })).toBe(
+			"/docs/guide/v1..v2/intro",
+		);
+		expect(substituteParams("/[a]/[b]", { a: "x", b: "5" })).toBe("/x/5");
 	});
 
 	test("a catch-all value may end in one slash", () => {
 		expect(substituteParams("/docs/[...p]", { p: "guide/intro/" })).toBe("/docs/guide/intro");
 	});
 
-	test("? and # fail (fetched URL would differ from the written file)", () => {
-		expect(() => substituteParams("/docs/[...p]", { p: "a?b" })).toThrow(/`\?` and `#`/);
-		expect(() => substituteParams("/blog/[slug]", { slug: "a#b" })).toThrow(/`\?` and `#`/);
+	test("any other character fails, encoded or not", () => {
+		const slugs = ["50%-off", "100%", "%2e%2e", "a%2Fb", "what%3F", "café", "a b", "foo ", "a\tb"];
+		for (const slug of [...slugs, "a?b", "a#b", "a/b", "[draft]", "a$&b", "a\\b", "a\x7fb"])
+			expect(() => substituteParams("/blog/[slug]", { slug })).toThrow(/use only letters/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a/50%" })).toThrow(/use only letters/);
 	});
 
-	test("bracketed values stay literal and aren't re-substituted", () => {
-		expect(substituteParams("/blog/[slug]", { slug: "[draft]" })).toBe("/blog/[draft]");
-		expect(substituteParams("/[a]/[b]", { a: "[b]", b: "x" })).toBe("/[b]/x");
-		expect(substituteParams("/notes/[...path]", { path: "a/[wip]" })).toBe("/notes/a/[wip]");
+	test("empty, `.` and `..` parts fail (they'd land on another route's file)", () => {
+		expect(() => substituteParams("/blog/[slug]", { slug: "" })).toThrow(/no empty parts/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a//b" })).toThrow(/no empty parts/);
+		expect(() => substituteParams("/docs/[...p]", { p: "/" })).toThrow(/no empty parts/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "." })).toThrow(/`\.` and `\.\.` parts/);
+		expect(() => substituteParams("/blog/[slug]", { slug: ".." })).toThrow(/`\.` and `\.\.` parts/);
+		expect(() => substituteParams("/docs/[...p]", { p: "a/../b" })).toThrow(
+			/`\.` and `\.\.` parts/,
+		);
+	});
+
+	test("the error quotes the value, so a newline can't split the message", () => {
+		expect(() => substituteParams("/blog/[slug]", { slug: "a\nb" })).toThrow('"a\\nb"');
+	});
+});
+
+describe("detectPrerenderRoutes()", () => {
+	test("lists every broken entries() route in one error", async () => {
+		const cwdBefore = process.cwd();
+		const dir = mkdtempSync(join(tmpdir(), "bosia-detect-"));
+		try {
+			for (const name of ["a", "b"]) {
+				mkdirSync(join(dir, "src/routes", name, "[slug]"), { recursive: true });
+				writeFileSync(
+					join(dir, "src/routes", name, "[slug]/+page.server.ts"),
+					"export const prerender = true;\n",
+				);
+			}
+			process.chdir(dir);
+			const page = (name: string) => ({
+				pattern: `/${name}/[slug]`,
+				pageServer: `${name}/[slug]/+page.server.ts`,
+				trailingSlash: "never",
+			});
+			const err = await detectPrerenderRoutes({
+				pages: [page("a"), page("b")],
+				apis: [],
+				errorPage: null,
+			} as any).catch((e) => e);
+			expect(err).toBeInstanceOf(PrerenderEntriesError);
+			expect(err.message).toContain("/a/[slug]");
+			expect(err.message).toContain("/b/[slug]");
+			expect(err.message.split("\n")).toHaveLength(2);
+		} finally {
+			process.chdir(cwdBefore);
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });

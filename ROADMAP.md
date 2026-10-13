@@ -1,9 +1,15 @@
 # Bosia — Roadmap
 
 > Track what's done, what's next, and where we're headed.
-> Current version: **1.2.3**
+> Current version: **1.2.4**
 
 ---
+
+## bosia 1.2.4 (2026-10-14) — prerender `entries()` value fixes
+
+- [x] 🟡 Prerender `entries()` values: unreserved URL chars only (`A-Za-z0-9-_.~`, `/` in catch-alls); no `%`/space/control/non-ASCII, so URL, file and static-host lookup agree. Only whole `.`/`..` parts fail.
+- [x] ⚪ Param names are ASCII TS identifiers (`^[A-Za-z_$][A-Za-z0-9_$]*$`); one error message replaces the `=`/`?`/dots hints; no Windows-only test case.
+- [x] ⚪ Prerender lists every bad `entries()` route at once (`Promise.allSettled`), one `❌` line each; values are JSON-quoted in errors.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 
@@ -65,9 +71,6 @@
 - [x] ⚪ Prerender: catch-all values may end in `/` again; `?`/`#` rejected; errors throw (no `process.exit`); missing `entries()` export fails too. `[path..]`/`[x…]` typos caught.
 - [x] ⚪ Prerender let `%2e%2e`/`%2F` through (home HTML saved as `blog/%2e%2e.html`); values are now checked decoded. Errors print one `❌` line (`PrerenderEntriesError`).
 - [x] ⚪ Param names: one whitelist (`PARAM_NAME`: letters, digits, `_$-`, inner dots) ends typo whack-a-mole (`[ slug]`, `[…rest]`); specific hints kept for `=`, `?`, dots.
-- [ ] 🟡 Prerender: a slug with a bare `%` (`50%-off`) fails as "invalid percent-encoding" (regression in 1.2.3). If decode fails, check the raw value.
-- [ ] ⚪ Prerender: check only traversal (`..`, `\`, empty/`.` parts) decoded; `?`, `#`, `/` raw, so `%3F`/`%2F` pass. Reject tab/LF/CR (URL parser drops them).
-- [ ] ⚪ Prerender: report every bad `entries()` route at once (`Promise.allSettled`), not just the first.
 - [ ] ⚪ One `parseSegment()` returning `{rank, name}` or an error: `SEGMENT` runs 2–3× per segment, and `checkParams` keeps its own bracket regex.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
 

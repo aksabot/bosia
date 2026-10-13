@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.8.27] - 2026-10-14
+
+### Changed
+
+- Routing guide and skill: param names follow TypeScript variable rules.
+- Routing and security guides, routing skill: `entries()` values allow only `A-Za-z0-9-_.~`.
+
 ## [0.8.26] - 2026-10-13
 
 ### Changed

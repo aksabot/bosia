@@ -278,23 +278,15 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 		for (const [i, seg] of segs.entries()) {
 			const rank = segmentRank(seg);
 			if (!rank) {
-				// `[...]`, `[.x]`, `[id].json`, `post-[slug]`, `[[lang]]` would match only their literal text.
-				if (/^\[(\.\.\.)?[^[\]/]*\]$/.test(seg))
-					fail(`${seg} needs a param name that doesn't start with a dot, like [slug] or [...rest]`);
+				// `[...]`, `[.x]` would match only their literal text.
+				if (/^\[(\.\.\.)?[^[\]/]*\]$/.test(seg)) fail(BAD_NAME(seg));
+				// `[id].json`, `post-[slug]`, `[[lang]]`.
 				if (/[[\]]/.test(seg)) fail(`${seg} must be a whole segment like [slug] or [...rest]`);
 				continue;
 			}
 			const name = segmentName(seg);
 			if (rank === 2 && i !== segs.length - 1) fail(`${seg} must be the last part of the route`);
-			const dots = rank === 2 ? "..." : "";
-			if (name.includes("="))
-				fail(`${seg}: param matchers aren't supported, use [${dots}${name.split("=")[0]}]`);
-			if (name.endsWith("?"))
-				fail(`${seg}: optional params aren't supported, use [${dots}${name.slice(0, -1)}]`);
-			if (/^…|[.…]$/.test(name))
-				fail(`${seg}: did you mean [...${name.replace(/^…|[.…]+$/g, "")}]?`);
-			if (!PARAM_NAME.test(name))
-				fail(`${seg}: a param name uses letters, digits, _, $, - and inner dots only`);
+			if (!PARAM_NAME.test(name)) fail(BAD_NAME(seg));
 			// params is a plain object: assigning "__proto__" sets the prototype, not a key.
 			if (name === "__proto__") fail(`"__proto__" can't be a param name`);
 			if (names.has(name)) fail(`the param "${name}" is used twice`);
@@ -303,8 +295,10 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 	}
 }
 
-// `[slüg]`, `[$id]`, `[my-path]`, `[file.name]`, `[1st]`; no spaces, quotes, `…` or edge dots.
-const PARAM_NAME = /^[\p{L}\p{N}_$-]+(\.[\p{L}\p{N}_$-]+)*$/u;
+// A TypeScript identifier (ASCII), so `params.name` always works: `[slug]`, `[x123]`, `[user_id]`, `[_id]`, `[$id]`.
+const PARAM_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const BAD_NAME = (seg: string) =>
+	`${seg}: a param name uses letters, digits, _ and $, and can't start with a digit (like [slug], [user_id] or [...rest])`;
 
 /** A route tree the build refuses (two files at one URL, or an invalid param).
  *  Callers print `message` and exit. */

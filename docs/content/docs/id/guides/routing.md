@@ -49,7 +49,7 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 Catch-all bisa ada setelah param: `[lang]/[...rest]` cocok dengan `/en/a/b`. Catch-all harus jadi bagian terakhir route — `docs/[...path]/edit` membuat build gagal.
 
-Nama param memakai huruf, angka, `_`, `$`, `-`, dan titik di tengah (`[slug]`, `[my-path]`, `[file.name]`); spasi, tanda kutip, atau `…` membuat build gagal. Kurung harus membungkus satu segmen utuh: `[id].json`, `post-[slug]`, optional `[[lang]]` atau `[id?]`, dan matcher seperti `[id=integer]` tidak didukung dan membuat build gagal.
+Nama param mengikuti aturan nama variabel TypeScript: huruf, angka, `_` dan `$`, tidak diawali angka (`[slug]`, `[x123]`, `[user_id]`, `[_id]`, `[...path]`). Selain itu, seperti `[post-id]` atau `[file.name]`, membuat build gagal. Kurung harus membungkus satu segmen utuh: `[id].json`, `post-[slug]`, optional `[[lang]]` atau `[id?]`, dan matcher seperti `[id=integer]` tidak didukung dan membuat build gagal.
 
 ## Route Groups
 
@@ -170,6 +170,6 @@ export const prerender = true; // build ke HTML statis saat `bosia build`
 
 - `ssr = false` — server `load()` tetap berjalan dan hasilnya diinjeksi sebagai page data; client melakukan hydrate dan render. Cocok untuk halaman dengan dependensi khusus browser (`window`, chart, widget pihak ketiga) atau halaman auth-gated di mana SSR menambah latensi tanpa nilai SEO.
 - `csr = false` — tidak ada JS untuk halaman ini. HTML statis saja.
-- `prerender = true` — di-capture saat build. Untuk route dinamis, ekspor juga `entries()` yang mengembalikan nilai param yang akan di-prerender.
+- `prerender = true` — di-capture saat build. Untuk route dinamis, ekspor juga `entries()` yang mengembalikan nilai param yang akan di-prerender. Nilainya hanya boleh huruf, angka, `-`, `_`, `.` dan `~` (plus `/` di catch-all), seperti `50-off`; selain itu build gagal.
 
 `ssr = false` bersama `csr = false` tidak akan merender apapun dan otomatis di-override ke `csr = true` (dengan peringatan di mode dev). `ssr = false` bersama `prerender = true` bertentangan; route akan dilewati saat prerender. Begitu juga halaman yang mengekspor `actions`: file statis tidak bisa menjalankan form action, jadi halaman tetap dirender langsung.

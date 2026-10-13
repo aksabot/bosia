@@ -81,23 +81,18 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			// A catch-all may end in one "/" ("guide/intro/"); the out path drops it.
 			const value = rank === 2 ? String(entry[name]).replace(/\/$/, "") : String(entry[name]);
 			const bad = (why: string): never => {
-				throw new Error(`entries() value "${entry[name]}" for ${seg} is unsafe — ${why}`);
+				throw new Error(
+					`entries() value ${JSON.stringify(entry[name])} for ${seg} is unsafe — ${why}`,
+				);
 			};
-			// Check what the server will see: `%2e%2e` and `%2F` decode to `..` and `/`.
-			let decoded = value;
-			try {
-				decoded = decodeURIComponent(value);
-			} catch {
-				bad("invalid percent-encoding");
-			}
-			// `..` and `\` let a build write outside the output tree.
-			if (/\\|\.\./.test(decoded)) bad("path traversal characters are not allowed");
-			// The fetched URL would differ from the file written.
-			if (/[?#]/.test(decoded)) bad("`?` and `#` are not allowed");
-			if (rank === 1 && decoded.includes("/")) bad("`/` is only allowed in a [...rest] param");
-			// An empty or "." part would land on the parent route's file.
-			if (decoded.split("/").some((part) => part === "" || part === "."))
-				bad("empty or `.` parts are not allowed");
+			// Unreserved URL characters only: the fetched URL, the file written and a static
+			// host's lookup all agree, with nothing to percent-encode or decode (`50%-off` → `50-off`).
+			const parts = rank === 2 ? value.split("/") : [value];
+			if (!parts.every((part) => /^[A-Za-z0-9._~-]+$/.test(part)))
+				bad(`use only letters, digits, - _ . ~${rank === 2 ? " and /" : ""}, with no empty parts`);
+			// The URL parser folds a `.` or `..` part, so the page would land on another route's file.
+			if (parts.some((part) => part === "." || part === ".."))
+				bad("`.` and `..` parts are not allowed");
 			return value;
 		})
 		.join("/");
@@ -166,7 +161,7 @@ async function expandDynamicRoute(
 	}
 }
 
-async function detectPrerenderRoutes(manifest: RouteManifest): Promise<PrerenderTarget[]> {
+export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<PrerenderTarget[]> {
 	const pageTasks = manifest.pages.map(async (route): Promise<PrerenderTarget[]> => {
 		if (!route.pageServer) return [];
 		const filePath = join("src", "routes", route.pageServer);
@@ -194,8 +189,13 @@ async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Prerender
 	// Unbounded Promise.all over all routes; each task holds only small text reads
 	// and route metadata, so RAM stays trivial. Chunk it if route counts ever hit
 	// tens of thousands (open file descriptors would be the first limit).
-	const results = await Promise.all([...pageTasks, ...apiTasks]);
-	return results.flat();
+	const results = await Promise.allSettled([...pageTasks, ...apiTasks]);
+	// List every broken entries() route in one error, not just the first.
+	const failed = results.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+	const other = failed.find((e) => !(e instanceof PrerenderEntriesError));
+	if (other) throw other;
+	if (failed.length) throw new PrerenderEntriesError(failed.map((e) => e.message).join("\n"));
+	return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 }
 
 export async function prerenderStaticRoutes(

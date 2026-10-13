@@ -61,7 +61,7 @@ src/routes/all/[...catchall]/+page.svelte  →  /all/a
 
 A catch-all can follow a param: `[lang]/[...rest]` matches `/en/a/b`. It must be the last part of the route — `docs/[...path]/edit` fails the build.
 
-A param name uses letters, digits, `_`, `$`, `-` and inner dots (`[slug]`, `[my-path]`, `[file.name]`); spaces, quotes or `…` fail the build. Brackets must wrap a whole segment: `[id].json`, `post-[slug]`, optional `[[lang]]` or `[id?]`, and matchers like `[id=integer]` are not supported and fail the build.
+A param name follows TypeScript variable rules: letters, digits, `_` and `$`, not starting with a digit (`[slug]`, `[x123]`, `[user_id]`, `[_id]`, `[...path]`). Anything else, like `[post-id]` or `[file.name]`, fails the build. Brackets must wrap a whole segment: `[id].json`, `post-[slug]`, optional `[[lang]]` or `[id?]`, and matchers like `[id=integer]` are not supported and fail the build.
 
 ## Route Groups
 
@@ -206,7 +206,7 @@ export const trailingSlash = "never"; // canonicalize URL form: "never" | "alway
 
 - `ssr = false` — server `load()` still runs and its result is injected as page data; the client hydrates and renders. Use for pages with browser-only deps (`window`, charts, third-party widgets) or auth-gated views where SSR adds latency without SEO value.
 - `csr = false` — no JS shipped for the page. Static HTML only.
-- `prerender = true` — captured at build time. For dynamic routes, also export `entries()` returning the param values to prerender.
+- `prerender = true` — captured at build time. For dynamic routes, also export `entries()` returning the param values to prerender. Values use only letters, digits, `-`, `_`, `.` and `~` (plus `/` in a catch-all), like `50-off`; anything else fails the build.
 - `trailingSlash` — canonicalize the URL form. Defaults to `"never"`.
   - `"never"` (default) — `/about/` → 308 → `/about`. Static export emits `about.html`.
   - `"always"` — `/about` → 308 → `/about/`. Static export emits `about/index.html`.

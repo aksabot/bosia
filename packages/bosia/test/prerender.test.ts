@@ -32,19 +32,17 @@ describe("substituteParams()", () => {
 	});
 
 	test("rejects `..` in any segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "../etc" })).toThrow(/path traversal/);
-		expect(() => substituteParams("/docs/[...path]", { path: "a/../b" })).toThrow(/path traversal/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "../etc" })).toThrow(/use only letters/);
+		expect(() => substituteParams("/docs/[...path]", { path: "a/../b" })).toThrow(/`\.\.` parts/);
 	});
 
 	test("rejects backslash in any segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "a\\b" })).toThrow(/path traversal/);
-		expect(() => substituteParams("/docs/[...path]", { path: "a\\b" })).toThrow(/path traversal/);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a\\b" })).toThrow(/use only letters/);
+		expect(() => substituteParams("/docs/[...path]", { path: "a\\b" })).toThrow(/use only letters/);
 	});
 
 	test("rejects `/` in non-rest dynamic segment value", () => {
-		expect(() => substituteParams("/blog/[slug]", { slug: "a/b" })).toThrow(
-			/only allowed in a \[\.\.\.rest\]/,
-		);
+		expect(() => substituteParams("/blog/[slug]", { slug: "a/b" })).toThrow(/use only letters/);
 	});
 
 	test("allows `/` inside catch-all `[...rest]` value", () => {

@@ -211,50 +211,14 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("[...path] must be the last part of the route");
 	});
 
-	test("a param with no name fails the build", () => {
-		write("[...]/+page.svelte");
-		expect(conflict()?.message).toContain("[...] needs a param name");
-	});
-
-	test("a SvelteKit param matcher fails the build", () => {
-		write("items/[id=integer]/+page.svelte");
-		expect(conflict()?.message).toContain("param matchers aren't supported, use [id]");
-	});
-
-	test("a catch-all matcher suggests the catch-all back", () => {
-		write("docs/[...path=rest]/+page.svelte");
-		expect(conflict()?.message).toContain("use [...path]");
-	});
-
-	// Windows forbids `?` in file names, so this folder can only exist elsewhere.
-	test.skipIf(process.platform === "win32")("an optional [id?] fails the build", () => {
-		write("items/[id?]/+page.svelte");
-		expect(conflict()?.message).toContain("optional params aren't supported, use [id]");
-	});
-
-	test("trailing dots ask for a leading-dot catch-all", () => {
-		write("docs/[path...]/+page.svelte");
-		expect(conflict()?.message).toContain("did you mean [...path]?");
-	});
-
-	test("a leading ellipsis (macOS autocorrect) asks for a catch-all", () => {
-		write("docs/[…rest]/+page.svelte");
-		expect(conflict()?.message).toContain("did you mean [...rest]?");
-	});
-
-	test("spaces or quotes in a param name fail the build", () => {
-		write("blog/[ slug]/+page.svelte");
-		expect(conflict()?.message).toContain("letters, digits, _, $, - and inner dots only");
-	});
-
-	test("two dots or an ellipsis ask for a catch-all too", () => {
-		write("docs/[path..]/+page.svelte");
-		expect(conflict()?.message).toContain("did you mean [...path]?");
-	});
-
-	test("a dot-led param name fails the build", () => {
-		write("[.hidden]/+page.svelte");
-		expect(conflict()?.message).toContain("[.hidden] needs a param name");
+	test("a param name that isn't a TypeScript identifier fails the build", () => {
+		const bad = ["[...]", "[.hidden]", "[id=integer]", "[...path=rest]", "[path...]", "[path..]"];
+		bad.push("[…rest]", "[ slug]", "[post-id]", "[file.name]", "[1st]", "[slüg]");
+		for (const seg of bad) {
+			rmSync(join(tmpDir, "src"), { recursive: true, force: true });
+			write(`x/${seg}/+page.svelte`);
+			expect(conflict()?.message).toContain(`${seg}: a param name uses letters, digits, _ and $`);
+		}
 	});
 
 	test("partial brackets fail the build", () => {
@@ -268,10 +232,12 @@ describe("scanRoutes() route conflicts", () => {
 		expect(conflict()?.message).toContain("[[lang]] must be a whole segment");
 	});
 
-	test("unusual but whole names still build: [slüg], [$id], [file.name]", () => {
-		write("a/[slüg]/+page.svelte");
+	test("TypeScript identifiers build: [x123], [user_id], [_id], [$id], [...path]", () => {
+		write("a/[x123]/+page.svelte");
 		write("b/[$id]/+page.svelte");
-		write("c/[file.name]/+page.svelte");
+		write("c/[user_id]/+page.svelte");
+		write("e/[_id]/+page.svelte");
+		write("f/[...path]/+page.svelte");
 		write("d/[slug]/edit/+page.svelte");
 		expect(conflict()).toBeNull();
 	});
@@ -333,8 +299,8 @@ describe("scanRoutes() catch-all prefix warning", () => {
 		expect(warnings()).toEqual([]);
 	});
 
-	test("a missing prefix page still warns, hyphenated names too", () => {
-		write("docs/[...my-path]/+page.svelte");
+	test("a missing prefix page still warns", () => {
+		write("docs/[...my_path]/+page.svelte");
 		expect(warnings().join("")).toContain(`doesn't match "/docs" itself`);
 	});
 });

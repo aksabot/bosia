@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.4] - 2026-10-14
+
+### Changed
+
+- Param names follow TypeScript variable rules: `[user_id]`, `[_id]` ok; `[post-id]` fails.
+- Prerender `entries()` values allow only letters, digits, `- _ . ~` (and `/` in catch-alls).
+- `entries()` values like `v1..v2` are allowed; only a whole `.` or `..` part fails.
+- The build lists every broken `entries()` route at once, one `❌` line each.
+
 ## [1.2.3] - 2026-10-13
 
 ### Fixed
