@@ -322,6 +322,9 @@ describe("detectPrerenderRoutes()", () => {
 		["/[slug]", "__bosia", "always", "page", false], // fetched as /__bosia/
 		["/blog/[slug]", "logo.png", "never", "page", false], // a static-file ending
 		["/[slug]", "robots.txt", "never", "page", false], // would save public/robots.txt
+		// Round 11: `/logo.png` 404s before the server can 308 it to `/logo.png/`.
+		["/blog/[slug]", "logo.png", "always", "page", false],
+		["/[slug]", "robots.txt", "ignore", "page", false],
 		["/[slug]", "_health", "never", "api", false],
 		["/[...slug]", "dist/x", "never", "api", false],
 		// Look-alikes the server renders as pages.

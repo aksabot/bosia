@@ -27,6 +27,9 @@
 - [ ] ⚪ A static folder `index` at a route's end (`src/routes/blog/index`) in `never` mode writes `blog/index.html`, replacing `/blog/`. Scanner check; separate branch.
 - [ ] ⚪ Device-name check rejects `com0`/`lpt0`, which Windows doesn't reserve; use `com[1-9]|lpt[1-9]`.
 - [x] 🟡 `isStaticPath` moved to side-effect-free `staticPath.ts`: importing it from `html.ts` loaded that module in the build before `loadEnv()`, pinning BASE_PATH to `""`. Test guards build.ts's imports.
+- [x] ⚪ Page values are checked with and without the trailing `/`: in always mode `logo.png` passed as `/logo.png/`, but `/logo.png` 404s before the 308.
+- [ ] 🟡 A slug can freeze a live route: `/blog/[slug]` giving `new` saves `src/routes/blog/new` (not prerendered) as a snapshot. Match each URL with the server's `matchRoutes`; reject if another route wins. Separate branch.
+- [ ] ⚪ A slug `__bosia-404-probe` that a loader answers with 200 breaks the 404 probe. Reserve the probe path.
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll

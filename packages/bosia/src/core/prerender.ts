@@ -175,9 +175,11 @@ async function expandDynamicRoute(
 		const notFound = `${OUT_DIR}/prerendered/404.html`.toLowerCase();
 		// The server answers some URLs itself (health JSON, `/dist/`, `/__bosia/`, and for pages
 		// any static-file ending like `.png`), so the saved file would hold its reply, not the
-		// route. Same rules as server.ts, on the URL prerender actually fetches.
+		// route. Same rules as server.ts, on every URL that should reach the page.
 		const taken = paths
-			.map((p) => (kind === "page" ? canonicalRouteFor(p, ts) : p))
+			// A page is reached both with and without its trailing `/` (the server 308s one to the
+			// other), so both must reach the page: `/logo.png` 404s before the 308 in always mode.
+			.flatMap((p) => (kind === "page" ? [p, canonicalRouteFor(p, ts)] : [p]))
 			.find(
 				(url) =>
 					url === "/_health" ||
