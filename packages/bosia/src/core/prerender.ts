@@ -72,7 +72,7 @@ export interface PrerenderTarget {
  */
 export function substituteParams(pattern: string, entry: Record<string, string>): string {
 	// Per segment, so an inserted value is never re-read as a placeholder.
-	return pattern
+	const path = pattern
 		.split("/")
 		.map((seg, i, segs) => {
 			const rank = segmentRank(seg);
@@ -108,6 +108,13 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			return value;
 		})
 		.join("/");
+	// The server answers these itself (health JSON, assets, data payloads), so the page
+	// would never be fetched: its file would hold the framework's response instead.
+	if (/^\/_health$|^\/(dist|__bosia)\//i.test(path))
+		throw new Error(
+			`entries() value for ${pattern} gives ${path}, a URL the framework serves itself (/_health, /dist/, /__bosia/)`,
+		);
+	return path;
 }
 
 /**

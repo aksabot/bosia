@@ -29,6 +29,10 @@ const ACCEPT: [pattern: string, value: string, path: string][] = [
 	["/docs/[...p]", "release.html/notes", "/docs/release.html/notes"], // only the last part names a file
 	["/[slug]/edit", "index", "/index/edit"], // the param isn't the URL's last part
 	["/[slug]/edit", "a.json", "/a.json/edit"],
+	// Round 8: only the framework's own URLs are taken, not look-alikes.
+	["/[slug]", "_healthy", "/_healthy"],
+	["/[slug]", "dist", "/dist"], // a page at /dist, not under /dist/
+	["/docs/[...p]", "dist/x", "/docs/dist/x"], // not at the root
 ];
 
 describe("substituteParams() accepts", () => {
@@ -89,6 +93,12 @@ const REJECT: [pattern: string, value: string, error: RegExp][] = [
 	["/docs/[...p]", "a/index", /can't be `index`/],
 	["/blog/[slug]", "post.html", /\.html or \.json/], // `post.html.html`, never served
 	["/blog/[slug]", "a.JSON", /\.html or \.json/],
+	// Round 8: the server answers these URLs itself, so the saved file would be its response.
+	["/[slug]", "_health", /the framework serves itself/],
+	["/[...p]", "dist/x", /the framework serves itself/],
+	["/[...p]", "__bosia/data/x", /the framework serves itself/],
+	["/[slug]/x", "__bosia", /the framework serves itself/],
+	["/[...p]", "DIST/x", /the framework serves itself/], // macOS/Windows: same folder
 ];
 
 describe("substituteParams() rejects", () => {

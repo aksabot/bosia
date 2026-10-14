@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender fails when two pages would write one file, like a static `/about` and a slug `about`.
 - A slug `404` can't replace the 404 page; a static `src/routes/404` page still can.
 - A prerender clash names the route that made the page, like `/about (from /[slug])`.
+- `entries()` values like `_health` or `dist/…` fail; they saved the framework's reply as the page.
 
 ## [1.2.3] - 2026-10-13
 

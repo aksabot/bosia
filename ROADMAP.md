@@ -20,6 +20,10 @@
 - [x] ⚪ `PARAM_NAME` is shared by scanner and routeTypes; `[id?]` tested via the regex (Windows can't make that folder).
 - [x] ⚪ Clash message names the source route (`/about (from /[slug])`); a clashing target still records all its files, so later clashes show in the same build.
 - [ ] ⚪ A dotted last part other than `.html`/`.json` (`report.pdf`) is written as `report.pdf.html`; a static host asked for `/files/report.pdf` may not find it.
+- [x] 🟡 `entries()` values can't give URLs the server answers itself (`/_health`, `/dist/…`, `/__bosia/…`, any case); the saved file held the framework's response.
+- [ ] 🟡 `prerenderOne` saves any response and logs ✅: a loader 500 or a redirect to `/login` is written as the page. Check `res.ok` and fetch with `redirect: "manual"`. Separate branch.
+- [ ] ⚪ A static folder `index` at a route's end (`src/routes/blog/index`) in `never` mode writes `blog/index.html`, replacing `/blog/`. Scanner check; separate branch.
+- [ ] ⚪ Device-name check rejects `com0`/`lpt0`, which Windows doesn't reserve; use `com[1-9]|lpt[1-9]`.
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
