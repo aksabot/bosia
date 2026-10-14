@@ -8,6 +8,7 @@ import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
 import { isDynamic, segmentName, segmentRank } from "./matcher.ts";
+import { isStaticPath } from "./html.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
 export function getEphemeralPort(): Promise<number> {
@@ -72,7 +73,7 @@ export interface PrerenderTarget {
  */
 export function substituteParams(pattern: string, entry: Record<string, string>): string {
 	// Per segment, so an inserted value is never re-read as a placeholder.
-	const path = pattern
+	return pattern
 		.split("/")
 		.map((seg, i, segs) => {
 			const rank = segmentRank(seg);
@@ -108,13 +109,6 @@ export function substituteParams(pattern: string, entry: Record<string, string>)
 			return value;
 		})
 		.join("/");
-	// The server answers these itself (health JSON, assets, data payloads), so the page
-	// would never be fetched: its file would hold the framework's response instead.
-	if (/^\/_health$|^\/(dist|__bosia)\//i.test(path))
-		throw new Error(
-			`entries() value for ${pattern} gives ${path}, a URL the framework serves itself (/_health, /dist/, /__bosia/)`,
-		);
-	return path;
 }
 
 /**
@@ -179,6 +173,19 @@ async function expandDynamicRoute(
 		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
 		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
 		const notFound = `${OUT_DIR}/prerendered/404.html`.toLowerCase();
+		// The server answers some URLs itself (health JSON, `/dist/`, `/__bosia/`, and for pages
+		// any static-file ending like `.png`), so the saved file would hold its reply, not the
+		// route. Same rules as server.ts, on the URL prerender actually fetches.
+		const taken = paths
+			.map((p) => (kind === "page" ? canonicalRouteFor(p, ts) : p))
+			.find(
+				(url) =>
+					url === "/_health" ||
+					(kind === "page"
+						? isStaticPath(url)
+						: url.startsWith("/dist/") || url.startsWith("/__bosia/")),
+			);
+		if (taken) throw new Error(`entries() gives ${taken}, a URL the server answers itself`);
 		if (kind === "page" && paths.some((p) => prerenderOutPath(p, ts).toLowerCase() === notFound))
 			throw new Error("an entries() value would overwrite 404.html, the not-found page");
 		return paths.map((path) => ({ path, route: pattern, kind, trailingSlash: ts }));

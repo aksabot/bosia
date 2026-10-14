@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A slug `404` can't replace the 404 page; a static `src/routes/404` page still can.
 - A prerender clash names the route that made the page, like `/about (from /[slug])`.
 - `entries()` values like `_health` or `dist/…` fail; they saved the framework's reply as the page.
+- Page `entries()` values like `logo.png` fail; the server treats them as files, not pages.
 
 ## [1.2.3] - 2026-10-13
 

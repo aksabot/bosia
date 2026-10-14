@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Security guide: dotfile values (`.env`) and two pages writing one file fail the build.
 - Security guide: a static `src/routes/404` page may replace `404.html`; a slug `404` can't.
 - Security guide: `entries()` values can't give framework URLs like `/_health` or `/dist/…`.
+- Security guide: page `entries()` values can't end in a static-file type like `.png`.
 
 ## [0.8.26] - 2026-10-13
 

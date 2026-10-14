@@ -29,10 +29,6 @@ const ACCEPT: [pattern: string, value: string, path: string][] = [
 	["/docs/[...p]", "release.html/notes", "/docs/release.html/notes"], // only the last part names a file
 	["/[slug]/edit", "index", "/index/edit"], // the param isn't the URL's last part
 	["/[slug]/edit", "a.json", "/a.json/edit"],
-	// Round 8: only the framework's own URLs are taken, not look-alikes.
-	["/[slug]", "_healthy", "/_healthy"],
-	["/[slug]", "dist", "/dist"], // a page at /dist, not under /dist/
-	["/docs/[...p]", "dist/x", "/docs/dist/x"], // not at the root
 ];
 
 describe("substituteParams() accepts", () => {
@@ -93,12 +89,6 @@ const REJECT: [pattern: string, value: string, error: RegExp][] = [
 	["/docs/[...p]", "a/index", /can't be `index`/],
 	["/blog/[slug]", "post.html", /\.html or \.json/], // `post.html.html`, never served
 	["/blog/[slug]", "a.JSON", /\.html or \.json/],
-	// Round 8: the server answers these URLs itself, so the saved file would be its response.
-	["/[slug]", "_health", /the framework serves itself/],
-	["/[...p]", "dist/x", /the framework serves itself/],
-	["/[...p]", "__bosia/data/x", /the framework serves itself/],
-	["/[slug]/x", "__bosia", /the framework serves itself/],
-	["/[...p]", "DIST/x", /the framework serves itself/], // macOS/Windows: same folder
 ];
 
 describe("substituteParams() rejects", () => {
@@ -229,8 +219,8 @@ describe("detectPrerenderRoutes()", () => {
 	};
 	const entries = (...values: string[]) =>
 		`export const prerender = true;\nexport const entries = () => ${JSON.stringify(values.map((slug) => ({ slug })))};\n`;
-	const detect = (pages: unknown[]) =>
-		detectPrerenderRoutes({ pages, apis: [], errorPage: null } as any).catch((e) => e);
+	const detect = (pages: unknown[], apis: unknown[] = []) =>
+		detectPrerenderRoutes({ pages, apis, errorPage: null } as any).catch((e) => e);
 
 	beforeEach(() => {
 		dir = mkdtempSync(join(tmpdir(), "bosia-detect-"));
@@ -314,6 +304,55 @@ describe("detectPrerenderRoutes()", () => {
 			{ path: "/404", route: "/404", kind: "page", trailingSlash: "never" },
 		]);
 	});
+
+	// URLs the server answers itself (round 8, fixed in round 9): the saved file would hold its
+	// reply, not the route. Checked on the URL prerender fetches, with server.ts's exact rules.
+	const SERVER_URL: [
+		pattern: string,
+		value: string,
+		ts: string,
+		kind: "page" | "api",
+		ok: boolean,
+	][] = [
+		["/[slug]", "_health", "never", "page", false],
+		["/[...p]", "dist/x", "never", "page", false],
+		["/[...p]", "__bosia/data/x", "never", "page", false],
+		["/[slug]/x", "__bosia", "never", "page", false],
+		["/[slug]", "dist", "always", "page", false], // fetched as /dist/
+		["/[slug]", "__bosia", "always", "page", false], // fetched as /__bosia/
+		["/blog/[slug]", "logo.png", "never", "page", false], // a static-file ending
+		["/[slug]", "robots.txt", "never", "page", false], // would save public/robots.txt
+		["/[slug]", "_health", "never", "api", false],
+		["/[...slug]", "dist/x", "never", "api", false],
+		// Look-alikes the server renders as pages.
+		["/[slug]", "_healthy", "never", "page", true],
+		["/[slug]", "dist", "never", "page", true], // a page at /dist, not under /dist/
+		["/docs/[...p]", "dist/x", "never", "page", true], // not at the root
+		["/[slug]", "_Health", "never", "page", true], // the server's checks are case-sensitive
+		["/[...p]", "DIST/x", "never", "page", true],
+		["/blog/[slug]", "logo.PNG", "never", "page", true],
+		["/api/[slug]", "a.png", "never", "api", true], // an API wins over static files
+	];
+	for (const [pattern, value, ts, kind, ok] of SERVER_URL)
+		test(`${ok ? "builds" : "fails"}: ${kind} ${pattern} ← ${JSON.stringify(value)} (${ts})`, async () => {
+			const name = pattern.match(/\[(?:\.\.\.)?(\w+)\]/)![1]!;
+			const server = `export const prerender = true;\nexport const entries = () => [${JSON.stringify({ [name]: value })}];\n`;
+			const dir = pattern.slice(1);
+			const res =
+				kind === "page"
+					? await detect([route(pattern, `${dir}/+page.server.ts`, server, ts)])
+					: await detect(
+							[],
+							[
+								{
+									pattern,
+									server: (route(pattern, `${dir}/+server.ts`, server), `${dir}/+server.ts`),
+								},
+							],
+						);
+			if (ok) expect(res).toBeArray();
+			else expect(res.message).toContain("a URL the server answers itself");
+		});
 
 	test("case-only twins fail end to end", async () => {
 		const err = await detect([
