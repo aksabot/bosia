@@ -16,6 +16,8 @@
 - [x] 🟡 A last-part `index` value fails: written as `<parent>/index.html`, it replaced the parent URL's page (even a live one). `.html`/`.json` checks only the last part.
 - [x] ⚪ Clash check dedupes repeated values, compares every folder level ignoring case (`A/x` vs `a/y`) and includes `__bosia/data` files (`/` vs `/index`).
 - [x] 🟡 Clash check: a file and a folder at one path clash (`a.json` vs `a.json/edit`); dedupe keys on slash mode; the saved `404.html` is owned. Values can't start with `.`.
+- [x] 🟡 Dedupe only within one route: a static `/about` and slug `about` in the same slash mode were merged, dropping a page. Only a slug `404` is barred from 404.html; a static `/404` page may replace it.
+- [x] ⚪ `PARAM_NAME` is shared by scanner and routeTypes; `[id?]` tested via the regex (Windows can't make that folder).
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll

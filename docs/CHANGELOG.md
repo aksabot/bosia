@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Routing and security guides, routing skill: `entries()` values allow only `A-Za-z0-9-_.~`.
 - Security guide: `index`, `.html`/`.json` endings, device names and case-only twins fail the build.
 - Security guide: dotfile values (`.env`) and two pages writing one file fail the build.
+- Security guide: a static `src/routes/404` page may replace `404.html`; a slug `404` can't.
 
 ## [0.8.26] - 2026-10-13
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
-import { scanRoutes, RouteConflictError } from "../src/core/scanner.ts";
+import { scanRoutes, RouteConflictError, PARAM_NAME } from "../src/core/scanner.ts";
 
 let originalCwd: string;
 let tmpDir: string;
@@ -221,6 +221,11 @@ describe("scanRoutes() route conflicts", () => {
 				`${seg}: a param name uses ASCII letters, digits, _ and $`,
 			);
 		}
+	});
+
+	// No folder: Windows can't create `[id?]`, yet the rule must hold on every platform.
+	test("optional [id?] is not a param name", () => {
+		expect(PARAM_NAME.test("id?")).toBe(false);
 	});
 
 	test("partial brackets fail the build", () => {

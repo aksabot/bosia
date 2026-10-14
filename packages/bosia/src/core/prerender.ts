@@ -164,11 +164,15 @@ async function expandDynamicRoute(
 		if (typeof mod.entries !== "function")
 			throw new Error("prerender = true on a dynamic route needs an entries() export");
 		const entryList: Record<string, string>[] = await mod.entries();
-		return entryList.map((entry) => ({
-			path: substituteParams(pattern, entry),
-			kind,
-			trailingSlash: ts,
-		}));
+		// A repeated value (a tag on two posts) is written once. Only within this route:
+		// the same URL from two routes is a clash, reported by findPrerenderClash.
+		const paths = [...new Set(entryList.map((entry) => substituteParams(pattern, entry)))];
+		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
+		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
+		const notFound = `${OUT_DIR}/prerendered/404.html`.toLowerCase();
+		if (kind === "page" && paths.some((p) => prerenderOutPath(p, ts).toLowerCase() === notFound))
+			throw new Error("an entries() value would overwrite 404.html, the not-found page");
+		return paths.map((path) => ({ path, kind, trailingSlash: ts }));
 	} catch (err) {
 		// Fail the build: skipping the route would silently drop every page it lists.
 		const why = err instanceof Error ? err.message : String(err);
@@ -214,12 +218,7 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 		throw new PrerenderEntriesError(failed.map((e) => `❌ ${e.message}`).join("\n"), {
 			cause: failed,
 		});
-	// A repeated entries() value (a tag on two posts) is written once. Same path from two
-	// routes with different slash modes stays, so the clash check below reports it.
-	const all = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-	const targets = [
-		...new Map(all.map((t) => [`${t.kind} ${t.path} ${t.trailingSlash}`, t])).values(),
-	];
+	const targets = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 	const clash = findPrerenderClash(targets);
 	if (clash.length) throw new PrerenderEntriesError(clash.join("\n"));
 	return targets;
@@ -228,16 +227,10 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 /**
  * Files two targets would both write. macOS/Windows ignore case, so `About` and `about`
  * (or folders `A/` and `a/`) merge; a file and a folder can't share a path either.
- * Every folder level counts, and so do data payloads and the saved 404.html.
+ * Every folder level counts, and so do data payloads.
  */
 export function findPrerenderClash(targets: PrerenderTarget[]): string[] {
 	const owners = new Map<string, { path: string; route: string; file: boolean }>();
-	// generateStaticSite copies prerendered/ over static/, where the 404 probe saves 404.html.
-	owners.set(`${OUT_DIR}/prerendered/404.html`, {
-		path: `${OUT_DIR}/prerendered/404.html`,
-		route: "the 404 page",
-		file: true,
-	});
 	const clashes: string[] = [];
 	for (const t of targets) {
 		const files =

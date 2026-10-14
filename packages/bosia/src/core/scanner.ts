@@ -298,7 +298,7 @@ function checkParams<T extends { pattern: string }>(routes: T[], fileOf: (r: T) 
 // Strict on purpose (decided 2026-10-14): an ASCII TypeScript identifier, so `params.name`
 // always works: `[slug]`, `[x123]`, `[user_id]`, `[_id]`, `[$id]`. `[post-id]`, `[file.name]`,
 // `[slüg]` fail by design, with one message (no per-typo hints).
-const PARAM_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+export const PARAM_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const BAD_NAME = (seg: string) =>
 	`${seg}: a param name uses ASCII letters, digits, _ and $, and can't start with a digit (like [slug], [user_id] or [...rest])`;
 

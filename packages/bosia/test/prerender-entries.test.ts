@@ -149,15 +149,20 @@ const CLASH: [why: string, targets: PrerenderTarget[], error: string][] = [
 		[page("/about", "always"), page("/about", "never")],
 		"/about and /about write the same file",
 	],
-	// generateStaticSite copies prerendered/ over the saved 404 page.
-	["a slug named 404", [page("/404")], "the 404 page and /404 write the same file"],
+	// Same URL from two routes in the same slash mode (the default `never`).
+	[
+		"one URL, one slash mode",
+		[page("/about"), page("/about")],
+		"/about and /about write the same file",
+	],
 	["an API and a page data file", [page("/x"), api("/__bosia/data/x")], "/x and /__bosia/data/x"],
 ];
 
 const NO_CLASH: [why: string, targets: PrerenderTarget[]][] = [
 	["siblings", [page("/a"), page("/b"), page("/a/b")]],
 	["same folder, exact case", [page("/docs/A/x"), page("/docs/A/y")]],
-	["a 404 folder in always mode", [page("/404", "always")]],
+	// A static src/routes/404 page may replace the saved 404.html on purpose (round 6).
+	["a static /404 page", [page("/404")]],
 	["root and a page", [page("/", "always"), page("/about", "always")]],
 	["pages and APIs", [page("/blog"), api("/api/blog")]],
 ];
@@ -236,6 +241,37 @@ describe("detectPrerenderRoutes()", () => {
 		]);
 		expect(err).toBeInstanceOf(PrerenderEntriesError);
 		expect(err.message).toContain("/about and /about write the same file");
+	});
+
+	test("one URL from a static and a dynamic route in the same slash mode is a clash", async () => {
+		const err = await detect([
+			route("/about", "about/+page.server.ts", "export const prerender = true;\n"),
+			route("/[slug]", "[slug]/+page.server.ts", entries("about")),
+		]);
+		expect(err).toBeInstanceOf(PrerenderEntriesError);
+		expect(err.message).toContain("/about and /about write the same file");
+	});
+
+	test("one value from [slug] and [...rest] is a clash", async () => {
+		const err = await detect([
+			route("/d/[slug]", "d/[slug]/+page.server.ts", entries("x")),
+			route("/d/[...slug]", "d/[...slug]/+page.server.ts", entries("x")),
+		]);
+		expect(err.message).toContain("/d/x and /d/x write the same file");
+	});
+
+	test("a slug named 404 can't overwrite 404.html, but a /404/ folder is fine", async () => {
+		const err = await detect([route("/[slug]", "[slug]/+page.server.ts", entries("404"))]);
+		expect(err.message).toContain("/[slug]: an entries() value would overwrite 404.html");
+		const ok = await detect([route("/[slug]", "[slug]/+page.server.ts", entries("404"), "always")]);
+		expect(ok).toEqual([{ path: "/404", kind: "page", trailingSlash: "always" }]);
+	});
+
+	test("a static /404 page may replace 404.html", async () => {
+		const targets = await detect([
+			route("/404", "404/+page.server.ts", "export const prerender = true;\n"),
+		]);
+		expect(targets).toEqual([{ path: "/404", kind: "page", trailingSlash: "never" }]);
 	});
 
 	test("case-only twins fail end to end", async () => {
