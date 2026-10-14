@@ -8,7 +8,7 @@ import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
 import { isDynamic, segmentName, segmentRank } from "./matcher.ts";
-import { isStaticPath } from "./staticPath.ts";
+import { HEALTH_PATH, isFrameworkPath, isStaticPath } from "./staticPath.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
 export function getEphemeralPort(): Promise<number> {
@@ -169,13 +169,15 @@ export function checkPrerenderPaths(
 		// after the pages, so on macOS/Windows a page folder `DIST/` would swallow the bundle
 		// (served as `DIST/client/…`, a 404 on case-sensitive hosts). A page `/dist` also fails:
 		// `/dist/` is answered as a static file, not 308'd to it.
-		if (kind === "page" ? /^\/(dist|__bosia)(\/|$)/i.test(p) : /^\/(dist|__bosia)\//i.test(p))
+		// Lowercased for case-insensitive disks; a page's `/` form is tested too, so `/dist` fails.
+		const lower = p.toLowerCase();
+		if (isFrameworkPath(kind === "page" ? `${lower}/` : lower))
 			throw new Error(`entries() gives ${p}; dist and __bosia are the framework's folders`);
 		// The server answers `/_health`, and for pages any static-file ending like `.png`, itself,
 		// so the saved file would hold its reply, not the route. Checked on the slash-less form:
 		// `/logo.png` 404s before the 308 to `/logo.png/`, and the `/` form adds only the prefixes
 		// rejected above (the invariant test checks both forms).
-		if (p === "/_health" || (kind === "page" && isStaticPath(p)))
+		if (p === HEALTH_PATH || (kind === "page" && isStaticPath(p)))
 			throw new Error(`entries() gives ${p}, a URL the server answers itself`);
 		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
 		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.

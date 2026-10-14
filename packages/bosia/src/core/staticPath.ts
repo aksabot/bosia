@@ -20,8 +20,16 @@ const STATIC_EXTS = new Set([
 	".webmanifest",
 ]);
 
+// The server answers these itself; prerender rejects entries() values that reach them.
+export const HEALTH_PATH = "/_health";
+
+// The framework's own folders: built assets and data/runtime endpoints.
+export function isFrameworkPath(path: string): boolean {
+	return path.startsWith("/dist/") || path.startsWith("/__bosia/");
+}
+
 export function isStaticPath(path: string): boolean {
-	if (path.startsWith("/dist/") || path.startsWith("/__bosia/")) return true;
+	if (isFrameworkPath(path)) return true;
 	const dot = path.lastIndexOf(".");
 	return dot !== -1 && STATIC_EXTS.has(path.slice(dot));
 }

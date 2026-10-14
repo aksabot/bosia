@@ -15,6 +15,7 @@ import { NO_FRAME_GUARD_HEADER, type Handle, type RequestEvent } from "./hooks.t
 import { HttpError, Redirect, ActionFailure, isHttpError, isRedirect } from "./errors.ts";
 import { CookieJar } from "./cookies.ts";
 import { safePath } from "./safePath.ts";
+import { HEALTH_PATH, isFrameworkPath } from "./staticPath.ts";
 import { checkCsrf } from "./csrf.ts";
 import type { CsrfConfig } from "./csrf.ts";
 import { applyCorsVary, getCorsHeaders, handlePreflight } from "./cors.ts";
@@ -372,7 +373,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 	const method = request.method.toUpperCase();
 
 	// Health check endpoint — for load balancers and orchestrators
-	if (path === "/_health") {
+	if (path === HEALTH_PATH) {
 		if (shuttingDown) {
 			return Response.json({ status: "shutting_down" }, { status: 503 });
 		}
@@ -593,7 +594,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 	// by a user `+server.ts`, so serve them straight from the manifest before the
 	// API scan. A miss falls through to the normal path (which 404s). Keeps the
 	// api-before-static ordering intact for every user-facing path.
-	if (staticManifest && (path.startsWith("/dist/") || path.startsWith("/__bosia/"))) {
+	if (staticManifest && isFrameworkPath(path)) {
 		const hit = lookupStatic(staticManifest, path);
 		if (hit) return serveStatic(hit, request);
 	}
@@ -1144,7 +1145,7 @@ async function handleRequest(request: Request, url: URL): Promise<Response> {
 	}
 
 	// Reject new non-health requests during shutdown
-	if (shuttingDown && url.pathname !== "/_health") {
+	if (shuttingDown && url.pathname !== HEALTH_PATH) {
 		return new Response("Service Unavailable", {
 			status: 503,
 			headers: { "Retry-After": "5" },
@@ -1154,7 +1155,7 @@ async function handleRequest(request: Request, url: URL): Promise<Response> {
 	// Shed load above MAX_INFLIGHT. Checked before any work so the 503 is
 	// cheap. /_health stays available so the orchestrator can still tell the
 	// process is alive (and decide whether to restart or scale out).
-	if (inFlight >= MAX_INFLIGHT && url.pathname !== "/_health") {
+	if (inFlight >= MAX_INFLIGHT && url.pathname !== HEALTH_PATH) {
 		return new Response("Service Unavailable", {
 			status: 503,
 			headers: { "Retry-After": "1" },
@@ -1215,7 +1216,7 @@ async function handleRequest(request: Request, url: URL): Promise<Response> {
 		const path = event.url.pathname;
 		let response: Response | null = null;
 		let staticTried = false;
-		if (!dataReq && staticManifest && (path.startsWith("/dist/") || path.startsWith("/__bosia/"))) {
+		if (!dataReq && staticManifest && isFrameworkPath(path)) {
 			response = await serveStaticFile(path, request);
 			staticTried = true;
 		}

@@ -33,6 +33,9 @@
 - [x] 🟡 URLs can't start with `dist`/`__bosia` in any case: on macOS/Windows `DIST/` swallowed the `dist/client` bundle copied after it. Pure `checkPrerenderPaths()`.
 - [x] 🟡 `test/prerender-invariants.test.ts`: sweeps values × patterns × modes; checks outcomes (server reach via real `isStaticPath`, a case-insensitive disk model of static/), not the rules.
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
+- [x] ⚪ `/dist/`, `/__bosia/` and `/_health` live once in `staticPath.ts` (`isFrameworkPath`, `HEALTH_PATH`); server.ts and prerender share them.
+- [ ] ⚪ `~` is allowed in values, so on Windows with 8.3 names `GUIDES~1/intro` can point at another route's `guides-old/` folder. Clash check can't see it.
+- [ ] ⚪ Clash errors run only after every `entries()` call passes; a bad value plus a clash needs two builds to see both.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 
@@ -93,6 +96,9 @@
 - [x] 🟠 An `entries()` error skipped the whole route and the build passed (500 pages gone quietly); now exits 1. Values null/undefined/empty/`.` rejected; `[id?]` fails the build.
 - [x] ⚪ Prerender: catch-all values may end in `/` again; `?`/`#` rejected; errors throw (no `process.exit`); missing `entries()` export fails too. `[path..]`/`[x…]` typos caught.
 - [x] ⚪ Prerender let `%2e%2e`/`%2F` through (home HTML saved as `blog/%2e%2e.html`); values are now checked decoded. Errors print one `❌` line (`PrerenderEntriesError`).
+- [x] 🟡 Prerender: a slug with a bare `%` (`50%-off`) failed as "invalid percent-encoding". Done in 1.2.4: `%` is rejected with a clear message.
+- [x] ⚪ Prerender: decoded-only checks let `%3F`/`%2F` pass. Done in 1.2.4: the strict allowlist replaces decoding.
+- [x] ⚪ Prerender: report every bad `entries()` route at once (`Promise.allSettled`). Done in 1.2.4.
 - [x] ⚪ Param names: one whitelist (`PARAM_NAME`: letters, digits, `_$-`, inner dots) ends typo whack-a-mole (`[ slug]`, `[…rest]`); specific hints kept for `=`, `?`, dots.
 - [ ] ⚪ One `parseSegment()` returning `{rank, name}` or an error: `SEGMENT` runs 2–3× per segment, and `checkParams` keeps its own bracket regex.
 - [ ] ⚪ Skeleton → loader error: skeleton drops before the error chunk loads, so the old page remounts for that await (its onMount reruns; a flash on slow nets). Drop it after.
