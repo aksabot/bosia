@@ -7,7 +7,8 @@ import type { RuntimeTarget } from "./types/plugin.ts";
 import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
-import { isDynamic, segmentName, segmentRank } from "./matcher.ts";
+import { findMatch, isDynamic, segmentName, segmentRank } from "./matcher.ts";
+import { sortRoutes } from "./routeFile.ts";
 import { HEALTH_PATH, isFrameworkPath, isStaticPath } from "./staticPath.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
@@ -150,6 +151,21 @@ export function prerenderApiOutPath(routePath: string): string {
 	return `${OUT_DIR}/prerendered${routePath.replace(/\/$/, "")}.json`;
 }
 
+/**
+ * Why the server's reply to a prerender fetch can't be saved, or null when it can. A page must
+ * answer 200 HTML; an API must answer 200. Anything else (a loader's error(), a redirect to
+ * /login, the static 404, a public/ file) would be saved and served as the route.
+ */
+export function prerenderReplyProblem(kind: "page" | "api", res: Response): string | null {
+	if (res.status >= 300 && res.status < 400)
+		return `answered ${res.status} → ${res.headers.get("location") ?? "(no Location)"}`;
+	if (res.status !== 200) return `answered ${res.status}`;
+	const type = res.headers.get("content-type") ?? "";
+	if (kind === "page" && !type.includes("text/html"))
+		return `answered ${type || "no content-type"}, not an HTML page`;
+	return null;
+}
+
 /** A dynamic prerender route whose entries() can't be used. build.ts prints `message` and exits. */
 export class PrerenderEntriesError extends Error {
 	override name = "PrerenderEntriesError";
@@ -173,11 +189,13 @@ export function checkPrerenderPaths(
 		const lower = p.toLowerCase();
 		if (isFrameworkPath(kind === "page" ? `${lower}/` : lower))
 			throw new Error(`entries() gives ${p}; dist and __bosia are the framework's folders`);
-		// The server answers `/_health`, and for pages any static-file ending like `.png`, itself,
-		// so the saved file would hold its reply, not the route. Checked on the slash-less form:
-		// `/logo.png` 404s before the 308 to `/logo.png/`, and the `/` form adds only the prefixes
-		// rejected above (the invariant test checks both forms).
-		if (p === HEALTH_PATH || (kind === "page" && isStaticPath(p)))
+		// The server answers `/_health` before any route. Its JSON looks like a valid API reply,
+		// so prerenderReplyProblem can't catch it for an API.
+		if (p === HEALTH_PATH) throw new Error(`entries() gives ${p}, a URL the server answers itself`);
+		// A static-file ending (`.png`) is answered as a file. The URL prerender fetches is left to
+		// prerenderReplyProblem (a 404, or public/'s image), but an `always` page fetches
+		// `/logo.png/`: its slash-less form 404s before the 308, and nothing fetches that one.
+		if (kind === "page" && ts === "always" && isStaticPath(p))
 			throw new Error(`entries() gives ${p}, a URL the server answers itself`);
 		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
 		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
@@ -249,9 +267,42 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 			cause: failed,
 		});
 	const targets = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-	const clash = findPrerenderClash(targets);
-	if (clash.length) throw new PrerenderEntriesError(clash.join("\n"));
+	const misowned = findMisownedTargets(manifest, targets);
+	// Mis-owned targets stay out of the clash check, so one problem prints one ❌.
+	const clash = findPrerenderClash(targets.filter((t) => !misowned.has(t)));
+	const problems = [...misowned.values(), ...clash];
+	if (problems.length) throw new PrerenderEntriesError(problems.join("\n"));
 	return targets;
+}
+
+/** How the build's ❌ lines name a target: its URL, plus the route a slug came from. */
+function targetLabel(t: PrerenderTarget): string {
+	return t.route === t.path ? t.path : `${t.path} (from ${t.route})`;
+}
+
+/**
+ * Targets whose URL another route serves: `/blog/[slug]` giving `new` while
+ * `src/routes/blog/new` exists, or a page slug at a `+server.ts` URL (an API
+ * wins, as in server.ts matchRoutes). Saving it would freeze the other route.
+ */
+export function findMisownedTargets(
+	manifest: Pick<RouteManifest, "pages" | "apis">,
+	targets: PrerenderTarget[],
+): Map<PrerenderTarget, string> {
+	// Copies: findMatch caches a compiled regex on each route object it sees.
+	const pages = sortRoutes(manifest.pages.map((r) => ({ pattern: r.pattern })));
+	const apis = sortRoutes(manifest.apis.map((r) => ({ pattern: r.pattern })));
+	const out = new Map<PrerenderTarget, string>();
+	for (const t of targets) {
+		const api = findMatch(apis, t.path)?.route.pattern;
+		let owner = api;
+		// A page loses to any API at its URL, even a +server.ts in its own folder.
+		if (t.kind === "page")
+			owner = api ? `${api} (+server.ts)` : findMatch(pages, t.path)?.route.pattern;
+		if (owner && owner !== t.route)
+			out.set(t, `❌ Prerender: ${targetLabel(t)} is served by ${owner}, not this route`);
+	}
+	return out;
 }
 
 /**
@@ -264,7 +315,7 @@ export function findPrerenderClash(targets: PrerenderTarget[]): string[] {
 	const clashes: string[] = [];
 	for (const t of targets) {
 		// Name the route a slug came from, so the message says which file to fix.
-		const who = t.route === t.path ? t.path : `${t.path} (from ${t.route})`;
+		const who = targetLabel(t);
 		let clash = "";
 		const files =
 			t.kind === "api"
@@ -372,17 +423,23 @@ export async function prerenderStaticRoutes(
 
 		mkdirSync(`${OUT_DIR}/prerendered`, { recursive: true });
 
-		const prerenderOne = async ({
-			path: routePath,
-			kind,
-			trailingSlash: ts,
-		}: PrerenderTarget): Promise<void> => {
+		// Every target that can't be saved; the build fails with all of them once the pool drains.
+		const failures: string[] = [];
+
+		const prerenderOne = async (t: PrerenderTarget): Promise<void> => {
+			const { path: routePath, kind, trailingSlash: ts } = t;
+			// `manual`: a redirect is reported, not followed into another page that gets saved.
+			const fetchOpts: RequestInit = {
+				redirect: "manual",
+				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
+			};
+			const fail = (why: string) => failures.push(`❌ Prerender: ${targetLabel(t)} ${why}`);
 			try {
 				if (kind === "api") {
 					// APIs: fetch the bare route URL, write body to `<path>.json`.
-					const res = await fetch(`${base}${routePath.replace(/\/$/, "")}`, {
-						signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-					});
+					const res = await fetch(`${base}${routePath.replace(/\/$/, "")}`, fetchOpts);
+					const problem = prerenderReplyProblem(kind, res);
+					if (problem) return void fail(problem);
 					const body = await res.text();
 					const outPath = prerenderApiOutPath(routePath);
 					mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
@@ -394,9 +451,9 @@ export async function prerenderStaticRoutes(
 				// Hit the canonical URL so the server doesn't 308 us mid-prerender
 				const canonicalRoute = canonicalRouteFor(routePath, ts);
 
-				const res = await fetch(`${base}${canonicalRoute}`, {
-					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-				});
+				const res = await fetch(`${base}${canonicalRoute}`, fetchOpts);
+				const problem = prerenderReplyProblem(kind, res);
+				if (problem) return void fail(problem);
 				const html = await res.text();
 
 				// Filename strategy:
@@ -426,11 +483,11 @@ export async function prerenderStaticRoutes(
 				}
 			} catch (err) {
 				if (err instanceof DOMException && err.name === "TimeoutError") {
-					console.error(
-						`   ❌ Prerender timed out for ${routePath} after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`,
+					fail(
+						`timed out after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`,
 					);
 				} else {
-					console.error(`   ❌ Failed to prerender ${routePath}:`, err);
+					fail(`failed: ${err instanceof Error ? err.message : String(err)}`);
 				}
 			}
 		};
@@ -478,6 +535,8 @@ export async function prerenderStaticRoutes(
 				console.warn(`   ⚠️  404.html skipped: ${reason}`);
 			}
 
+		// build.ts prints this and exits 1; the finally below still stops the server.
+		if (failures.length) throw new PrerenderEntriesError(failures.join("\n"));
 		if (targets.length) console.log("✅ Prerendering complete");
 	} finally {
 		for (const sig of signals) process.off(sig, onSignal);

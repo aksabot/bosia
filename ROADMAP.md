@@ -1,9 +1,19 @@
 # Bosia — Roadmap
 
 > Track what's done, what's next, and where we're headed.
-> Current version: **1.2.4**
+> Current version: **1.2.5**
 
 ---
+
+## bosia 1.2.5 (2026-10-15) — prerender checks the server's reply
+
+- [x] 🟡 `prerenderOne` saved any reply and logged ✅. Now `redirect: "manual"`; a page needs 200 HTML, an API 200 (`prerenderReplyProblem`). Bad replies and timeouts fail the build, one ❌ each.
+- [x] 🟡 A slug can't freeze a live route: each target is matched like `matchRoutes` (an API wins); `/blog/[slug]` ← `new` with `src/routes/blog/new` fails as "served by". Replaces the clash ❌ for that case.
+- [x] ⚪ The trailing-slash 308 runs before the prerendered lookup: `/always/one` 308s to `/always/one/`, `/about/` (never) to `/about`.
+- [x] ⚪ Dropped the `isStaticPath` page rule the reply check covers, except in `always` mode: it fetches `/logo.png/`, so the slash-less `/logo.png` (a 404) is never checked.
+- [x] ⚪ `test/prerender-server.test.ts` builds and boots real fixtures: 308s on saved pages, and a failing build listing every bad reply.
+- [x] ⚪ docs: `[...slug]` skips `id` (the `id` landing owns `/id`); the `id` landing is prerendered on purpose. `content/docs/id/index.md` is still never shown.
+- [ ] ⚪ The ❌ reply lines print in worker-pool order, not route order; sort them if it confuses anyone.
 
 ## bosia 1.2.4 (2026-10-14) — prerender `entries()` value fixes
 
@@ -23,12 +33,10 @@
 - [x] 🟡 `entries()` values can't give URLs the server answers itself, checked on the fetched URL with server.ts rules: `/_health`, `/dist/`, `/__bosia/`, and `isStaticPath` endings (`.png`) for pages. Case-sensitive like the server.
 - [ ] ⚪ Static prerender routes skip the value rules: `src/routes/_health` saves the health JSON; a static `logo.png` or `index` folder too. Scanner check; separate branch.
 - [ ] ⚪ A `public/` file at a prerendered path (`public/about.html` vs slug `about`) is silently replaced by `generateStaticSite`. Seed the clash check from `public/`.
-- [ ] 🟡 `prerenderOne` saves any response and logs ✅ (loader 500, redirect to `/login`, a user `+server.ts` at the slug's URL). Check `res.ok`, HTML type, `redirect: "manual"`; then drop the copied server rules. Separate branch.
 - [ ] ⚪ A static folder `index` at a route's end (`src/routes/blog/index`) in `never` mode writes `blog/index.html`, replacing `/blog/`. Scanner check; separate branch.
 - [ ] ⚪ Device-name check rejects `com0`/`lpt0`, which Windows doesn't reserve; use `com[1-9]|lpt[1-9]`.
 - [x] 🟡 `isStaticPath` moved to side-effect-free `staticPath.ts`: importing it from `html.ts` loaded that module in the build before `loadEnv()`, pinning BASE_PATH to `""`. Test guards build.ts's imports; html.ts no longer re-exports it.
 - [x] ⚪ Page values are checked with and without the trailing `/`: in always mode `logo.png` passed as `/logo.png/`, but `/logo.png` 404s before the 308.
-- [ ] 🟡 A slug can freeze a live route: `/blog/[slug]` giving `new` saves `src/routes/blog/new` (not prerendered) as a snapshot. Match each URL with the server's `matchRoutes`; reject if another route wins. Separate branch.
 - [ ] ⚪ A slug `__bosia-404-probe` that a loader answers with 200 breaks the 404 probe. Reserve the probe path.
 - [x] 🟡 URLs can't start with `dist`/`__bosia` in any case: on macOS/Windows `DIST/` swallowed the `dist/client` bundle copied after it. Pure `checkPrerenderPaths()`.
 - [x] 🟡 `test/prerender-invariants.test.ts`: sweeps values × patterns × modes; checks outcomes (server reach via real `isStaticPath`, a case-insensitive disk model of static/), not the rules.
@@ -37,7 +45,6 @@
 - [ ] ⚪ `~` is allowed in values, so on Windows with 8.3 names `GUIDES~1/intro` can point at another route's `guides-old/` folder. Clash check can't see it.
 - [ ] ⚪ Clash errors run only after every `entries()` call passes; a bad value plus a clash needs two builds to see both.
 - [ ] ⚪ The prerender ready poll (`prerender.ts`) and `dev.ts` still hard-code `/_health`; use `HEALTH_PATH` from `staticPath.ts`.
-- [ ] ⚪ A prerendered `always` page answers `/always/one` with 200, not a 308 to `/always/one/`: server.ts serves prerendered files before the slash check. Two URLs, one page (SEO).
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 

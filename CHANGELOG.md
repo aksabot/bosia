@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.5] - 2026-10-15
+
+### Changed
+
+- Prerender fails the build when a page answers an error, a redirect or a non-HTML file.
+- Prerender fails when another route serves a slug's URL, like `/blog/[slug]` giving `new`.
+- Page slugs ending in `.png` or `.txt` are checked on the server's real reply, not by name.
+
+### Fixed
+
+- Prerendered pages now 308 to the right trailing slash, like `/about/` to `/about`.
+- A prerender timeout or network error fails the build instead of only logging.
+
 ## [1.2.4] - 2026-10-14
 
 ### Changed

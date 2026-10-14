@@ -785,6 +785,25 @@ async function resolve(event: RequestEvent): Promise<Response> {
 		);
 	}
 
+	// Matched once before the hooks; reused for trailing-slash, form-action, and SSR phases.
+	const pageMatch = routes.page;
+
+	// Trailing-slash canonicalization — 308 preserves method (form POSTs included).
+	// Before the prerendered lookup, which ignores the slash: `/about/` on a `never`
+	// page would otherwise answer 200 from the saved file.
+	if (pageMatch) {
+		const canonical = canonicalPathname(path, (pageMatch.route as any).trailingSlash ?? "never");
+		if (canonical !== null) {
+			return new Response(null, {
+				status: 308,
+				// `path` is app-space — the base came off at the top of handleRequest.
+				// This Location goes back to the browser, so it has to be put back on,
+				// or a `trailingSlash: "always"` route 308s every request off the mount.
+				headers: { Location: withBase(currentBase(), canonical) + url.search + url.hash },
+			});
+		}
+	}
+
 	// Prerendered pages — serve static HTML built at build time.
 	// SKIP in dev: prerender runs with NODE_ENV=production, which disables the
 	// inspector plugin and the dev-only error pipeline. Serving its output back
@@ -804,23 +823,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				"Content-Type": "text/html; charset=utf-8",
 				"Cache-Control": "public, max-age=3600",
 				...(link ? { Link: link } : {}),
-			});
-		}
-	}
-
-	// Matched once before the hooks; reused for trailing-slash, form-action, and SSR phases.
-	const pageMatch = routes.page;
-
-	// Trailing-slash canonicalization — 308 preserves method (form POSTs included)
-	if (pageMatch) {
-		const canonical = canonicalPathname(path, (pageMatch.route as any).trailingSlash ?? "never");
-		if (canonical !== null) {
-			return new Response(null, {
-				status: 308,
-				// `path` is app-space — the base came off at the top of handleRequest.
-				// This Location goes back to the browser, so it has to be put back on,
-				// or a `trailingSlash: "always"` route 308s every request off the mount.
-				headers: { Location: withBase(currentBase(), canonical) + url.search + url.hash },
 			});
 		}
 	}

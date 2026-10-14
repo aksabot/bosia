@@ -24,8 +24,9 @@ export function entries(): Record<string, string>[] {
 						: prefix
 							? `${prefix}/${base}` // e.g. guides/routing.md → "guides/routing"
 							: base; // e.g. getting-started.md → "getting-started"
-				if (slug) {
-					// Filter out root empty slug (landing page handled separately)
+				// Skip the root empty slug and a locale's index (`id`): the landing routes
+				// (src/routes/+page, src/routes/id) serve those URLs, so prerender would fail.
+				if (slug && slug !== "id") {
 					slugs.push({ slug });
 				}
 			}

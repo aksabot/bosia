@@ -2,6 +2,8 @@ import type { LoadEvent } from "bosia";
 import { getVersion } from "$lib/utils";
 import { buildSeoMeta } from "$lib/docs/seo";
 
+export const prerender = true;
+
 export async function load({ url }: LoadEvent) {
 	const locale = "id" as const;
 	const version = await getVersion();
