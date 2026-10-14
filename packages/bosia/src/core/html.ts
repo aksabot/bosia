@@ -703,27 +703,5 @@ export function compressBytes(
 
 // ─── Static File Detection ────────────────────────────────
 
-const STATIC_EXTS = new Set([
-	".ico",
-	".png",
-	".jpg",
-	".jpeg",
-	".gif",
-	".webp",
-	".svg",
-	".css",
-	".js",
-	".woff",
-	".woff2",
-	".ttf",
-	".xml",
-	".txt",
-	".json",
-	".webmanifest",
-]);
-
-export function isStaticPath(path: string): boolean {
-	if (path.startsWith("/dist/") || path.startsWith("/__bosia/")) return true;
-	const dot = path.lastIndexOf(".");
-	return dot !== -1 && STATIC_EXTS.has(path.slice(dot));
-}
+// In its own module so the build (prerender.ts) can use it without loading this file.
+export { isStaticPath } from "./staticPath.ts";

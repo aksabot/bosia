@@ -8,7 +8,7 @@ import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
 import { isDynamic, segmentName, segmentRank } from "./matcher.ts";
-import { isStaticPath } from "./html.ts";
+import { isStaticPath } from "./staticPath.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
 export function getEphemeralPort(): Promise<number> {

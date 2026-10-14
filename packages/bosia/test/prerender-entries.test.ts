@@ -363,3 +363,18 @@ describe("detectPrerenderRoutes()", () => {
 		);
 	});
 });
+
+// ─── The build must not load html.ts (round 10) ──────────
+
+// html.ts pins the base path (currentBase) and reads dist/manifest.json when loaded. The build
+// loads its imports before loadEnv(), so a BASE_PATH from .env would be missed and prerender fails.
+test("build.ts's imports don't load html.ts", () => {
+	const core = join(import.meta.dir, "../src/core");
+	const src = require("fs").readFileSync(join(core, "build.ts"), "utf8") as string;
+	const mods = [...src.matchAll(/from "(\.\/[^"]+\.ts)"/g)].map((m) => join(core, m[1]!));
+	const probe = `for (const m of ${JSON.stringify(mods)}) await import(m);
+console.log(Object.keys(require.cache).filter((k) => /[\\\\/]core[\\\\/]html\\.ts$/.test(k)).length);`;
+	const out = Bun.spawnSync(["bun", "-e", probe], { cwd: tmpdir() });
+	expect(out.stderr.toString()).toBe("");
+	expect(out.stdout.toString().trim()).toBe("0");
+});

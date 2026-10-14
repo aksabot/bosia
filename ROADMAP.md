@@ -23,9 +23,10 @@
 - [x] 🟡 `entries()` values can't give URLs the server answers itself, checked on the fetched URL with server.ts rules: `/_health`, `/dist/`, `/__bosia/`, and `isStaticPath` endings (`.png`) for pages. Case-sensitive like the server.
 - [ ] ⚪ Static prerender routes skip the value rules: `src/routes/_health` saves the health JSON; a static `logo.png` or `index` folder too. Scanner check; separate branch.
 - [ ] ⚪ A `public/` file at a prerendered path (`public/about.html` vs slug `about`) is silently replaced by `generateStaticSite`. Seed the clash check from `public/`.
-- [ ] 🟡 `prerenderOne` saves any response and logs ✅: a loader 500 or a redirect to `/login` is written as the page. Check `res.ok` and fetch with `redirect: "manual"`. Separate branch.
+- [ ] 🟡 `prerenderOne` saves any response and logs ✅ (loader 500, redirect to `/login`, a user `+server.ts` at the slug's URL). Check `res.ok`, HTML type, `redirect: "manual"`; then drop the copied server rules. Separate branch.
 - [ ] ⚪ A static folder `index` at a route's end (`src/routes/blog/index`) in `never` mode writes `blog/index.html`, replacing `/blog/`. Scanner check; separate branch.
 - [ ] ⚪ Device-name check rejects `com0`/`lpt0`, which Windows doesn't reserve; use `com[1-9]|lpt[1-9]`.
+- [x] 🟡 `isStaticPath` moved to side-effect-free `staticPath.ts`: importing it from `html.ts` loaded that module in the build before `loadEnv()`, pinning BASE_PATH to `""`. Test guards build.ts's imports.
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
