@@ -2,7 +2,12 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
 import { dirname, join } from "path";
 
-import { describeError, getEphemeralPort, prerenderReplyProblem } from "../src/core/prerender.ts";
+import {
+	describeError,
+	getEphemeralPort,
+	prerenderDataProblem,
+	prerenderReplyProblem,
+} from "../src/core/prerender.ts";
 import { BOSIA_NODE_PATH } from "../src/core/paths.ts";
 
 // Prerender against a real built server: what it saves is the server's reply, so the reply
@@ -31,10 +36,13 @@ function fixture(name: string, files: Record<string, string>): string {
 	return dir;
 }
 
-async function build(dir: string): Promise<{ code: number; out: string }> {
+async function build(
+	dir: string,
+	env: Record<string, string> = {},
+): Promise<{ code: number; out: string }> {
 	const proc = Bun.spawn(["bun", "run", BUILD], {
 		cwd: dir,
-		env: { ...process.env, NODE_ENV: "production", NODE_PATH: BOSIA_NODE_PATH },
+		env: { ...process.env, NODE_ENV: "production", NODE_PATH: BOSIA_NODE_PATH, ...env },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -77,6 +85,27 @@ describe("prerenderReplyProblem()", () => {
 	});
 	test("an API may answer any 200 type", () => {
 		expect(prerenderReplyProblem("api", res(200, { "content-type": "text/plain" }))).toBeNull();
+	});
+});
+
+// The server answers a data request's redirect with a 200 JSON `{ redirect, status }`
+// (server.ts data endpoint and handleRequest), so the status alone can't catch it.
+describe("prerenderDataProblem()", () => {
+	test("a loader payload is saved", () => {
+		expect(prerenderDataProblem(`{"pageData":{"a":1},"layoutData":[],"metadata":null}`)).toBeNull();
+	});
+	test("a redirect payload names where it goes", () => {
+		expect(prerenderDataProblem(`{"redirect":"/login","status":307}`)).toBe(
+			"answered redirect 307 → /login",
+		);
+	});
+	test("an error payload fails", () => {
+		expect(prerenderDataProblem(`{"error":{"status":403,"message":"no"}}`)).toBe(
+			"answered error 403",
+		);
+	});
+	test("a body that isn't JSON fails", () => {
+		expect(prerenderDataProblem("<h1>hi</h1>")).toBe("answered a body that isn't JSON");
 	});
 });
 
@@ -210,10 +239,16 @@ describe("a build whose prerendered routes answer badly", () => {
 			// The page answers 200 HTML, but its data payload fails (a guard on data requests).
 			"src/routes/nodata/+page.svelte": "<h1>No data</h1>\n",
 			"src/routes/nodata/+page.server.ts": prerendered(),
+			// The page answers 200 HTML, but a guard redirects its data request; the server
+			// turns that into a 200 JSON `{ redirect }`, which must not be saved as its data.
+			"src/routes/guarded/+page.svelte": "<h1>Guarded</h1>\n",
+			"src/routes/guarded/+page.server.ts": prerendered(),
 			"src/hooks.server.ts":
 				`export const handle = async ({ event, resolve }: any) => {\n` +
 				`\tif (event.isDataRequest && event.url.pathname === "/nodata")\n` +
 				`\t\treturn new Response("nope", { status: 500 });\n` +
+				`\tif (event.isDataRequest && event.url.pathname === "/guarded")\n` +
+				`\t\treturn new Response(null, { status: 307, headers: { location: "/login" } });\n` +
 				`\treturn resolve(event);\n};\n`,
 			// `/[slug]` answers the 404 probe with a page, and wrangler needs 404.html: that
 			// failure is listed with the pages, not thrown before them.
@@ -247,6 +282,10 @@ describe("a build whose prerendered routes answer badly", () => {
 		],
 		["a page whose data payload fails", "❌ Prerender: /nodata data answered 500"],
 		[
+			"a page whose data request redirects",
+			"❌ Prerender: /guarded data answered redirect 307 → /login",
+		],
+		[
 			"the 404 page wrangler needs",
 			"❌ 404.html could not be built (expected a 404 page, got 200)",
 		],
@@ -264,6 +303,7 @@ describe("a build whose prerendered routes answer badly", () => {
 			"private.html",
 			"blog/logo.png.html",
 			"nodata.html",
+			"guarded.html",
 		])
 			expect(existsSync(join(dir, "dist/prerendered", file))).toBe(false);
 	});
@@ -283,6 +323,27 @@ test("a prerender server that crashes on boot fails the build", async () => {
 		expect(code).toBe(1);
 		expect(out).toContain("❌ Prerender server failed to start");
 		expect(out).not.toContain("Static site generated");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// ─── PRERENDER_TIMEOUT is per request ─────────────────────
+
+// The page and its data payload each run the loader. Each fetch gets its own timeout: a
+// loader at 60% of the limit builds, though the two fetches together take longer.
+test("a slow loader gets the timeout once per fetch, not once per page", async () => {
+	const dir = fixture("slow", {
+		"src/routes/slow/+page.svelte": "<h1>Slow</h1>\n",
+		"src/routes/slow/+page.server.ts": prerendered(
+			`export async function load() {\n\tawait Bun.sleep(1200);\n\treturn { ok: true };\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, { PRERENDER_TIMEOUT: "2000" });
+		expect(out).not.toContain("timed out");
+		expect(code).toBe(0);
+		expect(existsSync(join(dir, "dist/prerendered/__bosia/data/slow.json"))).toBe(true);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

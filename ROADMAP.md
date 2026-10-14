@@ -18,6 +18,8 @@
 - [x] ⚪ Review: a failed 404 probe (wrangler `404-page`) is listed with the page ❌s instead of thrown first, so one build shows all.
 - [x] ⚪ Review: a bad reply's body is cancelled (socket back to the pool); `describeError` keeps an error's `code` and `cause`.
 - [x] ⚪ Review: docs skip every locale index via `LOCALES` (not a hard-coded `id`); routing and cloudflare skills say what now fails.
+- [x] 🟡 Review 2 (regression): one `AbortSignal.timeout` was shared by the page and data fetches, so both loader runs had one PRERENDER_TIMEOUT. Now one per fetch.
+- [x] 🟡 Review 2: a redirected data request is a 200 JSON `{ redirect }` (server.ts), so it passed the status check and was saved. `prerenderDataProblem` rejects `redirect`/`error` payloads.
 - [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.
 - [ ] ⚪ `PrerenderEntriesError` now also carries reply/timeout/server-start failures; rename to `PrerenderError` (exported name).
 - [ ] ⚪ The ❌ reply lines print in worker-pool order, not route order; sort them if it confuses anyone.

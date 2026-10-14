@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A prerendered page is saved only with its data file, so client navigation works on static hosts.
 - A missing 404.html is listed with the other prerender errors, so one build shows them all.
 - Prerender errors keep their cause, like `ECONNRESET`, so the real problem is visible.
+- Each prerender request gets its own time limit; a slow page no longer times out with its data.
+- A page whose data request redirects (like to `/login`) fails prerender instead of saving it.
 
 ## [1.2.4] - 2026-10-14
 

@@ -166,6 +166,26 @@ export function prerenderReplyProblem(kind: "page" | "api", res: Response): stri
 	return null;
 }
 
+/**
+ * Why a 200 data payload can't be saved, or null when it can. The server answers a data
+ * request's redirect (a loader's, or a hook's 3xx) with a 200 JSON `{ redirect, status }`,
+ * so the client router can follow it (server.ts data endpoint and handleRequest). A loader
+ * payload is `{ pageData, layoutData, … }` and never has `redirect` or `error` at the top.
+ */
+export function prerenderDataProblem(body: string): string | null {
+	let data: unknown;
+	try {
+		data = JSON.parse(body);
+	} catch {
+		return "answered a body that isn't JSON";
+	}
+	if (!data || typeof data !== "object") return "answered a body that isn't a data payload";
+	const { redirect, status, error } = data as Record<string, any>;
+	if (redirect != null) return `answered redirect ${status ?? "?"} → ${redirect}`;
+	if (error != null) return `answered error ${error?.status ?? "?"}`;
+	return null;
+}
+
 /** An error's message plus its `cause` (Bun's fetch puts ECONNRESET there) and `code` (EACCES). */
 export function describeError(err: unknown): string {
 	if (!(err instanceof Error)) return String(err);
@@ -440,10 +460,12 @@ export async function prerenderStaticRoutes(
 		const prerenderOne = async (t: PrerenderTarget): Promise<void> => {
 			const { path: routePath, kind, trailingSlash: ts } = t;
 			// `manual`: a redirect is reported, not followed into another page that gets saved.
-			const fetchOpts: RequestInit = {
+			// A new timeout per fetch: a shared one would give the page and its data (two
+			// loader runs) one PRERENDER_TIMEOUT between them.
+			const fetchOpts = (): RequestInit => ({
 				redirect: "manual",
 				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-			};
+			});
 			const fail = (why: string) => failures.push(`❌ Prerender: ${targetLabel(t)} ${why}`);
 			// Drain the unread body so the keep-alive socket goes back to the pool.
 			const reject = async (res: Response, why: string) => {
@@ -453,7 +475,7 @@ export async function prerenderStaticRoutes(
 			try {
 				if (kind === "api") {
 					// APIs: fetch the bare route URL, write body to `<path>.json`.
-					const res = await fetch(`${base}${routePath.replace(/\/$/, "")}`, fetchOpts);
+					const res = await fetch(`${base}${routePath.replace(/\/$/, "")}`, fetchOpts());
 					const problem = prerenderReplyProblem(kind, res);
 					if (problem) return reject(res, problem);
 					const body = await res.text();
@@ -467,7 +489,7 @@ export async function prerenderStaticRoutes(
 				// Hit the canonical URL so the server doesn't 308 us mid-prerender
 				const canonicalRoute = canonicalRouteFor(routePath, ts);
 
-				const res = await fetch(`${base}${canonicalRoute}`, fetchOpts);
+				const res = await fetch(`${base}${canonicalRoute}`, fetchOpts());
 				const problem = prerenderReplyProblem(kind, res);
 				if (problem) return reject(res, problem);
 				const html = await res.text();
@@ -483,10 +505,12 @@ export async function prerenderStaticRoutes(
 				// navigation on a static host fetches it, so a page saved without it is broken:
 				// both are checked before either is written.
 				const dataPath = prerenderDataPath(routePath);
-				const dataRes = await fetch(`${base}/__bosia/data${dataPath}`, fetchOpts);
+				const dataRes = await fetch(`${base}/__bosia/data${dataPath}`, fetchOpts());
 				const dataProblem = prerenderReplyProblem("api", dataRes);
 				if (dataProblem) return reject(dataRes, `data ${dataProblem}`);
 				const dataJson = await dataRes.text();
+				const payloadProblem = prerenderDataProblem(dataJson);
+				if (payloadProblem) return void fail(`data ${payloadProblem}`);
 
 				mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
 				writeFileSync(outPath, html);
