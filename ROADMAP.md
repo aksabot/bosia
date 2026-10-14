@@ -36,6 +36,7 @@
 - [x] ⚪ `/dist/`, `/__bosia/` and `/_health` live once in `staticPath.ts` (`isFrameworkPath`, `HEALTH_PATH`); server.ts and prerender share them.
 - [ ] ⚪ `~` is allowed in values, so on Windows with 8.3 names `GUIDES~1/intro` can point at another route's `guides-old/` folder. Clash check can't see it.
 - [ ] ⚪ Clash errors run only after every `entries()` call passes; a bad value plus a clash needs two builds to see both.
+- [ ] ⚪ The prerender ready poll (`prerender.ts`) and `dev.ts` still hard-code `/_health`; use `HEALTH_PATH` from `staticPath.ts`.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 
