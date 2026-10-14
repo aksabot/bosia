@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A prerender clash names the route that made the page, like `/about (from /[slug])`.
 - `entries()` values like `_health` or `dist/…` fail; they saved the framework's reply as the page.
 - Page `entries()` values like `logo.png` fail; the server treats them as files, not pages.
+- `entries()` URLs can't start with `dist` or `__bosia` in any case; `DIST/` broke the JS bundle.
 
 ## [1.2.3] - 2026-10-13
 

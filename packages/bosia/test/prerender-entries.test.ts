@@ -1,6 +1,8 @@
 // Regression table for prerender entries() values and output clashes.
 // Every row is a case a review once found. Add a row for each new finding before fixing it,
 // and never delete one: a row that has to change means a decided rule is being reopened.
+// A finding that is a new kind of outcome (not just a new value) also gets an oracle check in
+// prerender-invariants.test.ts, and a tricky part added to its PARTS list.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -329,10 +331,16 @@ describe("detectPrerenderRoutes()", () => {
 		["/[...slug]", "dist/x", "never", "api", false],
 		// Look-alikes the server renders as pages.
 		["/[slug]", "_healthy", "never", "page", true],
-		["/[slug]", "dist", "never", "page", true], // a page at /dist, not under /dist/
+		// Round 12 flipped these two (option A): `/dist/` 404s instead of 308ing to `/dist`, and on
+		// macOS/Windows a `DIST/` folder swallows the `dist/client` bundle copied after it.
+		["/[slug]", "dist", "never", "page", false],
 		["/docs/[...p]", "dist/x", "never", "page", true], // not at the root
 		["/[slug]", "_Health", "never", "page", true], // the server's checks are case-sensitive
-		["/[...p]", "DIST/x", "never", "page", true],
+		["/[...p]", "DIST/x", "never", "page", false],
+		["/[slug]", "Dist", "always", "page", false], // writes Dist/index.html
+		["/[slug]/x", "__Bosia", "never", "page", false], // its own data lives in __bosia/
+		["/[...slug]", "DIST/x", "never", "api", false],
+		["/[slug]", "dist", "never", "api", true], // dist.json, not a folder
 		["/blog/[slug]", "logo.PNG", "never", "page", true],
 		["/api/[slug]", "a.png", "never", "api", true], // an API wins over static files
 	];
@@ -354,7 +362,7 @@ describe("detectPrerenderRoutes()", () => {
 							],
 						);
 			if (ok) expect(res).toBeArray();
-			else expect(res.message).toContain("a URL the server answers itself");
+			else expect(res.message).toMatch(/a URL the server answers itself|the framework's folders/);
 		});
 
 	test("case-only twins fail end to end", async () => {

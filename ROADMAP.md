@@ -30,6 +30,8 @@
 - [x] ⚪ Page values are checked with and without the trailing `/`: in always mode `logo.png` passed as `/logo.png/`, but `/logo.png` 404s before the 308.
 - [ ] 🟡 A slug can freeze a live route: `/blog/[slug]` giving `new` saves `src/routes/blog/new` (not prerendered) as a snapshot. Match each URL with the server's `matchRoutes`; reject if another route wins. Separate branch.
 - [ ] ⚪ A slug `__bosia-404-probe` that a loader answers with 200 breaks the 404 probe. Reserve the probe path.
+- [x] 🟡 URLs can't start with `dist`/`__bosia` in any case: on macOS/Windows `DIST/` swallowed the `dist/client` bundle copied after it. Pure `checkPrerenderPaths()`.
+- [x] 🟡 `test/prerender-invariants.test.ts`: sweeps values × patterns × modes; checks outcomes (server reach via real `isStaticPath`, a case-insensitive disk model of static/), not the rules.
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll

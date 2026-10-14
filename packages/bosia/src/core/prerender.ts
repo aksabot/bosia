@@ -155,6 +155,35 @@ export class PrerenderEntriesError extends Error {
 	override name = "PrerenderEntriesError";
 }
 
+/**
+ * Throws when a dynamic route's path would save the wrong thing. Pure, so the invariant
+ * tests (test/prerender-invariants.test.ts) can sweep every value × slash mode × kind.
+ */
+export function checkPrerenderPaths(
+	paths: string[],
+	kind: "page" | "api",
+	ts: TrailingSlash,
+): void {
+	for (const p of paths) {
+		// `dist/` and `__bosia/` are the framework's folders in static/: `dist/client` is copied
+		// after the pages, so on macOS/Windows a page folder `DIST/` would swallow the bundle
+		// (served as `DIST/client/…`, a 404 on case-sensitive hosts). A page `/dist` also fails:
+		// `/dist/` is answered as a static file, not 308'd to it.
+		if (kind === "page" ? /^\/(dist|__bosia)(\/|$)/i.test(p) : /^\/(dist|__bosia)\//i.test(p))
+			throw new Error(`entries() gives ${p}; dist and __bosia are the framework's folders`);
+		// The server answers `/_health`, and for pages any static-file ending like `.png`, itself,
+		// so the saved file would hold its reply, not the route. Checked on the slash-less form:
+		// `/logo.png` 404s before the 308 to `/logo.png/`, and the `/` form adds only the prefixes
+		// rejected above (the invariant test checks both forms).
+		if (p === "/_health" || (kind === "page" && isStaticPath(p)))
+			throw new Error(`entries() gives ${p}, a URL the server answers itself`);
+		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
+		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
+		if (kind === "page" && ts === "never" && p.toLowerCase() === "/404")
+			throw new Error("an entries() value would overwrite 404.html, the not-found page");
+	}
+}
+
 /** Dynamic route → import module, call entries(), expand to concrete targets. */
 async function expandDynamicRoute(
 	pattern: string,
@@ -170,26 +199,7 @@ async function expandDynamicRoute(
 		// A repeated value (a tag on two posts) is written once. Only within this route:
 		// the same URL from two routes is a clash, reported by findPrerenderClash.
 		const paths = [...new Set(entryList.map((entry) => substituteParams(pattern, entry)))];
-		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
-		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
-		const notFound = `${OUT_DIR}/prerendered/404.html`.toLowerCase();
-		// The server answers some URLs itself (health JSON, `/dist/`, `/__bosia/`, and for pages
-		// any static-file ending like `.png`), so the saved file would hold its reply, not the
-		// route. Same rules as server.ts, on every URL that should reach the page.
-		const taken = paths
-			// A page is reached both with and without its trailing `/` (the server 308s one to the
-			// other), so both must reach the page: `/logo.png` 404s before the 308 in always mode.
-			.flatMap((p) => (kind === "page" ? [p, canonicalRouteFor(p, ts)] : [p]))
-			.find(
-				(url) =>
-					url === "/_health" ||
-					(kind === "page"
-						? isStaticPath(url)
-						: url.startsWith("/dist/") || url.startsWith("/__bosia/")),
-			);
-		if (taken) throw new Error(`entries() gives ${taken}, a URL the server answers itself`);
-		if (kind === "page" && paths.some((p) => prerenderOutPath(p, ts).toLowerCase() === notFound))
-			throw new Error("an entries() value would overwrite 404.html, the not-found page");
+		checkPrerenderPaths(paths, kind, ts);
 		return paths.map((path) => ({ path, route: pattern, kind, trailingSlash: ts }));
 	} catch (err) {
 		// Fail the build: skipping the route would silently drop every page it lists.

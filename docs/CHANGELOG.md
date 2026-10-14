@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Security guide: a static `src/routes/404` page may replace `404.html`; a slug `404` can't.
 - Security guide: `entries()` values can't give framework URLs like `/_health` or `/dist/…`.
 - Security guide: page `entries()` values can't end in a static-file type like `.png`.
+- Security guide: `entries()` URLs can't start with `dist` or `__bosia`, in any case.
 
 ## [0.8.26] - 2026-10-13
 
