@@ -1,7 +1,7 @@
 import { error } from "bosia";
 import type { LoadEvent } from "bosia";
 import { loadDoc } from "$lib/docs/content";
-import { getLocale, stripLocale } from "$lib/docs/i18n";
+import { getLocale, LOCALES, stripLocale } from "$lib/docs/i18n";
 import { buildSeoMeta } from "$lib/docs/seo";
 import { readdirSync } from "fs";
 import { join } from "path";
@@ -24,9 +24,10 @@ export function entries(): Record<string, string>[] {
 						: prefix
 							? `${prefix}/${base}` // e.g. guides/routing.md → "guides/routing"
 							: base; // e.g. getting-started.md → "getting-started"
-				// Skip the root empty slug and a locale's index (`id`): the landing routes
-				// (src/routes/+page, src/routes/id) serve those URLs, so prerender would fail.
-				if (slug && slug !== "id") {
+				// Skip the root empty slug and a locale's index (`id/index.md` → `id`): the
+				// landing routes (src/routes/+page, src/routes/<locale>) serve those URLs, so
+				// prerender would fail with "served by".
+				if (slug && !(LOCALES as readonly string[]).includes(slug)) {
 					slugs.push({ slug });
 				}
 			}

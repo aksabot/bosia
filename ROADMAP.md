@@ -13,6 +13,13 @@
 - [x] ⚪ Dropped the `isStaticPath` page rule the reply check covers, except in `always` mode: it fetches `/logo.png/`, so the slash-less `/logo.png` (a 404) is never checked.
 - [x] ⚪ `test/prerender-server.test.ts` builds and boots real fixtures: 308s on saved pages, and a failing build listing every bad reply.
 - [x] ⚪ docs: `[...slug]` skips `id` (the `id` landing owns `/id`); the `id` landing is prerendered on purpose. `content/docs/id/index.md` is still never shown.
+- [x] 🟡 Review: a prerender server that fails to start fails the build; it used to log ❌ and ship with every prerendered page missing.
+- [x] 🟡 Review: the data payload gets the same check (`redirect: "manual"`, 200); a page is saved only with its data, else navigation on a static host broke.
+- [x] ⚪ Review: a failed 404 probe (wrangler `404-page`) is listed with the page ❌s instead of thrown first, so one build shows all.
+- [x] ⚪ Review: a bad reply's body is cancelled (socket back to the pool); `describeError` keeps an error's `code` and `cause`.
+- [x] ⚪ Review: docs skip every locale index via `LOCALES` (not a hard-coded `id`); routing and cloudflare skills say what now fails.
+- [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.
+- [ ] ⚪ `PrerenderEntriesError` now also carries reply/timeout/server-start failures; rename to `PrerenderError` (exported name).
 - [ ] ⚪ The ❌ reply lines print in worker-pool order, not route order; sort them if it confuses anyone.
 
 ## bosia 1.2.4 (2026-10-14) — prerender `entries()` value fixes

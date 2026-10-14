@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Security guide: prerender fails when a page answers an error, a redirect or a file.
 - Security guide: prerender fails when another route serves a slug's URL.
 - The Indonesian landing page `/id` is prerendered on purpose, no longer by a docs slug.
+- Routing and Cloudflare skills: a prerendered page that errors or redirects fails the build.
 
 ## [0.8.27] - 2026-10-14
 

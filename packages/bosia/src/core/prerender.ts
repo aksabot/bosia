@@ -166,6 +166,17 @@ export function prerenderReplyProblem(kind: "page" | "api", res: Response): stri
 	return null;
 }
 
+/** An error's message plus its `cause` (Bun's fetch puts ECONNRESET there) and `code` (EACCES). */
+export function describeError(err: unknown): string {
+	if (!(err instanceof Error)) return String(err);
+	const code = (err as { code?: unknown }).code;
+	const cause = err.cause instanceof Error ? err.cause.message : err.cause;
+	let out = err.message;
+	if (typeof code === "string" && !out.includes(code)) out += ` [${code}]`;
+	if (cause != null && cause !== "") out += ` (cause: ${String(cause)})`;
+	return out;
+}
+
 /** A dynamic prerender route whose entries() can't be used. build.ts prints `message` and exits. */
 export class PrerenderEntriesError extends Error {
 	override name = "PrerenderEntriesError";
@@ -413,12 +424,12 @@ export async function prerenderStaticRoutes(
 		if (!ready || exited) {
 			const why = child.signalCode ?? `exit code ${child.exitCode ?? "none"}`;
 			if (require404)
-				throw new Error(
-					`Prerender server failed to start (${why}), so 404.html could not be built, but ` +
+				throw new PrerenderEntriesError(
+					`❌ Prerender server failed to start (${why}), so 404.html could not be built, but ` +
 						`wrangler sets not_found_handling "404-page". Fix the server, or add public/404.html.`,
 				);
-			console.error(`❌ Prerender server failed to start (${why})`);
-			return;
+			// Returning here would ship a build with every prerendered page missing.
+			throw new PrerenderEntriesError(`❌ Prerender server failed to start (${why})`);
 		}
 
 		mkdirSync(`${OUT_DIR}/prerendered`, { recursive: true });
@@ -434,12 +445,17 @@ export async function prerenderStaticRoutes(
 				signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
 			};
 			const fail = (why: string) => failures.push(`❌ Prerender: ${targetLabel(t)} ${why}`);
+			// Drain the unread body so the keep-alive socket goes back to the pool.
+			const reject = async (res: Response, why: string) => {
+				await res.body?.cancel();
+				fail(why);
+			};
 			try {
 				if (kind === "api") {
 					// APIs: fetch the bare route URL, write body to `<path>.json`.
 					const res = await fetch(`${base}${routePath.replace(/\/$/, "")}`, fetchOpts);
 					const problem = prerenderReplyProblem(kind, res);
-					if (problem) return void fail(problem);
+					if (problem) return reject(res, problem);
 					const body = await res.text();
 					const outPath = prerenderApiOutPath(routePath);
 					mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
@@ -453,7 +469,7 @@ export async function prerenderStaticRoutes(
 
 				const res = await fetch(`${base}${canonicalRoute}`, fetchOpts);
 				const problem = prerenderReplyProblem(kind, res);
-				if (problem) return void fail(problem);
+				if (problem) return reject(res, problem);
 				const html = await res.text();
 
 				// Filename strategy:
@@ -462,32 +478,29 @@ export async function prerenderStaticRoutes(
 				//   ignore → about/index.html  (single emit; both URLs resolve via server canonicalize=off)
 				//   root   → index.html
 				const outPath = prerenderOutPath(routePath, ts);
+
+				// The data payload (filename matches dataUrl() — strips trailing slash). Client
+				// navigation on a static host fetches it, so a page saved without it is broken:
+				// both are checked before either is written.
+				const dataPath = prerenderDataPath(routePath);
+				const dataRes = await fetch(`${base}/__bosia/data${dataPath}`, fetchOpts);
+				const dataProblem = prerenderReplyProblem("api", dataRes);
+				if (dataProblem) return reject(dataRes, `data ${dataProblem}`);
+				const dataJson = await dataRes.text();
+
 				mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
 				writeFileSync(outPath, html);
-
-				// Also prerender the data payload (filename matches dataUrl() — strips trailing slash)
-				const dataPath = prerenderDataPath(routePath);
-				const dataRes = await fetch(`${base}/__bosia/data${dataPath}`, {
-					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-				});
-				if (dataRes.ok) {
-					const dataJson = await dataRes.text();
-					const dataOutPath = prerenderDataOutPath(routePath);
-					mkdirSync(dataOutPath.substring(0, dataOutPath.lastIndexOf("/")), {
-						recursive: true,
-					});
-					writeFileSync(dataOutPath, dataJson);
-					console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
-				} else {
-					console.log(`   ✅ ${routePath} → ${outPath}`);
-				}
+				const dataOutPath = prerenderDataOutPath(routePath);
+				mkdirSync(dataOutPath.substring(0, dataOutPath.lastIndexOf("/")), { recursive: true });
+				writeFileSync(dataOutPath, dataJson);
+				console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
 			} catch (err) {
 				if (err instanceof DOMException && err.name === "TimeoutError") {
 					fail(
 						`timed out after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`,
 					);
 				} else {
-					fail(`failed: ${err instanceof Error ? err.message : String(err)}`);
+					fail(`failed: ${describeError(err)}`);
 				}
 			}
 		};
@@ -527,12 +540,13 @@ export async function prerenderStaticRoutes(
 				// Only a deploy that serves 404.html needs it; elsewhere (an app whose
 				// hooks redirect every request) a missing one is fine, so just warn.
 				const reason = (err as Error).message;
+				// Listed with the page failures, so one build shows every problem.
 				if (require404)
-					throw new Error(
-						`404.html could not be built (${reason}), but wrangler sets ` +
+					failures.push(
+						`❌ 404.html could not be built (${reason}), but wrangler sets ` +
 							`not_found_handling "404-page". Make unknown paths answer 404, or add public/404.html.`,
 					);
-				console.warn(`   ⚠️  404.html skipped: ${reason}`);
+				else console.warn(`   ⚠️  404.html skipped: ${reason}`);
 			}
 
 		// build.ts prints this and exits 1; the finally below still stops the server.

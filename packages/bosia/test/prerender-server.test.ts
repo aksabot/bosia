@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
 import { dirname, join } from "path";
 
-import { getEphemeralPort, prerenderReplyProblem } from "../src/core/prerender.ts";
+import { describeError, getEphemeralPort, prerenderReplyProblem } from "../src/core/prerender.ts";
 import { BOSIA_NODE_PATH } from "../src/core/paths.ts";
 
 // Prerender against a real built server: what it saves is the server's reply, so the reply
@@ -77,6 +77,22 @@ describe("prerenderReplyProblem()", () => {
 	});
 	test("an API may answer any 200 type", () => {
 		expect(prerenderReplyProblem("api", res(200, { "content-type": "text/plain" }))).toBeNull();
+	});
+});
+
+describe("describeError()", () => {
+	test("adds the code and the cause a bare message hides", () => {
+		const err = Object.assign(new Error("fetch failed", { cause: new Error("socket hang up") }), {
+			code: "ECONNRESET",
+		});
+		expect(describeError(err)).toBe("fetch failed [ECONNRESET] (cause: socket hang up)");
+	});
+	test("doesn't repeat a code the message already has", () => {
+		const err = Object.assign(new Error("EACCES: permission denied, open 'x'"), { code: "EACCES" });
+		expect(describeError(err)).toBe("EACCES: permission denied, open 'x'");
+	});
+	test("a thrown non-Error is stringified", () => {
+		expect(describeError("boom")).toBe("boom");
 	});
 });
 
@@ -191,6 +207,17 @@ describe("a build whose prerendered routes answer badly", () => {
 			"src/routes/r/[slug]/+page.server.ts": prerendered(
 				`export const trailingSlash = "ignore";\n${slugs("robots.txt")}`,
 			),
+			// The page answers 200 HTML, but its data payload fails (a guard on data requests).
+			"src/routes/nodata/+page.svelte": "<h1>No data</h1>\n",
+			"src/routes/nodata/+page.server.ts": prerendered(),
+			"src/hooks.server.ts":
+				`export const handle = async ({ event, resolve }: any) => {\n` +
+				`\tif (event.isDataRequest && event.url.pathname === "/nodata")\n` +
+				`\t\treturn new Response("nope", { status: 500 });\n` +
+				`\treturn resolve(event);\n};\n`,
+			// `/[slug]` answers the 404 probe with a page, and wrangler needs 404.html: that
+			// failure is listed with the pages, not thrown before them.
+			"wrangler.toml": `not_found_handling = "404-page"\n`,
 		});
 		result = await build(dir);
 	}, 180_000);
@@ -218,6 +245,11 @@ describe("a build whose prerendered routes answer badly", () => {
 			"a static-file slug with no file",
 			"❌ Prerender: /r/robots.txt (from /r/[slug]) answered 404",
 		],
+		["a page whose data payload fails", "❌ Prerender: /nodata data answered 500"],
+		[
+			"the 404 page wrangler needs",
+			"❌ 404.html could not be built (expected a 404 page, got 200)",
+		],
 	];
 	for (const [why, line] of EXPECT)
 		test(`lists ${why}`, () => {
@@ -226,7 +258,32 @@ describe("a build whose prerendered routes answer badly", () => {
 		});
 
 	test("saves none of them", () => {
-		for (const file of ["boom.html", "gone.html", "private.html", "blog/logo.png.html"])
+		for (const file of [
+			"boom.html",
+			"gone.html",
+			"private.html",
+			"blog/logo.png.html",
+			"nodata.html",
+		])
 			expect(existsSync(join(dir, "dist/prerendered", file))).toBe(false);
 	});
 });
+
+// ─── A server that can't start fails the build ───────────
+
+test("a prerender server that crashes on boot fails the build", async () => {
+	const dir = fixture("crash", {
+		"src/routes/about/+page.svelte": "<h1>About</h1>\n",
+		"src/routes/about/+page.server.ts": prerendered(),
+		// A hook that fails to load only warns; exiting is what kills the server at boot.
+		"src/hooks.server.ts": `process.exit(3);\nexport const handle = () => {};\n`,
+	});
+	try {
+		const { code, out } = await build(dir);
+		expect(code).toBe(1);
+		expect(out).toContain("❌ Prerender server failed to start");
+		expect(out).not.toContain("Static site generated");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);

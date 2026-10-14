@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Prerendered pages now 308 to the right trailing slash, like `/about/` to `/about`.
 - A prerender timeout or network error fails the build instead of only logging.
+- The build fails when the prerender server can't start, instead of shipping with pages missing.
+- A prerendered page is saved only with its data file, so client navigation works on static hosts.
+- A missing 404.html is listed with the other prerender errors, so one build shows them all.
+- Prerender errors keep their cause, like `ECONNRESET`, so the real problem is visible.
 
 ## [1.2.4] - 2026-10-14
 
