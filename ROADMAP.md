@@ -37,6 +37,7 @@
 - [ ] ⚪ `~` is allowed in values, so on Windows with 8.3 names `GUIDES~1/intro` can point at another route's `guides-old/` folder. Clash check can't see it.
 - [ ] ⚪ Clash errors run only after every `entries()` call passes; a bad value plus a clash needs two builds to see both.
 - [ ] ⚪ The prerender ready poll (`prerender.ts`) and `dev.ts` still hard-code `/_health`; use `HEALTH_PATH` from `staticPath.ts`.
+- [ ] ⚪ A prerendered `always` page answers `/always/one` with 200, not a 308 to `/always/one/`: server.ts serves prerendered files before the slash check. Two URLs, one page (SEO).
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 
