@@ -114,9 +114,17 @@ describe("substituteParams() rejects", () => {
 
 // ─── findPrerenderClash(): two targets, one file ──────────
 
-const page = (path: string, trailingSlash: PrerenderTarget["trailingSlash"] = "never") =>
-	({ path, kind: "page", trailingSlash }) as PrerenderTarget;
-const api = (path: string) => ({ path, kind: "api", trailingSlash: "never" }) as PrerenderTarget;
+const page = (
+	path: string,
+	trailingSlash: PrerenderTarget["trailingSlash"] = "never",
+	route = path,
+): PrerenderTarget => ({ path, route, kind: "page", trailingSlash });
+const api = (path: string): PrerenderTarget => ({
+	path,
+	route: path,
+	kind: "api",
+	trailingSlash: "never",
+});
 
 const CLASH: [why: string, targets: PrerenderTarget[], error: string][] = [
 	// macOS and Windows ignore case.
@@ -176,6 +184,23 @@ describe("findPrerenderClash()", () => {
 			expect(clashes[0]).toContain(error);
 		});
 
+	// Round 7: a target that clashes still records its other files, so the next clash shows too.
+	test("fails twice: B clashes on its HTML, C only on B's data file", () => {
+		const clashes = findPrerenderClash([
+			page("/p", "always"), // p/index.html
+			page("/p/index"), // p/index.html again; its data is __bosia/data/p/index.json
+			api("/__bosia/data/p/index"), // only B's data file
+		]);
+		expect(clashes).toHaveLength(2);
+		expect(clashes[1]).toContain("/p/index and /__bosia/data/p/index write the same file");
+	});
+
+	// Round 7: the message names the route a slug came from, not only its URL.
+	test("names the route a slug came from", () => {
+		const [clash] = findPrerenderClash([page("/about"), page("/about", "never", "/[slug]")]);
+		expect(clash).toContain("/about and /about (from /[slug]) write the same file");
+	});
+
 	for (const [why, targets] of NO_CLASH)
 		test(`passes: ${why}`, () => {
 			expect(findPrerenderClash(targets)).toEqual([]);
@@ -231,7 +256,9 @@ describe("detectPrerenderRoutes()", () => {
 		const targets = await detect([
 			route("/t/[slug]", "t/[slug]/+page.server.ts", entries("js", "js")),
 		]);
-		expect(targets).toEqual([{ path: "/t/js", kind: "page", trailingSlash: "never" }]);
+		expect(targets).toEqual([
+			{ path: "/t/js", route: "/t/[slug]", kind: "page", trailingSlash: "never" },
+		]);
 	});
 
 	test("one URL from a static and a dynamic route is a clash, not a silent drop", async () => {
@@ -240,7 +267,7 @@ describe("detectPrerenderRoutes()", () => {
 			route("/[slug]", "[slug]/+page.server.ts", entries("about")),
 		]);
 		expect(err).toBeInstanceOf(PrerenderEntriesError);
-		expect(err.message).toContain("/about and /about write the same file");
+		expect(err.message).toContain("/about and /about (from /[slug]) write the same file");
 	});
 
 	test("one URL from a static and a dynamic route in the same slash mode is a clash", async () => {
@@ -249,7 +276,7 @@ describe("detectPrerenderRoutes()", () => {
 			route("/[slug]", "[slug]/+page.server.ts", entries("about")),
 		]);
 		expect(err).toBeInstanceOf(PrerenderEntriesError);
-		expect(err.message).toContain("/about and /about write the same file");
+		expect(err.message).toContain("/about and /about (from /[slug]) write the same file");
 	});
 
 	test("one value from [slug] and [...rest] is a clash", async () => {
@@ -257,27 +284,33 @@ describe("detectPrerenderRoutes()", () => {
 			route("/d/[slug]", "d/[slug]/+page.server.ts", entries("x")),
 			route("/d/[...slug]", "d/[...slug]/+page.server.ts", entries("x")),
 		]);
-		expect(err.message).toContain("/d/x and /d/x write the same file");
+		expect(err.message).toContain(
+			"/d/x (from /d/[slug]) and /d/x (from /d/[...slug]) write the same file",
+		);
 	});
 
 	test("a slug named 404 can't overwrite 404.html, but a /404/ folder is fine", async () => {
 		const err = await detect([route("/[slug]", "[slug]/+page.server.ts", entries("404"))]);
 		expect(err.message).toContain("/[slug]: an entries() value would overwrite 404.html");
 		const ok = await detect([route("/[slug]", "[slug]/+page.server.ts", entries("404"), "always")]);
-		expect(ok).toEqual([{ path: "/404", kind: "page", trailingSlash: "always" }]);
+		expect(ok).toEqual([{ path: "/404", route: "/[slug]", kind: "page", trailingSlash: "always" }]);
 	});
 
 	test("a static /404 page may replace 404.html", async () => {
 		const targets = await detect([
 			route("/404", "404/+page.server.ts", "export const prerender = true;\n"),
 		]);
-		expect(targets).toEqual([{ path: "/404", kind: "page", trailingSlash: "never" }]);
+		expect(targets).toEqual([
+			{ path: "/404", route: "/404", kind: "page", trailingSlash: "never" },
+		]);
 	});
 
 	test("case-only twins fail end to end", async () => {
 		const err = await detect([
 			route("/c/[slug]", "c/[slug]/+page.server.ts", entries("About", "about")),
 		]);
-		expect(err.message).toContain("/c/About and /c/about write the same file");
+		expect(err.message).toContain(
+			"/c/About (from /c/[slug]) and /c/about (from /c/[slug]) write the same file",
+		);
 	});
 });

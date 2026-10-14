@@ -18,6 +18,8 @@
 - [x] 🟡 Clash check: a file and a folder at one path clash (`a.json` vs `a.json/edit`); dedupe keys on slash mode; the saved `404.html` is owned. Values can't start with `.`.
 - [x] 🟡 Dedupe only within one route: a static `/about` and slug `about` in the same slash mode were merged, dropping a page. Only a slug `404` is barred from 404.html; a static `/404` page may replace it.
 - [x] ⚪ `PARAM_NAME` is shared by scanner and routeTypes; `[id?]` tested via the regex (Windows can't make that folder).
+- [x] ⚪ Clash message names the source route (`/about (from /[slug])`); a clashing target still records all its files, so later clashes show in the same build.
+- [ ] ⚪ A dotted last part other than `.html`/`.json` (`report.pdf`) is written as `report.pdf.html`; a static host asked for `/files/report.pdf` may not find it.
 - [x] ⚪ `test/prerender-entries.test.ts`: one regression table (accept/reject/clash) holding every review finding; add a row before each fix, never delete one.
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll

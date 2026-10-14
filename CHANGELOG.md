@@ -15,14 +15,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `entries()` values like `v1..v2` are allowed; a part ending in `.` (`v1.`, `..`) fails.
 - The build fails when two prerendered pages differ only by case, like `About` and `about`.
 - `entries()` values can't be Windows device names like `con`, or end the URL in `.html`/`.json`.
-- An `entries()` value of `index` fails; it used to replace the parent page, like `/blog`.
-- A value repeated in `entries()` (a tag on two posts) is written once instead of failing.
-- Prerender fails when two pages would write one file, like a static `/about` and a slug `about`.
-- A slug `404` can't replace the 404 page; a static `src/routes/404` page still can.
 - `entries()` values can't start with `.` (like `.env`); static hosts hide those files.
 - Upgrading: rename params like `[post-id]` or `[file.name]` to `[post_id]` or `[fileName]`.
 - Upgrading: prerender slugs like `50%-off` or `café` must become `50-off` or `cafe`.
 - The build lists every broken `entries()` route at once, one `❌` line each.
+
+### Fixed
+
+- An `entries()` value of `index` fails; it used to replace the parent page, like `/blog`.
+- A value repeated in `entries()` (a tag on two posts) is written once instead of failing.
+- Prerender fails when two pages would write one file, like a static `/about` and a slug `about`.
+- A slug `404` can't replace the 404 page; a static `src/routes/404` page still can.
+- A prerender clash names the route that made the page, like `/about (from /[slug])`.
 
 ## [1.2.3] - 2026-10-13
 

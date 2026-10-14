@@ -57,6 +57,8 @@ const PRERENDER_CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 6;
 
 export interface PrerenderTarget {
 	path: string;
+	/** Route pattern the path came from (`/[slug]`); equals `path` for a static route. */
+	route: string;
 	kind: "page" | "api";
 	/** Page targets only; APIs always write a single `.json` file regardless of slash mode. */
 	trailingSlash: TrailingSlash;
@@ -172,7 +174,7 @@ async function expandDynamicRoute(
 		const notFound = `${OUT_DIR}/prerendered/404.html`.toLowerCase();
 		if (kind === "page" && paths.some((p) => prerenderOutPath(p, ts).toLowerCase() === notFound))
 			throw new Error("an entries() value would overwrite 404.html, the not-found page");
-		return paths.map((path) => ({ path, kind, trailingSlash: ts }));
+		return paths.map((path) => ({ path, route: pattern, kind, trailingSlash: ts }));
 	} catch (err) {
 		// Fail the build: skipping the route would silently drop every page it lists.
 		const why = err instanceof Error ? err.message : String(err);
@@ -193,7 +195,7 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 		}
 		const ts = route.trailingSlash;
 		if (isDynamic(route.pattern)) return expandDynamicRoute(route.pattern, filePath, "page", ts);
-		return [{ path: route.pattern, kind: "page", trailingSlash: ts }];
+		return [{ path: route.pattern, route: route.pattern, kind: "page", trailingSlash: ts }];
 	});
 
 	const apiTasks = manifest.apis.map(async (route): Promise<PrerenderTarget[]> => {
@@ -202,10 +204,10 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 		if (!wantsPrerender(content)) return [];
 		if (isDynamic(route.pattern))
 			return expandDynamicRoute(route.pattern, filePath, "api", "never");
-		return [{ path: route.pattern, kind: "api", trailingSlash: "never" }];
+		return [{ path: route.pattern, route: route.pattern, kind: "api", trailingSlash: "never" }];
 	});
 
-	// Unbounded Promise.all over all routes; each task holds only small text reads
+	// Unbounded Promise.allSettled over all routes; each task holds only small text reads
 	// and route metadata, so RAM stays trivial. Chunk it if route counts ever hit
 	// tens of thousands (open file descriptors would be the first limit).
 	const results = await Promise.allSettled([...pageTasks, ...apiTasks]);
@@ -230,32 +232,33 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
  * Every folder level counts, and so do data payloads.
  */
 export function findPrerenderClash(targets: PrerenderTarget[]): string[] {
-	const owners = new Map<string, { path: string; route: string; file: boolean }>();
+	const owners = new Map<string, { path: string; who: string; file: boolean }>();
 	const clashes: string[] = [];
 	for (const t of targets) {
+		// Name the route a slug came from, so the message says which file to fix.
+		const who = t.route === t.path ? t.path : `${t.path} (from ${t.route})`;
+		let clash = "";
 		const files =
 			t.kind === "api"
 				? [prerenderApiOutPath(t.path)]
 				: [prerenderOutPath(t.path, t.trailingSlash), prerenderDataOutPath(t.path)];
-		// One ❌ per route: stop at its first clash.
-		route: for (const out of files) {
+		// One ❌ per URL, but every file is still recorded so a later target can't slip past it.
+		for (const out of files) {
 			const segs = out.split("/");
 			for (let i = 1; i <= segs.length; i++) {
 				const path = segs.slice(0, i).join("/");
 				const file = i === segs.length;
 				const key = path.toLowerCase();
 				const prev = owners.get(key);
-				if (!prev) owners.set(key, { path, route: t.path, file });
+				if (!prev) owners.set(key, { path, who, file });
 				// Only two folders with the exact same name may share a path.
-				else if (prev.path !== path || file || prev.file) {
+				else if (!clash && (prev.path !== path || file || prev.file)) {
 					const what = file && prev.file ? "file" : "path";
-					clashes.push(
-						`❌ Prerender: ${prev.route} and ${t.path} write the same ${what} (${path})`,
-					);
-					break route;
+					clash = `❌ Prerender: ${prev.who} and ${who} write the same ${what} (${path})`;
 				}
 			}
 		}
+		if (clash) clashes.push(clash);
 	}
 	return clashes;
 }
