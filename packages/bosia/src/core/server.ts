@@ -15,7 +15,7 @@ import { NO_FRAME_GUARD_HEADER, type Handle, type RequestEvent } from "./hooks.t
 import { HttpError, Redirect, ActionFailure, isHttpError, isRedirect } from "./errors.ts";
 import { CookieJar } from "./cookies.ts";
 import { safePath } from "./safePath.ts";
-import { HEALTH_PATH, isFrameworkPath } from "./staticPath.ts";
+import { HEALTH_PATH, isFrameworkPath, isStaticPath } from "./staticPath.ts";
 import { checkCsrf } from "./csrf.ts";
 import type { CsrfConfig } from "./csrf.ts";
 import { applyCorsVary, getCorsHeaders, handlePreflight } from "./cors.ts";
@@ -26,7 +26,6 @@ import {
 	compress,
 	compressBytes,
 	encodeForRequest,
-	isStaticPath,
 	distManifest,
 	PRECOMPRESSED,
 	type Encoded,

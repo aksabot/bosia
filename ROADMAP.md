@@ -26,7 +26,7 @@
 - [ ] 🟡 `prerenderOne` saves any response and logs ✅ (loader 500, redirect to `/login`, a user `+server.ts` at the slug's URL). Check `res.ok`, HTML type, `redirect: "manual"`; then drop the copied server rules. Separate branch.
 - [ ] ⚪ A static folder `index` at a route's end (`src/routes/blog/index`) in `never` mode writes `blog/index.html`, replacing `/blog/`. Scanner check; separate branch.
 - [ ] ⚪ Device-name check rejects `com0`/`lpt0`, which Windows doesn't reserve; use `com[1-9]|lpt[1-9]`.
-- [x] 🟡 `isStaticPath` moved to side-effect-free `staticPath.ts`: importing it from `html.ts` loaded that module in the build before `loadEnv()`, pinning BASE_PATH to `""`. Test guards build.ts's imports.
+- [x] 🟡 `isStaticPath` moved to side-effect-free `staticPath.ts`: importing it from `html.ts` loaded that module in the build before `loadEnv()`, pinning BASE_PATH to `""`. Test guards build.ts's imports; html.ts no longer re-exports it.
 - [x] ⚪ Page values are checked with and without the trailing `/`: in always mode `logo.png` passed as `/logo.png/`, but `/logo.png` 404s before the 308.
 - [ ] 🟡 A slug can freeze a live route: `/blog/[slug]` giving `new` saves `src/routes/blog/new` (not prerendered) as a snapshot. Match each URL with the server's `matchRoutes`; reject if another route wins. Separate branch.
 - [ ] ⚪ A slug `__bosia-404-probe` that a loader answers with 200 breaks the 404 probe. Reserve the probe path.

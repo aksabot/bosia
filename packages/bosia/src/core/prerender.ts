@@ -181,7 +181,7 @@ export function checkPrerenderPaths(
 			throw new Error(`entries() gives ${p}, a URL the server answers itself`);
 		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
 		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
-		if (kind === "page" && ts === "never" && p.toLowerCase() === "/404")
+		if (kind === "page" && ts === "never" && lower === "/404")
 			throw new Error("an entries() value would overwrite 404.html, the not-found page");
 	}
 }

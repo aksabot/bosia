@@ -700,8 +700,3 @@ export function compressBytes(
 	}
 	return new Response(bytes, { status, headers });
 }
-
-// ─── Static File Detection ────────────────────────────────
-
-// In its own module so the build (prerender.ts) can use it without loading this file.
-export { isStaticPath } from "./staticPath.ts";
