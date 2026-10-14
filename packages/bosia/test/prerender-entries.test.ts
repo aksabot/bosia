@@ -390,11 +390,11 @@ describe("detectPrerenderRoutes()", () => {
 		["/[slug]/x", "__bosia", "never", "page", false],
 		["/[slug]", "dist", "always", "page", false], // fetched as /dist/
 		["/[slug]", "__bosia", "always", "page", false], // fetched as /__bosia/
-		// Static-file endings fetched as-is (never/ignore) moved to prerender-server.test.ts in
-		// 1.2.5: the reply check fails them there, on the server's real answer.
-		// Round 11: `/logo.png` 404s before the server can 308 it to `/logo.png/`. Prerender
-		// fetches `/logo.png/`, so the reply check never sees it: the rule stays for `always`.
+		["/blog/[slug]", "logo.png", "never", "page", false], // a static-file ending
+		["/[slug]", "robots.txt", "never", "page", false], // would save public/robots.txt
+		// Round 11: `/logo.png` 404s before the server can 308 it to `/logo.png/`.
 		["/blog/[slug]", "logo.png", "always", "page", false],
+		["/[slug]", "robots.txt", "ignore", "page", false],
 		["/[slug]", "_health", "never", "api", false],
 		["/[...slug]", "dist/x", "never", "api", false],
 		// Look-alikes the server renders as pages.
@@ -409,6 +409,7 @@ describe("detectPrerenderRoutes()", () => {
 		["/[slug]/x", "__Bosia", "never", "page", false], // its own data lives in __bosia/
 		["/[...slug]", "DIST/x", "never", "api", false],
 		["/[slug]", "dist", "never", "api", true], // dist.json, not a folder
+		["/blog/[slug]", "logo.PNG", "never", "page", true], // the server's endings are lowercase
 		["/api/[slug]", "a.png", "never", "api", true], // an API wins over static files
 	];
 	for (const [pattern, value, ts, kind, ok] of SERVER_URL)

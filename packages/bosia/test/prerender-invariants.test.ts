@@ -1,15 +1,12 @@
 // Invariant sweep for prerender values. The regression table (prerender-entries.test.ts) checks
 // rules; this checks outcomes, with an oracle that doesn't share the rules' code:
-//   1. every URL of a page that prerender doesn't fetch (the other `/` form) reaches the page,
-//      not the server's own handlers (real isStaticPath, same function server.ts uses). The
-//      fetched URL is checked on the server's real reply (prerender-server.test.ts), so a
-//      static-file ending there is the build test's job, not this sweep's;
+//   1. every URL of an accepted page (both `/` forms) reaches the page, not the server's own
+//      handlers (real isStaticPath, same function server.ts uses);
 //   2. the final static/ tree, modelled on a case-insensitive disk (macOS/Windows) in
 //      generateStaticSite's copy order, keeps every file at its exact name with one writer.
 // A value the rules accept that breaks either invariant fails here, even with no table row.
 import { describe, expect, test } from "bun:test";
 import {
-	canonicalRouteFor,
 	checkPrerenderPaths,
 	findPrerenderClash,
 	prerenderApiOutPath,
@@ -120,11 +117,7 @@ describe("prerender invariants", () => {
 	test("every URL of an accepted page reaches the page", () => {
 		const bad = ACCEPTED.filter((t) => t.kind === "page").flatMap((t) =>
 			[t.path, `${t.path}/`]
-				.filter(
-					(u) =>
-						u === "/_health" ||
-						(u !== canonicalRouteFor(t.path, t.trailingSlash) && isStaticPath(u)),
-				)
+				.filter((u) => u === "/_health" || isStaticPath(u))
 				.map((u) => `${t.path} (${t.route}, ${t.trailingSlash}): the server answers ${u}`),
 		);
 		expect(bad).toEqual([]);

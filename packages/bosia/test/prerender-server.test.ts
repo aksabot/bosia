@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
 import {
@@ -12,7 +12,7 @@ import { BOSIA_NODE_PATH } from "../src/core/paths.ts";
 
 // Prerender against a real built server: what it saves is the server's reply, so the reply
 // check and the 308 in front of saved pages can only be tested end to end. The pure rules
-// live in prerender-entries.test.ts; rows that moved here say so there.
+// live in prerender-entries.test.ts.
 //
 // Fixtures live under packages/bosia/ so svelte and the Tailwind binary resolve from this
 // package's node_modules — same reason as basePath-server.test.ts.
@@ -86,6 +86,13 @@ describe("prerenderReplyProblem()", () => {
 	test("an API may answer any 200 type", () => {
 		expect(prerenderReplyProblem("api", res(200, { "content-type": "text/plain" }))).toBeNull();
 	});
+	test("the 404 probe wants a 404 HTML page", () => {
+		expect(prerenderReplyProblem("page", res(404, HTML), 404)).toBeNull();
+		expect(prerenderReplyProblem("page", res(200, HTML), 404)).toBe("answered 200");
+		expect(prerenderReplyProblem("page", res(404, { "content-type": "text/plain" }), 404)).toBe(
+			"answered text/plain, not an HTML page",
+		);
+	});
 });
 
 // The server answers a data request's redirect with a 200 JSON `{ redirect, status }`
@@ -122,6 +129,18 @@ describe("describeError()", () => {
 	});
 	test("a thrown non-Error is stringified", () => {
 		expect(describeError("boom")).toBe("boom");
+	});
+	test("a plain-object cause shows its code and message, not [object Object]", () => {
+		const err = new Error("fetch failed", { cause: { code: "ECONNREFUSED", message: "refused" } });
+		expect(describeError(err)).toBe("fetch failed (cause: refused [ECONNREFUSED])");
+		const bare = new Error("fetch failed", { cause: { code: "ECONNREFUSED" } });
+		expect(describeError(bare)).toBe("fetch failed (cause: ECONNREFUSED)");
+		expect(describeError(new Error("x", { cause: { n: 1 } }))).toBe(`x (cause: {"n":1})`);
+	});
+	test("a cause that points back at itself stops", () => {
+		const err = new Error("loop");
+		err.cause = err;
+		expect(describeError(err)).toBe("loop (cause: loop (cause: loop (cause: loop)))");
 	});
 });
 
@@ -225,17 +244,8 @@ describe("a build whose prerendered routes answer badly", () => {
 			"src/routes/gone/+page.server.ts": loader(`error(404, "gone")`),
 			"src/routes/private/+page.svelte": "<h1>Private</h1>\n",
 			"src/routes/private/+page.server.ts": loader(`redirect(307, "/login")`),
-			// Moved from prerender-entries.test.ts: static-file endings fetched as-is.
-			"src/routes/blog/[slug]/+page.svelte": "<h1>Blog</h1>\n",
-			"src/routes/blog/[slug]/+page.server.ts": prerendered(slugs("logo.png")),
-			"public/blog/logo.png": "not really a png",
+			// Answers the 404 probe with a page (see wrangler.toml below).
 			"src/routes/[slug]/+page.svelte": "<h1>Slug</h1>\n",
-			"src/routes/[slug]/+page.server.ts": prerendered(slugs("robots.txt")),
-			"public/robots.txt": "User-agent: *\n",
-			"src/routes/r/[slug]/+page.svelte": "<h1>R</h1>\n",
-			"src/routes/r/[slug]/+page.server.ts": prerendered(
-				`export const trailingSlash = "ignore";\n${slugs("robots.txt")}`,
-			),
 			// The page answers 200 HTML, but its data payload fails (a guard on data requests).
 			"src/routes/nodata/+page.svelte": "<h1>No data</h1>\n",
 			"src/routes/nodata/+page.server.ts": prerendered(),
@@ -268,27 +278,12 @@ describe("a build whose prerendered routes answer badly", () => {
 		["a loader error(500)", "❌ Prerender: /boom answered 500"],
 		["a loader error(404)", "❌ Prerender: /gone answered 404"],
 		["a loader redirect", "❌ Prerender: /private answered 307 → /login"],
-		[
-			"a slug that is a public/ image",
-			"❌ Prerender: /blog/logo.png (from /blog/[slug]) answered image/png, not an HTML page",
-		],
-		[
-			"a slug that is public/robots.txt",
-			"❌ Prerender: /robots.txt (from /[slug]) answered text/plain",
-		],
-		[
-			"a static-file slug with no file",
-			"❌ Prerender: /r/robots.txt (from /r/[slug]) answered 404",
-		],
 		["a page whose data payload fails", "❌ Prerender: /nodata data answered 500"],
 		[
 			"a page whose data request redirects",
 			"❌ Prerender: /guarded data answered redirect 307 → /login",
 		],
-		[
-			"the 404 page wrangler needs",
-			"❌ 404.html could not be built (expected a 404 page, got 200)",
-		],
+		["the 404 page wrangler needs", "❌ 404.html could not be built (an unknown URL answered 200)"],
 	];
 	for (const [why, line] of EXPECT)
 		test(`lists ${why}`, () => {
@@ -297,14 +292,7 @@ describe("a build whose prerendered routes answer badly", () => {
 		});
 
 	test("saves none of them", () => {
-		for (const file of [
-			"boom.html",
-			"gone.html",
-			"private.html",
-			"blog/logo.png.html",
-			"nodata.html",
-			"guarded.html",
-		])
+		for (const file of ["boom.html", "gone.html", "private.html", "nodata.html", "guarded.html"])
 			expect(existsSync(join(dir, "dist/prerendered", file))).toBe(false);
 	});
 });
@@ -328,15 +316,19 @@ test("a prerender server that crashes on boot fails the build", async () => {
 	}
 }, 180_000);
 
-// ─── PRERENDER_TIMEOUT is per request ─────────────────────
+// ─── PRERENDER_TIMEOUT: page and data side by side ───────
 
-// The page and its data payload each run the loader. Each fetch gets its own timeout: a
-// loader at 60% of the limit builds, though the two fetches together take longer.
-test("a slow loader gets the timeout once per fetch, not once per page", async () => {
+// The page and its data payload each run the loader. They're fetched side by side, each with its
+// own timeout: a loader at 60% of the limit builds, and the two loader runs start together
+// (one after the other, the second would start 1.2s later).
+test("a slow loader's page and data are fetched side by side, within the timeout", async () => {
 	const dir = fixture("slow", {
 		"src/routes/slow/+page.svelte": "<h1>Slow</h1>\n",
 		"src/routes/slow/+page.server.ts": prerendered(
-			`export async function load() {\n\tawait Bun.sleep(1200);\n\treturn { ok: true };\n}\n`,
+			`import { appendFileSync } from "fs";\n` +
+				`export async function load() {\n` +
+				`\tappendFileSync("starts.log", Date.now() + "\\n");\n` +
+				`\tawait Bun.sleep(1200);\n\treturn { ok: true };\n}\n`,
 		),
 	});
 	try {
@@ -344,6 +336,33 @@ test("a slow loader gets the timeout once per fetch, not once per page", async (
 		expect(out).not.toContain("timed out");
 		expect(code).toBe(0);
 		expect(existsSync(join(dir, "dist/prerendered/__bosia/data/slow.json"))).toBe(true);
+		const starts = readFileSync(join(dir, "starts.log"), "utf-8").trim().split("\n").map(Number);
+		expect(starts).toHaveLength(2);
+		expect(Math.abs(starts[1]! - starts[0]!)).toBeLessThan(600);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// ─── The 404 probe follows the server's 308 ──────────────
+
+// A catch-all `always` page 308s the probe to its slash form, where its 404 is the page a
+// static host should show for unknown URLs. Following that 308 builds 404.html; wrangler's
+// 404-page makes a missing one fail the build.
+test("a catch-all `always` page still gives 404.html", async () => {
+	const dir = fixture("catchall", {
+		"src/routes/+error.svelte": "<h1>Not here</h1>\n",
+		"src/routes/[...rest]/+page.svelte": "<h1>Rest</h1>\n",
+		"src/routes/[...rest]/+page.server.ts":
+			`import { error } from "bosia";\nexport const trailingSlash = "always";\n` +
+			`export function load() {\n\terror(404, "nope");\n}\n`,
+		"wrangler.toml": `not_found_handling = "404-page"\n`,
+	});
+	try {
+		const { code, out } = await build(dir);
+		expect(out).not.toContain("404.html could not be built");
+		expect(code).toBe(0);
+		expect(readFileSync(join(dir, "dist/static/404.html"), "utf-8")).toContain("Not here");
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

@@ -12,7 +12,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Prerender fails the build when a page answers an error, a redirect or a non-HTML file.
 - Prerender fails when another route serves a slug's URL, like `/blog/[slug]` giving `new`.
-- Page slugs ending in `.png` or `.txt` are checked on the server's real reply, not by name.
 
 ### Fixed
 
@@ -24,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender errors keep their cause, like `ECONNRESET`, so the real problem is visible.
 - Each prerender request gets its own time limit; a slow page no longer times out with its data.
 - A page whose data request redirects (like to `/login`) fails prerender instead of saving it.
+- Prerender fetches a page and its data at once, so slow pages build up to twice as fast.
+- Prerender errors show a cause's code and message instead of `[object Object]`.
+- A failed 404.html says what the unknown URL answered, like `answered 200`.
 
 ## [1.2.4] - 2026-10-14
 

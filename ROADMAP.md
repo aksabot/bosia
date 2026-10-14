@@ -10,7 +10,7 @@
 - [x] 🟡 `prerenderOne` saved any reply and logged ✅. Now `redirect: "manual"`; a page needs 200 HTML, an API 200 (`prerenderReplyProblem`). Bad replies and timeouts fail the build, one ❌ each.
 - [x] 🟡 A slug can't freeze a live route: each target is matched like `matchRoutes` (an API wins); `/blog/[slug]` ← `new` with `src/routes/blog/new` fails as "served by". Replaces the clash ❌ for that case.
 - [x] ⚪ The trailing-slash 308 runs before the prerendered lookup: `/always/one` 308s to `/always/one/`, `/about/` (never) to `/about`.
-- [x] ⚪ Dropped the `isStaticPath` page rule the reply check covers, except in `always` mode: it fetches `/logo.png/`, so the slash-less `/logo.png` (a 404) is never checked.
+- [x] ⚪ Kept the `isStaticPath` page rule in every slash mode (review 2): the reply check catches `.png` too, but later and less clearly, and `always` never fetches `/logo.png`.
 - [x] ⚪ `test/prerender-server.test.ts` builds and boots real fixtures: 308s on saved pages, and a failing build listing every bad reply.
 - [x] ⚪ docs: `[...slug]` skips `id` (the `id` landing owns `/id`); the `id` landing is prerendered on purpose. `content/docs/id/index.md` is still never shown.
 - [x] 🟡 Review: a prerender server that fails to start fails the build; it used to log ❌ and ship with every prerendered page missing.
@@ -20,6 +20,9 @@
 - [x] ⚪ Review: docs skip every locale index via `LOCALES` (not a hard-coded `id`); routing and cloudflare skills say what now fails.
 - [x] 🟡 Review 2 (regression): one `AbortSignal.timeout` was shared by the page and data fetches, so both loader runs had one PRERENDER_TIMEOUT. Now one per fetch.
 - [x] 🟡 Review 2: a redirected data request is a 200 JSON `{ redirect }` (server.ts), so it passed the status check and was saved. `prerenderDataProblem` rejects `redirect`/`error` payloads.
+- [x] ⚪ Review 2: page and data fetched side by side (`Promise.allSettled`; an unread reply is cancelled); `describeError` reads plain-object causes, 3 deep.
+- [x] ⚪ Review 2: the 404 probe shares `prerenderReplyProblem` (status 404) and still follows redirects: a catch-all `always` page 308s it, and its 404 is the right 404.html.
+- [ ] ⚪ The owner check ignores an API's `x.json` alias (`/api/x.json` served by `/api/[slug]`); a narrow case, add it if anyone hits it.
 - [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.
 - [ ] ⚪ `PrerenderEntriesError` now also carries reply/timeout/server-start failures; rename to `PrerenderError` (exported name).
 - [ ] ⚪ The ❌ reply lines print in worker-pool order, not route order; sort them if it confuses anyone.

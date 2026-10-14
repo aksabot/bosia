@@ -153,13 +153,18 @@ export function prerenderApiOutPath(routePath: string): string {
 
 /**
  * Why the server's reply to a prerender fetch can't be saved, or null when it can. A page must
- * answer 200 HTML; an API must answer 200. Anything else (a loader's error(), a redirect to
- * /login, the static 404, a public/ file) would be saved and served as the route.
+ * answer `status` (200) HTML; an API must answer `status`. Anything else (a loader's error(), a
+ * redirect to /login, the static 404) would be saved and served as the route. The 404 probe
+ * passes 404.
  */
-export function prerenderReplyProblem(kind: "page" | "api", res: Response): string | null {
+export function prerenderReplyProblem(
+	kind: "page" | "api",
+	res: Response,
+	status = 200,
+): string | null {
 	if (res.status >= 300 && res.status < 400)
 		return `answered ${res.status} → ${res.headers.get("location") ?? "(no Location)"}`;
-	if (res.status !== 200) return `answered ${res.status}`;
+	if (res.status !== status) return `answered ${res.status}`;
 	const type = res.headers.get("content-type") ?? "";
 	if (kind === "page" && !type.includes("text/html"))
 		return `answered ${type || "no content-type"}, not an HTML page`;
@@ -186,14 +191,25 @@ export function prerenderDataProblem(body: string): string | null {
 	return null;
 }
 
-/** An error's message plus its `cause` (Bun's fetch puts ECONNRESET there) and `code` (EACCES). */
-export function describeError(err: unknown): string {
-	if (!(err instanceof Error)) return String(err);
-	const code = (err as { code?: unknown }).code;
-	const cause = err.cause instanceof Error ? err.cause.message : err.cause;
-	let out = err.message;
-	if (typeof code === "string" && !out.includes(code)) out += ` [${code}]`;
-	if (cause != null && cause !== "") out += ` (cause: ${String(cause)})`;
+/**
+ * An error's message plus its `code` (EACCES) and `cause` (Bun's fetch puts ECONNRESET there).
+ * Reads any object, not just an Error: a cause is often a plain `{ code, message }`. Causes are
+ * followed 3 deep, so a cycle can't loop.
+ */
+export function describeError(err: unknown, depth = 0): string {
+	if (err == null || typeof err !== "object") return String(err);
+	const { message, code, cause } = err as { message?: unknown; code?: unknown; cause?: unknown };
+	let out = typeof message === "string" && message ? message : "";
+	if (typeof code === "string" && !out.includes(code)) out += out ? ` [${code}]` : code;
+	if (!out) {
+		try {
+			out = JSON.stringify(err) ?? String(err);
+		} catch {
+			out = String(err);
+		}
+	}
+	if (cause != null && cause !== "" && depth < 3)
+		out += ` (cause: ${describeError(cause, depth + 1)})`;
 	return out;
 }
 
@@ -223,10 +239,11 @@ export function checkPrerenderPaths(
 		// The server answers `/_health` before any route. Its JSON looks like a valid API reply,
 		// so prerenderReplyProblem can't catch it for an API.
 		if (p === HEALTH_PATH) throw new Error(`entries() gives ${p}, a URL the server answers itself`);
-		// A static-file ending (`.png`) is answered as a file. The URL prerender fetches is left to
-		// prerenderReplyProblem (a 404, or public/'s image), but an `always` page fetches
-		// `/logo.png/`: its slash-less form 404s before the 308, and nothing fetches that one.
-		if (kind === "page" && ts === "always" && isStaticPath(p))
+		// A static-file ending (`.png`) is answered as a file, in every slash mode. prerenderReplyProblem
+		// would catch the fetched URL too (a 404, or public/'s image), but later and less clearly,
+		// and an `always` page fetches `/logo.png/`: its slash-less form 404s before the 308, and
+		// nothing fetches that one. The `/` form adds only the prefixes rejected above.
+		if (kind === "page" && isStaticPath(p))
 			throw new Error(`entries() gives ${p}, a URL the server answers itself`);
 		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
 		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
@@ -489,10 +506,38 @@ export async function prerenderStaticRoutes(
 				// Hit the canonical URL so the server doesn't 308 us mid-prerender
 				const canonicalRoute = canonicalRouteFor(routePath, ts);
 
-				const res = await fetch(`${base}${canonicalRoute}`, fetchOpts());
+				// The data payload (filename matches dataUrl() — strips trailing slash). Client
+				// navigation on a static host fetches it, so a page saved without it is broken:
+				// both are checked before either is written. Fetched side by side; each gets its
+				// own timeout, and a reply that isn't read is cancelled.
+				const dataPath = prerenderDataPath(routePath);
+				const [htmlGot, dataGot] = await Promise.allSettled([
+					fetch(`${base}${canonicalRoute}`, fetchOpts()),
+					fetch(`${base}/__bosia/data${dataPath}`, fetchOpts()),
+				]);
+				if (htmlGot.status === "rejected" || dataGot.status === "rejected") {
+					for (const got of [htmlGot, dataGot])
+						if (got.status === "fulfilled") await got.value.body?.cancel();
+					throw htmlGot.status === "rejected"
+						? htmlGot.reason
+						: (dataGot as PromiseRejectedResult).reason;
+				}
+				const res = htmlGot.value;
+				const dataRes = dataGot.value;
+				// One ❌ per page: a bad page reply is reported, not its data's too.
 				const problem = prerenderReplyProblem(kind, res);
-				if (problem) return reject(res, problem);
-				const html = await res.text();
+				if (problem) {
+					await dataRes.body?.cancel();
+					return reject(res, problem);
+				}
+				const dataProblem = prerenderReplyProblem("api", dataRes);
+				if (dataProblem) {
+					await res.body?.cancel();
+					return reject(dataRes, `data ${dataProblem}`);
+				}
+				const [html, dataJson] = await Promise.all([res.text(), dataRes.text()]);
+				const payloadProblem = prerenderDataProblem(dataJson);
+				if (payloadProblem) return void fail(`data ${payloadProblem}`);
 
 				// Filename strategy:
 				//   never  → about.html        (canonical /about, served by static host as /about → about.html)
@@ -500,17 +545,6 @@ export async function prerenderStaticRoutes(
 				//   ignore → about/index.html  (single emit; both URLs resolve via server canonicalize=off)
 				//   root   → index.html
 				const outPath = prerenderOutPath(routePath, ts);
-
-				// The data payload (filename matches dataUrl() — strips trailing slash). Client
-				// navigation on a static host fetches it, so a page saved without it is broken:
-				// both are checked before either is written.
-				const dataPath = prerenderDataPath(routePath);
-				const dataRes = await fetch(`${base}/__bosia/data${dataPath}`, fetchOpts());
-				const dataProblem = prerenderReplyProblem("api", dataRes);
-				if (dataProblem) return reject(dataRes, `data ${dataProblem}`);
-				const dataJson = await dataRes.text();
-				const payloadProblem = prerenderDataProblem(dataJson);
-				if (payloadProblem) return void fail(`data ${payloadProblem}`);
 
 				mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
 				writeFileSync(outPath, html);
@@ -550,13 +584,17 @@ export async function prerenderStaticRoutes(
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
 		if (target !== "workers")
 			try {
+				// Follows redirects, unlike the pages: a catch-all `always` page 308s the probe to
+				// `/__bosia-404-probe/`, and its 404 there is the page a static host should show.
 				const res = await fetch(`${base}/__bosia-404-probe`, {
 					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
 				});
-				if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
 				// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
-				if (!res.headers.get("content-type")?.includes("text/html"))
-					throw new Error(`expected an HTML 404 page, got ${res.headers.get("content-type")}`);
+				const problem = prerenderReplyProblem("page", res, 404);
+				if (problem) {
+					await res.body?.cancel();
+					throw new Error(`an unknown URL ${problem}`);
+				}
 				mkdirSync(`${OUT_DIR}/static`, { recursive: true });
 				writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
 				console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
