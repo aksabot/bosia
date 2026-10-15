@@ -23,26 +23,30 @@ export function dedupKey(url: URL): string {
  * Coalesce concurrent calls under `key`. `fn` runs at most once per inflight
  * window. With `maxAgeMs` > 0 a call is joined only until it is that old:
  * one that never settles (a hung loader with LOAD_TIMEOUT=0) would otherwise
- * take every later request for the key down with it. `replace` starts a new call even
- * when one is in flight (the caller already knows it is stuck); later calls
- * join the new one.
+ * take every later request for the key down with it. A call at least
+ * `replaceOlderThanMs` old is replaced rather than joined (the caller knows
+ * it is stuck); later calls join the new one.
  */
 export function dedup<T>(
 	key: string,
 	fn: () => Promise<T>,
 	maxAgeMs = 0,
-	replace = false,
+	replaceOlderThanMs = Infinity,
 ): Promise<T> {
 	const existing = inflight.get(key);
 	const age = existing ? performance.now() - existing.start : 0;
-	if (existing && !replace && (maxAgeMs <= 0 || age < maxAgeMs)) {
+	if (existing && age < replaceOlderThanMs && (maxAgeMs <= 0 || age < maxAgeMs)) {
 		if (maxAgeMs <= 0) return existing.promise as Promise<T>;
 		// Joined, but only until the call reaches maxAgeMs: then the first
 		// joiner starts a new one and the rest join that.
 		const joined = existing.promise as Promise<T>;
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
-				dedup(key, fn, maxAgeMs, inflight.get(key) === existing).then(resolve, reject);
+				// Still the same call: replace it; else join whoever already did.
+				dedup(key, fn, maxAgeMs, inflight.get(key) === existing ? 0 : Infinity).then(
+					resolve,
+					reject,
+				);
 			}, maxAgeMs - age);
 			(timer as { unref?: () => void }).unref?.();
 			joined.then(

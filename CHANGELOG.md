@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A response with `Vary: Cookie` (or any `Vary` besides `Accept-Encoding`) is no longer cached.
 - A `+server.ts` GET that returns an already-gzipped body is no longer served broken from cache.
 - One loader or `+server.ts` GET that never finished no longer made its URL hang for everyone until a restart.
+- A page or API response built while `invalidate()` ran is no longer cached; it could bring back data from before the change.
 
 ## [1.2.4] - 2026-10-14
 

@@ -51,6 +51,7 @@ import {
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
+	cacheEpoch,
 	claimMiss,
 	collectTags,
 	depsReadIgnoredParams,
@@ -397,7 +398,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 		// INVARIANT: once set, releaseDataMiss must fire exactly once — see the
 		// API-route cache below for the same contract.
 		let releaseDataMiss: (() => void) | null = null;
-		let ownsDataMiss: (() => boolean) | null = null;
 		try {
 			const pageMatch = (await routesFor(request, routeUrl.pathname, true)).page;
 			// Build mask from `?_invalidated=<bits>` — see buildMaskFromBits. A page
@@ -486,11 +486,11 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				}
 				const hit = cacheGet(cacheKey);
 				if (hit) return serveCached(hit, request);
-				const claim = await claimMiss(cacheKey);
+				const claim = await claimMiss(cacheKey, request.signal);
 				if (claim.hit) return serveCached(claim.hit, request);
+				if (claim.aborted) return new Response(null, { status: 503 });
 				if (claim.lead) {
 					releaseDataMiss = claim.lead.release;
-					ownsDataMiss = claim.lead.current;
 					// It replaced a stuck leader: start a new loader run, which
 					// later requests join, instead of joining the stuck one.
 					freshDedup = claim.lead.stale;
@@ -505,7 +505,15 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const dedupK =
 				computeCacheKey(routeUrl, request, cookies as CookieJar) +
 				(invalidatedBits ? `|m=${invalidatedBits}` : "");
-			const result = await dedup(dedupK, runLoad, CACHE_WAIT_TIMEOUT, freshDedup);
+			// Invalidations from here on make this result stale.
+			const buildEpoch = cacheEpoch();
+			const result = await dedup(
+				dedupK,
+				runLoad,
+				CACHE_WAIT_TIMEOUT,
+				// Replace only the stuck call, not a recent healthy one.
+				freshDedup ? CACHE_WAIT_TIMEOUT / 2 : Infinity,
+			);
 			// Identity only covers CACHE_KEYS — warn if a loader read a session
 			// cookie outside that list (dedup could then mix users' results).
 			warnUncoveredCookies(cookies);
@@ -547,15 +555,12 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					result.data.pageDeps ?? null,
 				);
 				const rel = releaseDataMiss;
-				const owns = ownsDataMiss;
 				releaseDataMiss = null;
 				// Encoded once at cache quality and shared by response and entry.
 				const encoded = encodeForRequest(body, request, "cache");
 				sent = encoded;
 				deferCacheWrite(() => {
 					try {
-						// A newer build replaced this stuck one's gate.
-						if (owns && !owns()) return;
 						const { gzip, brotli } = buildCompressedVariants(
 							body,
 							encoded?.enc === "br"
@@ -577,6 +582,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 								queryAware,
 							},
 							cookies,
+							buildEpoch,
 						);
 					} finally {
 						rel?.();
@@ -647,7 +653,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 		// release() hangs coalesced waiters for the process lifetime. The cache
 		// write path hands it off to its deferred write by nulling it first.
 		let releaseApiMiss: (() => void) | null = null;
-		let ownsApiMiss: (() => boolean) | null = null;
 		try {
 			const mod = await apiMatch.route.module();
 			// HEAD falls back to GET (an explicit HEAD export still wins). BosiaApp
@@ -687,15 +692,15 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				if (apiCacheable && !url.searchParams.has("_invalidated")) {
 					// Miss coalescing: first miss runs the handler; concurrent misses
 					// wait, re-check the cache, and on a still-miss run independently.
-					const claim = await claimMiss(apiCacheKey);
+					const claim = await claimMiss(apiCacheKey, request.signal);
 					if (claim.hit) return serveCached(claim.hit, request);
-					if (claim.lead) {
-						releaseApiMiss = claim.lead.release;
-						ownsApiMiss = claim.lead.current;
-					}
+					if (claim.aborted) return new Response(null, { status: 503 });
+					if (claim.lead) releaseApiMiss = claim.lead.release;
 				}
 			}
 
+			// Invalidations from here on make this response stale.
+			const apiEpoch = cacheEpoch();
 			const handlerResult = await handler({
 				request,
 				params: apiMatch.params,
@@ -750,15 +755,13 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				// Hand the gate release to the deferred write: waiters resume only
 				// after the cacheSet attempt, so their re-check hits.
 				const rel = releaseApiMiss;
-				const owns = ownsApiMiss;
 				releaseApiMiss = null;
 				deferCacheWrite(async () => {
 					try {
 						// Stops reading once the body can't fit, so an oversized body
 						// never sits in memory or pays compression; cacheSet re-checks.
 						const buf = await readBodyForCache(cloned);
-						// null: too big. !owns(): a newer build replaced this stuck one.
-						if (buf === null || (owns && !owns())) return;
+						if (buf === null) return;
 						const { gzip, brotli } = buildCompressedVariants(buf);
 						// API endpoints have no LoaderDeps in v0.6 — invalidation is
 						// URL/prefix only. See ROADMAP for deferred tag support.
@@ -774,6 +777,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 								tags: [],
 							},
 							cookies,
+							apiEpoch,
 						);
 					} catch {
 						/* drop silently — cache population is best-effort */

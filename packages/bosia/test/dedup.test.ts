@@ -111,9 +111,9 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 			const run = async () => {
 				const claim = await claimMiss("k");
 				if (claim.hit) return "ok";
-				const out = await dedup("k", build, 40, claim.lead?.stale ?? false);
+				const out = await dedup("k", build, 40, claim.lead?.stale ? 20 : Infinity);
 				if (claim.lead) {
-					if (claim.lead.current()) cacheSet("k", entry());
+					cacheSet("k", entry());
 					claim.lead.release();
 				}
 				return out;
@@ -122,8 +122,6 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 			const waiters = await Promise.race([Promise.all(Array.from({ length: 20 }, run)), timeout]);
 			const waiterBuilds = builds;
 			const next = await Promise.race([run(), timeout]);
-			// The stuck leader's gate was replaced: it must not write.
-			const owned = leader.current();
 			// A request that joins a stuck call still gives up at maxAgeMs.
 			let runs = 0;
 			dedup("j", () => new Promise(() => {}), 40);
@@ -131,7 +129,19 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 				Promise.all(Array.from({ length: 5 }, () => dedup("j", () => (runs++, Bun.sleep(20).then(() => "ok")), 40))),
 				timeout,
 			]);
-			console.log(JSON.stringify({ waiters, next, owned, waiterBuilds, joiners, runs }));
+			// The replacement hangs too: waiters give up after a second expiry.
+			coalesceMiss("r");
+			const claims = await Promise.race([
+				Promise.all(Array.from({ length: 3 }, () => claimMiss("r"))),
+				timeout,
+			]);
+			const shape = claims.map((c) => (c.lead ? (c.lead.stale ? "stale" : "lead") : "alone"));
+			// A client that left while waiting doesn't build.
+			coalesceMiss("a");
+			const ac = new AbortController();
+			ac.abort();
+			const left = await claimMiss("a", ac.signal);
+			console.log(JSON.stringify({ waiters, next, waiterBuilds, joiners, runs, shape, aborted: left.aborted === true, leader: typeof leader.release }));
 		`;
 		const proc = Bun.spawn(["bun", "-e", script], {
 			env: { ...process.env, CACHE_WAIT_TIMEOUT: "40" },
@@ -146,8 +156,9 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 		expect(result.next).toBe("ok");
 		// One new build when the gate expired, not one per waiter.
 		expect(result.waiterBuilds).toBe(1);
-		expect(result.owned).toBe(false);
 		expect(result.joiners).toEqual(Array(5).fill("ok"));
 		expect(result.runs).toBe(1);
+		expect(result.shape.sort()).toEqual(["alone", "alone", "stale"]);
+		expect(result.aborted).toBe(true);
 	});
 });

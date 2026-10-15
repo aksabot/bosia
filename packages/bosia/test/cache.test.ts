@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
 	buildCompressedVariants,
 	cacheClear,
+	cacheEpoch,
 	cacheGet,
 	cacheSet,
 	coalesceMiss,
@@ -778,5 +779,16 @@ describe("parseMs", () => {
 			console.warn = warn;
 		}
 		expect(seen.length).toBe(4);
+	});
+});
+
+describe("cacheSet since", () => {
+	test("a build that overlapped an invalidation doesn't write", () => {
+		const before = cacheEpoch();
+		invalidate("some-tag");
+		cacheSet("/epoch/a|i=0", mkEntry(), undefined, before);
+		expect(cacheGet("/epoch/a|i=0")).toBeUndefined();
+		cacheSet("/epoch/a|i=0", mkEntry(), undefined, cacheEpoch());
+		expect(cacheGet("/epoch/a|i=0")).toBeDefined();
 	});
 });

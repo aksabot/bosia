@@ -12,6 +12,7 @@ import {
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
+	cacheEpoch,
 	claimMiss,
 	collectTags,
 	depsReadIgnoredParams,
@@ -717,7 +718,6 @@ export async function renderSSRStream(
 	const cacheable = cacheRead && req.method === "GET";
 	let cacheKey: string | null = null;
 	let releaseMiss: (() => void) | null = null;
-	let ownsMiss: (() => boolean) | null = null;
 	if (cacheRead) {
 		cacheKey = computeCacheKey(url, req, cookies as CookieJar);
 		if (!cacheBypass) {
@@ -733,16 +733,17 @@ export async function renderSSRStream(
 		}
 		if (cacheable && !cacheBypass) {
 			// Miss coalescing: the first miss leads the build; concurrent misses
-			// wait, then re-check the cache. A waiter that still misses (leader
-			// skipped the write) builds independently — no re-leadering.
-			const claim = await claimMiss(cacheKey);
+			// wait, then re-check the cache — see claimMiss().
+			const claim = await claimMiss(cacheKey, req.signal);
 			if (claim.hit) return serveCached(claim.hit, req);
-			if (claim.lead) {
-				releaseMiss = claim.lead.release;
-				ownsMiss = claim.lead.current;
-			}
+			// The client left while waiting: nobody reads this.
+			if (claim.aborted) return new Response(null, { status: 503 });
+			if (claim.lead) releaseMiss = claim.lead.release;
 		}
 	}
+
+	// Invalidations from here on make this build's result stale.
+	const buildEpoch = cacheEpoch();
 
 	// INVARIANT: releaseMiss must fire exactly once — a missed release() hangs
 	// coalesced waiters for the process lifetime. Every early return and throw
@@ -1007,14 +1008,11 @@ export async function renderSSRStream(
 				// Hand the gate release to the deferred write: waiters resume only
 				// after cacheSet ran, so their re-check hits.
 				const rel = releaseMiss;
-				const owns = ownsMiss;
 				releaseMiss = null;
 				const encoded = encodeForRequest(fullBody, req, "cache");
 				sent = encoded;
 				deferCacheWrite(() => {
 					try {
-						// A newer build replaced this stuck one's gate.
-						if (owns && !owns()) return;
 						const { gzip, brotli } = buildCompressedVariants(
 							fullBody,
 							encoded?.enc === "br"
@@ -1036,6 +1034,7 @@ export async function renderSSRStream(
 								queryAware,
 							},
 							cookies,
+							buildEpoch,
 						);
 					} finally {
 						rel?.();

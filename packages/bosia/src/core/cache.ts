@@ -418,8 +418,15 @@ export function warnUncoveredCookies(cookies: Cookies): void {
 	}
 }
 
-export function cacheSet(key: string, entry: CacheEntry, cookies?: Cookies): void {
+export function cacheSet(
+	key: string,
+	entry: CacheEntry,
+	cookies?: Cookies,
+	/** cacheEpoch() when the build started; the write is dropped if it moved. */
+	since?: number,
+): void {
 	if (!CACHE_ENABLED) return;
+	if (since !== undefined && since !== epoch) return;
 	if (CACHE_MAX_BODY_BYTES > 0 && entry.raw.length > CACHE_MAX_BODY_BYTES) return;
 	if (cookies) warnUncoveredCookies(cookies);
 	// Runs in the deferred write, after the response went out — never on a hit.
@@ -608,8 +615,8 @@ export function concatChunks(chunks: Uint8Array[]): Bytes {
 // Stampede protection for cache misses. The first miss on a key becomes the
 // leader (gets `release`); concurrent misses become waiters (get `wait`).
 // Waiters re-check cacheGet after the wait resolves — hit: serve it; miss
-// (leader skipped the write): build independently, no re-leadering. Distinct
-// from dedup(), which shares the *result*; this shares only the *wait*.
+// (leader skipped the write): build independently. Distinct from dedup(),
+// which shares the *result*; this shares only the *wait*.
 //
 // INVARIANT: the leader must call release() exactly once, after its cacheSet
 // attempt completed or was skipped — callers guard with try/finally.
@@ -617,21 +624,24 @@ export function concatChunks(chunks: Uint8Array[]): Bytes {
 // A leader that never finishes (an API handler that hangs, LOAD_TIMEOUT=0)
 // held its key for the process lifetime: every later request waited on it
 // and the handler never ran again. A gate expires CACHE_WAIT_TIMEOUT after
-// its leader started: waiters resume with `false`, and the next miss replaces
-// the gate and leads with `stale: true` — both must not join the stuck
-// leader's dedup() either.
+// its leader started: waiters resume with `false` and re-claim through
+// claimMiss(); the first replaces the gate and leads with `stale: true` (and
+// must not join the stuck leader's dedup() call), the rest wait on it.
 
 type MissGate = {
 	promise: Promise<void>;
 	release: () => void;
 	start: number;
+	/** Set by the expiry timer, so a waiter it woke never sees the gate as
+	 *  live (the timer may fire a little before the clock reads expired). */
+	expired: boolean;
 	wait?: Promise<boolean>;
 };
 
 const missGates = new Map<string, MissGate>();
 
 function gateExpired(gate: MissGate, now = performance.now()): boolean {
-	return CACHE_WAIT_TIMEOUT > 0 && now - gate.start >= CACHE_WAIT_TIMEOUT;
+	return gate.expired || (CACHE_WAIT_TIMEOUT > 0 && now - gate.start >= CACHE_WAIT_TIMEOUT);
 }
 
 // An expired gate stays until its key misses again (it tells that miss it is
@@ -647,11 +657,11 @@ function sweepGates(now: number): void {
 	}
 }
 
+export type MissLead = { release: () => void; stale: boolean };
+
 export function coalesceMiss(
 	key: string,
-):
-	| { release: () => void; stale: boolean; current: () => boolean; wait?: undefined }
-	| { wait: Promise<boolean>; release?: undefined; stale?: undefined; current?: undefined } {
+): (MissLead & { wait?: undefined }) | { wait: Promise<boolean>; release?: undefined } {
 	const now = performance.now();
 	const existing = missGates.get(key);
 	if (existing && !gateExpired(existing, now)) {
@@ -666,38 +676,35 @@ export function coalesceMiss(
 		resolve();
 	};
 	// Replaces an expired gate; the old leader's release() won't touch this one.
-	const gate: MissGate = { promise, release, start: now };
-	missGates.set(key, gate);
-	return {
-		release,
-		stale: existing !== undefined,
-		// False once another miss replaced this gate: the newer build owns the
-		// key, and this one's late (possibly pre-invalidate) result must not
-		// overwrite it.
-		current: () => missGates.get(key) === gate,
-	};
+	missGates.set(key, { promise, release, start: now, expired: false });
+	return { release, stale: existing !== undefined };
 }
 
-export type MissLead = { release: () => void; stale: boolean; current: () => boolean };
-
 /**
- * Claim a cache miss: a hit some other request wrote while this one waited,
- * the lead (`lead.release()` exactly once, after the write or its skip), or
- * `lead: null` — the leader finished without writing, build without leading.
- * A waiter whose gate expired re-claims: the first becomes the new (`stale`)
- * leader, the rest wait on it, so a stuck leader never sets every waiter
- * building at once.
+ * Claim a cache miss: a hit some other request wrote while this one waited;
+ * the lead (`lead.release()` exactly once, after the write or its skip);
+ * `lead: null` — build without leading; or `aborted` — the client left while
+ * waiting, don't build. A waiter whose gate expired re-claims once: the first
+ * becomes the new (`stale`) leader and the rest wait on it, so a stuck leader
+ * doesn't set every waiter building at once. After a second expiry a waiter
+ * builds on its own: it has waited 2× CACHE_WAIT_TIMEOUT.
  */
 export async function claimMiss(
 	key: string,
-): Promise<{ hit: CacheEntry; lead?: undefined } | { lead: MissLead | null; hit?: undefined }> {
-	for (;;) {
+	signal?: AbortSignal,
+): Promise<
+	| { hit: CacheEntry; lead?: undefined; aborted?: undefined }
+	| { lead: MissLead | null; hit?: undefined; aborted?: undefined }
+	| { aborted: true; hit?: undefined; lead?: undefined }
+> {
+	for (let round = 0; ; round++) {
 		const gate = coalesceMiss(key);
 		if (!gate.wait) return { lead: gate };
 		const finished = await gate.wait;
 		const hit = cacheGet(key);
 		if (hit) return { hit };
-		if (finished) return { lead: null };
+		if (signal?.aborted) return { aborted: true };
+		if (finished || round >= 1) return { lead: null };
 	}
 }
 
@@ -707,7 +714,10 @@ function waitWithTimeout(gate: MissGate): Promise<boolean> {
 	if (CACHE_WAIT_TIMEOUT <= 0) return gate.promise.then(() => true);
 	const left = Math.max(0, CACHE_WAIT_TIMEOUT - (performance.now() - gate.start));
 	return new Promise<boolean>((resolve) => {
-		const timer = setTimeout(() => resolve(false), left);
+		const timer = setTimeout(() => {
+			gate.expired = true;
+			resolve(false);
+		}, left);
 		(timer as { unref?: () => void }).unref?.();
 		gate.promise.then(() => {
 			clearTimeout(timer);
@@ -768,8 +778,20 @@ export function serveCached(entry: CacheEntry, req: Request): Response {
  * - `invalidate("/api/posts")` → evict entries tagged with a fetch URL whose
  *   path equals `/api/posts`, AND entries whose own path equals `/api/posts`.
  */
+/**
+ * Bumped by every invalidation. A build reads it before it starts and passes
+ * it to cacheSet, which drops the write if anything was invalidated since:
+ * the build may have read data from before the change (a slow or stuck one
+ * finishing after a newer build and an invalidate() would bring it back).
+ */
+let epoch = 0;
+export function cacheEpoch(): number {
+	return epoch;
+}
+
 export function invalidate(key: string): number {
 	if (!CACHE_ENABLED) return 0;
+	epoch++;
 	let count = 0;
 	const tagKey = key.startsWith("/") ? `u:${key}` : `k:${key}`;
 	const fromTag = tagIndex.get(tagKey);
@@ -810,6 +832,7 @@ export function invalidate(key: string): number {
  */
 export function invalidateAll(prefix: string): number {
 	if (!CACHE_ENABLED) return 0;
+	epoch++;
 	let count = 0;
 	for (const [path, set] of [...pathIndex]) {
 		if (path.startsWith(prefix)) {
@@ -824,6 +847,7 @@ export function invalidateAll(prefix: string): number {
 
 /** Test-only: clear everything. */
 export function cacheClear(): void {
+	epoch++;
 	htmlCache.clear();
 	tagIndex.clear();
 	pathIndex.clear();
