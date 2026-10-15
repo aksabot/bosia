@@ -39,7 +39,8 @@ export type ErrorHook = (ctx: { request: Request; error: unknown; set: ResponseS
  * Sees the final Response — after onRequest short-circuits, after-handle
  * replacements, error hooks and the HEAD body drop — exactly once per request.
  * `start`: `performance.now()` when the request entered `fetch`. Observe only:
- * the return value is ignored and a throw is swallowed.
+ * the return value is ignored and a throw or rejection is swallowed. `response`
+ * is the one the client gets — don't read its body or change its headers.
  */
 export type ResponseHook = (ctx: {
 	request: Request;

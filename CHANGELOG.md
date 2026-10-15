@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- New apps no longer log every request from `hooks.server.ts`. Use your proxy's log or add `accessLog()` to `bosia.config.ts`.
+- New apps no longer log every request from `hooks.server.ts`. Use your proxy's log or add `accessLog()` to `bosia.config.ts`. That template hook also set the `X-Response-Time` header and, in shop/store, `locals.requestTime` / layout `data.requestTime`; those are gone too.
 
 ### Fixed
 
