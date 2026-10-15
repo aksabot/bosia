@@ -162,6 +162,36 @@ beforeAll(async () => {
 			`\treturn { loader: url.searchParams.has("tag", "svelte"), meta: metadata?.has };\n}\n`,
 	);
 
+	// A layout reads the param; the page gets it through parent().
+	mkdirSync(join(routes, "kampanye"), { recursive: true });
+	writeFileSync(join(routes, "kampanye", "+page.svelte"), `<p>Kampanye</p>\n`);
+	writeFileSync(
+		join(routes, "kampanye", "+layout.svelte"),
+		`<script>\n\tlet { children } = $props();\n</script>\n{@render children()}\n`,
+	);
+	writeFileSync(
+		join(routes, "kampanye", "+layout.server.ts"),
+		`export function load({ url }: any) {\n` +
+			`\treturn { campaign: url.searchParams.get("utm_campaign") ?? "none" };\n}\n`,
+	);
+	writeFileSync(
+		join(routes, "kampanye", "+page.server.ts"),
+		`export async function load({ parent }: any) {\n` +
+			`\tconst { campaign } = await parent();\n\treturn { promo: campaign };\n}\n`,
+	);
+
+	// metadata() hangs on the first call (METADATA_TIMEOUT=0 here).
+	mkdirSync(join(routes, "meta-macet"), { recursive: true });
+	writeFileSync(join(routes, "meta-macet", "+page.svelte"), `<p>Meta macet</p>\n`);
+	writeFileSync(
+		join(routes, "meta-macet", "+page.server.ts"),
+		`export function metadata() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tif (!g.__metaMacet) { g.__metaMacet = 1; return new Promise(() => {}); }\n` +
+			`\treturn { title: "ok" };\n}\n` +
+			`export function load() {\n\treturn { ok: true };\n}\n`,
+	);
+
 	// The first call never settles; later ones answer.
 	mkdirSync(join(routes, "macet"), { recursive: true });
 	writeFileSync(join(routes, "macet", "+page.svelte"), `<p>Macet</p>\n`);
@@ -204,6 +234,7 @@ beforeAll(async () => {
 			PORT: String(port),
 			NODE_PATH: BOSIA_NODE_PATH,
 			LOAD_TIMEOUT: "2000",
+			METADATA_TIMEOUT: "0",
 			CACHE_WAIT_TIMEOUT: "1000",
 		},
 		stdout: "ignore",
@@ -460,6 +491,17 @@ describe("tracking params (CACHE_IGNORE_PARAMS)", () => {
 		expect(data.body.pageData.from).toBe("newsletter");
 	});
 
+	test("so is a page whose layout read it, even when the mask leaves the layout out", async () => {
+		await getData("/kampanye.json?_invalidated=1000");
+		await settle();
+		expect(
+			(await getData("/kampanye.json?_invalidated=1000")).res.headers.get("x-bosia-cache"),
+		).toBe("HIT");
+		const ad = await getData("/kampanye.json?_invalidated=1000&utm_campaign=lebaran");
+		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
+		expect(ad.body.pageData.promo).toBe("lebaran");
+	});
+
 	test("so is a page whose metadata() reads the param", async () => {
 		await getData("/meta.json");
 		await settle();
@@ -486,6 +528,21 @@ describe("a request that never finishes", () => {
 		await first.text();
 		const second = await fetch(`${origin}/macet`);
 		expect(second.status).toBe(200);
+	}, 15_000);
+
+	test("a data request doesn't join a stuck one's loader run after CACHE_WAIT_TIMEOUT", async () => {
+		const ac = new AbortController();
+		const hung = getData("/meta-macet.json", { signal: ac.signal }).catch(() => null);
+		await Bun.sleep(100);
+		const started = Date.now();
+		const waiters = await Promise.all(Array.from({ length: 5 }, () => getData("/meta-macet.json")));
+		for (const w of waiters) expect(w.res.status).toBe(200);
+		expect(Date.now() - started).toBeLessThan(4000);
+		const t = Date.now();
+		expect((await getData("/meta-macet.json")).res.status).toBe(200);
+		expect(Date.now() - t).toBeLessThan(500);
+		ac.abort();
+		await hung;
 	}, 15_000);
 
 	test("a hung API handler holds its cache key for at most CACHE_WAIT_TIMEOUT", async () => {

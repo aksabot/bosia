@@ -101,14 +101,39 @@ export const CACHE_MAX_BODY_BYTES = parseMaxBodyBytes(env.CACHE_MAX_BODY_BYTES);
 /** Budget for every entry together (raw + gzip + brotli). 0 = entry count only. */
 export const CACHE_MAX_BYTES = parseBytes(env.CACHE_MAX_BYTES, 104_857_600); // 100MB
 export const CACHE_ENABLED = CACHE_MAX_ENTRIES > 0;
+// Unset means the default; `0` or `Infinity` turns the timeout off. Unset
+// used to mean no timeout: a hung loader held its URL's cache gate (and dedup
+// slot) until restart. 30s/10s leave room for slow-but-healthy loaders; a
+// page's timer also covers its `await parent()`. Used by renderer.ts.
+export const LOAD_TIMEOUT = parseMs(env.LOAD_TIMEOUT, 30_000, "LOAD_TIMEOUT");
+export const METADATA_TIMEOUT = parseMs(env.METADATA_TIMEOUT, 10_000, "METADATA_TIMEOUT");
+
+/** The longest a healthy page build can take (metadata, then load, plus
+ *  render); 0 when either timeout is off. */
+const LOADER_BUDGET =
+	LOAD_TIMEOUT > 0 && METADATA_TIMEOUT > 0 ? METADATA_TIMEOUT + LOAD_TIMEOUT + 10_000 : 0;
+
 /**
  * How long a cache miss waits for another request already building the same
- * key before building itself (ms). Bounds a leader that never finishes (an
- * API handler that hangs, or LOAD_TIMEOUT=0). Longer than a healthy slow
- * leader (metadata 10s + load 30s, an API body read 10s): when it fires every
- * waiter builds at once. 0 = wait for the leader.
+ * key, counted from when that one started, before building itself (ms).
+ * Bounds a leader that never finishes (an API handler that hangs, or
+ * LOAD_TIMEOUT=0). When it fires every waiter builds at once, so it must
+ * outlast a healthy leader: at least LOADER_BUDGET. 0 = wait for the leader.
  */
-export const CACHE_WAIT_TIMEOUT = parseMs(env.CACHE_WAIT_TIMEOUT, 60_000, "CACHE_WAIT_TIMEOUT");
+export const CACHE_WAIT_TIMEOUT = parseMs(
+	env.CACHE_WAIT_TIMEOUT,
+	Math.max(60_000, LOADER_BUDGET),
+	"CACHE_WAIT_TIMEOUT",
+);
+if (
+	CACHE_WAIT_TIMEOUT > 0 &&
+	CACHE_WAIT_TIMEOUT < LOADER_BUDGET &&
+	typeof console !== "undefined"
+) {
+	console.warn(
+		`⚠️  CACHE_WAIT_TIMEOUT=${CACHE_WAIT_TIMEOUT} is shorter than METADATA_TIMEOUT + LOAD_TIMEOUT: requests waiting on a slow page build will start their own`,
+	);
+}
 const IGNORE_PARAMS = parseIgnoreParams(env.CACHE_IGNORE_PARAMS);
 /** Largest body worth reading or compressing for the cache: the per-body cap,
  *  and at most a quarter of the budget (raw + two compressed copies still fit,
@@ -590,33 +615,34 @@ export function concatChunks(chunks: Uint8Array[]): Bytes {
 // INVARIANT: the leader must call release() exactly once, after its cacheSet
 // attempt completed or was skipped — callers guard with try/finally.
 //
-// A leader that never finishes (an API handler that hangs; loaders have
-// LOAD_TIMEOUT) held its key for the process lifetime: every later request
-// waited on it and the handler never ran again. Waiters give up after
-// CACHE_WAIT_TIMEOUT, counted from when the leader started, and the stuck
-// gate is dropped so the next miss leads a fresh build.
+// A leader that never finishes (an API handler that hangs, LOAD_TIMEOUT=0)
+// held its key for the process lifetime: every later request waited on it
+// and the handler never ran again. A gate expires CACHE_WAIT_TIMEOUT after
+// its leader started: waiters resume with `false`, and the next miss replaces
+// the gate and leads with `stale: true` — both must not join the stuck
+// leader's dedup() either.
 
 type MissGate = {
 	promise: Promise<void>;
 	release: () => void;
 	start: number;
-	wait?: Promise<void>;
+	wait?: Promise<boolean>;
 };
 
 const missGates = new Map<string, MissGate>();
 
+function gateExpired(gate: MissGate): boolean {
+	return CACHE_WAIT_TIMEOUT > 0 && performance.now() - gate.start >= CACHE_WAIT_TIMEOUT;
+}
+
 export function coalesceMiss(
 	key: string,
-): { release: () => void; wait?: undefined } | { wait: Promise<void>; release?: undefined } {
+):
+	| { release: () => void; stale: boolean; wait?: undefined }
+	| { wait: Promise<boolean>; release?: undefined; stale?: undefined } {
 	const existing = missGates.get(key);
-	if (existing) {
-		if (CACHE_WAIT_TIMEOUT > 0 && performance.now() - existing.start >= CACHE_WAIT_TIMEOUT) {
-			// Stuck past the limit: this miss leads instead. The old leader's
-			// release() won't touch the new gate.
-			missGates.delete(key);
-			return coalesceMiss(key);
-		}
-		return { wait: (existing.wait ??= waitWithTimeout(key, existing)) };
+	if (existing && !gateExpired(existing)) {
+		return { wait: (existing.wait ??= waitWithTimeout(existing)) };
 	}
 	let resolve!: () => void;
 	const promise = new Promise<void>((r) => (resolve = r));
@@ -625,24 +651,22 @@ export function coalesceMiss(
 		if (missGates.get(key)?.promise === promise) missGates.delete(key);
 		resolve();
 	};
+	// Replaces an expired gate; the old leader's release() won't touch this one.
 	missGates.set(key, { promise, release, start: performance.now() });
-	return { release };
+	return { release, stale: existing !== undefined };
 }
 
-/** One timer per gate, shared by all its waiters, ending CACHE_WAIT_TIMEOUT
- *  after the leader started. */
-function waitWithTimeout(key: string, gate: MissGate): Promise<void> {
-	if (CACHE_WAIT_TIMEOUT <= 0) return gate.promise;
+/** One timer per gate, shared by all its waiters: true when the leader
+ *  finished, false when the gate expired first. */
+function waitWithTimeout(gate: MissGate): Promise<boolean> {
+	if (CACHE_WAIT_TIMEOUT <= 0) return gate.promise.then(() => true);
 	const left = Math.max(0, CACHE_WAIT_TIMEOUT - (performance.now() - gate.start));
-	return new Promise<void>((resolve) => {
-		const timer = setTimeout(() => {
-			if (missGates.get(key) === gate) missGates.delete(key);
-			resolve();
-		}, left);
+	return new Promise<boolean>((resolve) => {
+		const timer = setTimeout(() => resolve(false), left);
 		(timer as { unref?: () => void }).unref?.();
 		gate.promise.then(() => {
 			clearTimeout(timer);
-			resolve();
+			resolve(true);
 		});
 	});
 }

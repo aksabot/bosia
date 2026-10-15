@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `CACHE_MAX_BYTES` caps the response cache's memory (default 100MB); the oldest entries go first.
 - `bosia/plugins/access-log`: an opt-in access log, one line per request, written in batches.
 - `CACHE_IGNORE_PARAMS`: links with `?utm_source=…`, `?fbclid=…`, `?gclid=…` and other click params get the cached page instead of a new render per click. Pages whose `load()` or `metadata()` reads such a param still render with it.
-- `CACHE_WAIT_TIMEOUT` (default 60s): how long a request waits for another one building the same cached response.
+- `CACHE_WAIT_TIMEOUT` (default 60s, or longer than `METADATA_TIMEOUT + LOAD_TIMEOUT`): how long a request waits for another one building the same cached response.
 
 ### Changed
 

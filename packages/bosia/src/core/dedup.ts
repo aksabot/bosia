@@ -23,11 +23,18 @@ export function dedupKey(url: URL): string {
  * Coalesce concurrent calls under `key`. `fn` runs at most once per inflight
  * window. A call older than `maxAgeMs` (> 0) isn't joined: one that never
  * settles (a hung loader with LOAD_TIMEOUT=0) would otherwise take every
- * later request for the key down with it.
+ * later request for the key down with it. `replace` starts a new call even
+ * when one is in flight (the caller already knows it is stuck); later calls
+ * join the new one.
  */
-export function dedup<T>(key: string, fn: () => Promise<T>, maxAgeMs = 0): Promise<T> {
+export function dedup<T>(
+	key: string,
+	fn: () => Promise<T>,
+	maxAgeMs = 0,
+	replace = false,
+): Promise<T> {
 	const existing = inflight.get(key);
-	if (existing && (maxAgeMs <= 0 || performance.now() - existing.start < maxAgeMs)) {
+	if (existing && !replace && (maxAgeMs <= 0 || performance.now() - existing.start < maxAgeMs)) {
 		return existing.promise as Promise<T>;
 	}
 	const entry = { promise: null as unknown as Promise<T>, start: performance.now() };

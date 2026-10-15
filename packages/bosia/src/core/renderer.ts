@@ -16,7 +16,8 @@ import {
 	collectTags,
 	depsReadIgnoredParams,
 	markWholeQueryRead,
-	parseMs,
+	LOAD_TIMEOUT,
+	METADATA_TIMEOUT,
 	stripIgnoredParams,
 	computeCacheKey,
 	deferCacheWrite,
@@ -142,13 +143,6 @@ class LoadTimeoutError extends Error {
 		this.name = "LoadTimeoutError";
 	}
 }
-
-// Unset means the default; `0` or `Infinity` turns the timeout off. Unset
-// used to mean no timeout: a hung loader held its URL's cache gate (and dedup
-// slot) until restart. 30s/10s leave room for slow-but-healthy loaders; a
-// page's timer also covers its `await parent()`.
-const LOAD_TIMEOUT = parseMs(process.env.LOAD_TIMEOUT, 30_000, "LOAD_TIMEOUT");
-const METADATA_TIMEOUT = parseMs(process.env.METADATA_TIMEOUT, 10_000, "METADATA_TIMEOUT");
 
 // A plain-function load() hands back a value, not a promise; wrap it first.
 function withTimeout<T>(value: T | Promise<T>, ms: number, label: string): Promise<T> {
@@ -543,6 +537,7 @@ export async function loadRouteData(
 
 	// Settle root → leaf. The first failure wins, carrying the data of the
 	// layers above it — the same error a serial run would have produced.
+	let omittedReadIgnored = false;
 	for (let i = 0; i < route.layoutServers.length; i++) {
 		const ls = route.layoutServers[i]!;
 		// Runs regardless of the mask — see the trust note above loadRouteData.
@@ -551,6 +546,8 @@ export async function loadRouteData(
 			const { data, deps } = await layers[i]!;
 			layoutData[ls.depth] = omit ? null : data;
 			layoutDeps[ls.depth] = omit ? null : deps;
+			// Left out of the response but still reached the page via parent().
+			if (omit && depsReadIgnoredParams(null, deps)) omittedReadIgnored = true;
 		} catch (err) {
 			// Loaders below this one already started; dev warns about the guard.
 			const thrown = isDev ? guardLabel(err) : null;
@@ -616,6 +613,8 @@ export async function loadRouteData(
 			throw wrapped;
 		}
 	}
+
+	if (omittedReadIgnored && pageDeps) markWholeQueryRead(pageDeps);
 
 	// `params` are always attached to pageData for client-side router consumption.
 	// When pageData is skipped, the client merges its cached pageData with current

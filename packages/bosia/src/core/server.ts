@@ -461,6 +461,9 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			// (different masks return different slots), tag/path invalidation, and
 			// no CSP. Only GETs use it (the client router only sends GETs); a
 			// `_fresh` fetch after invalidate() skips the read only.
+			// Set when the gate says the previous build is stuck: don't join its
+			// dedup() call either, start a new one.
+			let freshDedup = false;
 			const keySuffix = `|data${invalidatedBits ? `|m=${invalidatedBits}` : ""}`;
 			const cacheKey = computeCacheKey(routeUrl, request, cookies as CookieJar) + keySuffix;
 			const dataCacheable =
@@ -484,11 +487,13 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				if (hit) return serveCached(hit, request);
 				const gate = coalesceMiss(cacheKey);
 				if (gate.wait) {
-					await gate.wait;
+					// false: the leader is stuck past CACHE_WAIT_TIMEOUT.
+					if (!(await gate.wait)) freshDedup = true;
 					const rehit = cacheGet(cacheKey);
 					if (rehit) return serveCached(rehit, request);
 				} else {
 					releaseDataMiss = gate.release;
+					if (gate.stale) freshDedup = true;
 				}
 			}
 
@@ -500,7 +505,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const dedupK =
 				computeCacheKey(routeUrl, request, cookies as CookieJar) +
 				(invalidatedBits ? `|m=${invalidatedBits}` : "");
-			const result = await dedup(dedupK, runLoad, CACHE_WAIT_TIMEOUT);
+			const result = await dedup(dedupK, runLoad, CACHE_WAIT_TIMEOUT, freshDedup);
 			// Identity only covers CACHE_KEYS — warn if a loader read a session
 			// cookie outside that list (dedup could then mix users' results).
 			warnUncoveredCookies(cookies);

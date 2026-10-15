@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { dedup, dedupKey } from "../src/core/dedup.ts";
+import { join } from "path";
 
 describe("dedupKey()", () => {
 	test("returns pathname when no query", () => {
@@ -90,5 +91,41 @@ describe("dedup()", () => {
 		expect(await a).toBe("new");
 		expect(await b).toBe("new");
 		expect(runs).toBe(1);
+	});
+});
+
+describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
+	// CACHE_WAIT_TIMEOUT is read at import, so this runs in its own process.
+	test("waiters and the next leader don't join its dedup() call", async () => {
+		const script = `
+			const { coalesceMiss } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/cache.ts"))});
+			const { dedup } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/dedup.ts"))});
+			const leader = coalesceMiss("k");
+			dedup("k", () => new Promise(() => {}), 40);
+			// Same order as the data endpoint: gate first, then dedup.
+			const run = async () => {
+				const gate = coalesceMiss("k");
+				let fresh = false;
+				if (gate.wait) fresh = !(await gate.wait);
+				else fresh = gate.stale;
+				return dedup("k", async () => "ok", 40, fresh);
+			};
+			const timeout = new Promise((r) => setTimeout(() => r("hung"), 1000));
+			const waiters = await Promise.race([Promise.all(Array.from({ length: 20 }, run)), timeout]);
+			await Bun.sleep(50);
+			const next = await Promise.race([run(), timeout]);
+			console.log(JSON.stringify({ waiters, next, leader: typeof leader.release }));
+		`;
+		const proc = Bun.spawn(["bun", "-e", script], {
+			env: { ...process.env, CACHE_WAIT_TIMEOUT: "40" },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const out = await new Response(proc.stdout).text();
+		await proc.exited;
+		const line = out.trim().split("\n").pop()!;
+		const result = JSON.parse(line);
+		expect(result.waiters).toEqual(Array(20).fill("ok"));
+		expect(result.next).toBe("ok");
 	});
 });
