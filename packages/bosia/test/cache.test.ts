@@ -752,6 +752,8 @@ describe("parseMs", () => {
 		expect(parseMs("Infinity", 30_000, "X")).toBe(0);
 		expect(parseMs("infinity", 30_000, "X")).toBe(0);
 		expect(parseMs(" 2500 ", 30_000, "X")).toBe(2500);
+		// setTimeout fires at once above 2^31-1.
+		expect(parseMs("9999999999", 30_000, "X")).toBe(2_147_483_647);
 	});
 
 	test("a value that isn't whole milliseconds warns and uses the fallback", () => {

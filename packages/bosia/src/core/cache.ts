@@ -45,6 +45,8 @@ function parseMaxBodyBytes(raw: string | undefined): number {
 	return parseBytes(raw, 2_097_152); // 2MB; 0 = unlimited
 }
 
+const MAX_TIMER_MS = 2_147_483_647;
+
 /**
  * A duration env var in whole milliseconds. Unset or blank → `fallback`;
  * `0` or `Infinity` → 0 (no limit). Anything else (`5s`, `1e4`, `-1`) warns
@@ -54,7 +56,8 @@ export function parseMs(raw: string | undefined, fallback: number, name: string)
 	const value = raw?.trim();
 	if (!value) return fallback;
 	if (value.toLowerCase() === "infinity") return 0;
-	if (/^\d+$/.test(value)) return Number(value);
+	// setTimeout overflows above 2^31-1 and fires at once.
+	if (/^\d+$/.test(value)) return Math.min(Number(value), MAX_TIMER_MS);
 	if (typeof console !== "undefined") {
 		console.warn(`⚠️  ${name}="${raw}" is not a number of milliseconds; using ${fallback}`);
 	}
@@ -590,10 +593,15 @@ export function concatChunks(chunks: Uint8Array[]): Bytes {
 // A leader that never finishes (an API handler that hangs; loaders have
 // LOAD_TIMEOUT) held its key for the process lifetime: every later request
 // waited on it and the handler never ran again. Waiters give up after
-// CACHE_WAIT_TIMEOUT, counted from the first waiter, and the stuck gate is
-// dropped so the next miss leads a fresh build.
+// CACHE_WAIT_TIMEOUT, counted from when the leader started, and the stuck
+// gate is dropped so the next miss leads a fresh build.
 
-type MissGate = { promise: Promise<void>; release: () => void; wait?: Promise<void> };
+type MissGate = {
+	promise: Promise<void>;
+	release: () => void;
+	start: number;
+	wait?: Promise<void>;
+};
 
 const missGates = new Map<string, MissGate>();
 
@@ -601,7 +609,15 @@ export function coalesceMiss(
 	key: string,
 ): { release: () => void; wait?: undefined } | { wait: Promise<void>; release?: undefined } {
 	const existing = missGates.get(key);
-	if (existing) return { wait: (existing.wait ??= waitWithTimeout(key, existing)) };
+	if (existing) {
+		if (CACHE_WAIT_TIMEOUT > 0 && performance.now() - existing.start >= CACHE_WAIT_TIMEOUT) {
+			// Stuck past the limit: this miss leads instead. The old leader's
+			// release() won't touch the new gate.
+			missGates.delete(key);
+			return coalesceMiss(key);
+		}
+		return { wait: (existing.wait ??= waitWithTimeout(key, existing)) };
+	}
 	let resolve!: () => void;
 	const promise = new Promise<void>((r) => (resolve = r));
 	const release = () => {
@@ -609,18 +625,20 @@ export function coalesceMiss(
 		if (missGates.get(key)?.promise === promise) missGates.delete(key);
 		resolve();
 	};
-	missGates.set(key, { promise, release });
+	missGates.set(key, { promise, release, start: performance.now() });
 	return { release };
 }
 
-/** One timer per gate, shared by all its waiters. */
+/** One timer per gate, shared by all its waiters, ending CACHE_WAIT_TIMEOUT
+ *  after the leader started. */
 function waitWithTimeout(key: string, gate: MissGate): Promise<void> {
 	if (CACHE_WAIT_TIMEOUT <= 0) return gate.promise;
+	const left = Math.max(0, CACHE_WAIT_TIMEOUT - (performance.now() - gate.start));
 	return new Promise<void>((resolve) => {
 		const timer = setTimeout(() => {
 			if (missGates.get(key) === gate) missGates.delete(key);
 			resolve();
-		}, CACHE_WAIT_TIMEOUT);
+		}, left);
 		(timer as { unref?: () => void }).unref?.();
 		gate.promise.then(() => {
 			clearTimeout(timer);

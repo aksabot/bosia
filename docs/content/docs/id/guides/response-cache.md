@@ -108,7 +108,7 @@ Link dari iklan, newsletter dan media sosial membawa parameter klik (`?utm_sourc
 - Daftarnya `CACHE_IGNORE_PARAMS` (default `utm_*,fbclid,gclid,gbraid,wbraid,dclid,msclkid,twclid,ttclid,li_fat_id,igshid,yclid,mc_cid,mc_eid,_ga,_gl`). `nama*` cocok sebagai prefix; mengisinya mengganti daftar; `none` mematikannya.
 - Kalau halaman bersihnya belum ada di cache, request di-cache dengan URL lengkapnya sendiri, seperti sebelumnya. Request ini tidak pernah mengisi entry halaman bersih: komponen bisa merender `page.url` (link canonical, field `gclid` tersembunyi), jadi HTML-nya bisa berisi nilai milik pengunjung itu.
 - Halaman yang `load()` atau `metadata()`-nya membaca salah satunya (`url.searchParams.get("utm_source")`) atau seluruh query (`url.search`, `url.href`, iterasi `url.searchParams`) tidak dilayani salinan bersih untuk request seperti itu — di-cache per URL lengkap, dengan nilai aslinya.
-- Tidak terlacak: komponen, atau hook `handle`, yang memakai parameternya. Salinan bersih (dirender tanpa parameter) yang dilayani; set `CACHE_IGNORE_PARAMS=none`, atau baca parameternya di `load()`.
+- Tidak terlacak: komponen, hook `handle`, atau fragmen `render` plugin yang memakai parameternya. Salinan bersih (dirender tanpa parameter) yang dilayani; set `CACHE_IGNORE_PARAMS=none`, atau baca parameternya di `load()`.
 - Hanya halaman dan request data router klien. Route API tetap memakai URL lengkap.
 
 ## Endpoint API

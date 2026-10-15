@@ -229,7 +229,7 @@ Links from ads, newsletters and social posts carry click parameters (`?utm_sourc
 - The list is `CACHE_IGNORE_PARAMS` (default `utm_*,fbclid,gclid,gbraid,wbraid,dclid,msclkid,twclid,ttclid,li_fat_id,igshid,yclid,mc_cid,mc_eid,_ga,_gl`). `name*` matches a prefix; setting it replaces the list; `none` turns it off.
 - With no cached plain page, the request is cached under its own full URL, as before. It never fills the plain page's entry: a component may render `page.url` (a canonical link, a hidden `gclid` field), so its HTML can hold that visitor's values.
 - A page whose `load()` or `metadata()` reads one of them (`url.searchParams.get("utm_source")`) or the whole query (`url.search`, `url.href`, iterating `url.searchParams`) isn't served the plain copy for such requests — it is cached per full URL, with the real values.
-- Not tracked: a component, or a `handle` hook, that uses the param. The plain copy (rendered without it) is served; set `CACHE_IGNORE_PARAMS=none`, or read the param in `load()`.
+- Not tracked: a component, a `handle` hook, or a plugin's `render` fragment that uses the param. The plain copy (rendered without it) is served; set `CACHE_IGNORE_PARAMS=none`, or read the param in `load()`.
 - Pages and the client router's data requests only. API routes keep the full URL.
 
 ## API endpoints

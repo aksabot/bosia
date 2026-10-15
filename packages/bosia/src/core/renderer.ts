@@ -286,11 +286,12 @@ function trackedUrl(url: URL, deps: LoaderDeps): URL {
 	const trackedSearch = new Proxy(url.searchParams, {
 		get(target, prop) {
 			if (prop === "get" || prop === "has" || prop === "getAll") {
-				return (key: string) => {
+				// All arguments: `has(name, value)` checks the value too.
+				return (key: string, ...rest: unknown[]) => {
 					if (typeof key === "string" && !deps.searchParams.includes(key)) {
 						deps.searchParams.push(key);
 					}
-					return (target as any)[prop](key);
+					return (target as any)[prop](key, ...rest);
 				};
 			}
 			// entries(), size, toString(), iteration…: may depend on any param.

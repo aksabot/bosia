@@ -27,10 +27,10 @@ export function dedupKey(url: URL): string {
  */
 export function dedup<T>(key: string, fn: () => Promise<T>, maxAgeMs = 0): Promise<T> {
 	const existing = inflight.get(key);
-	if (existing && (maxAgeMs <= 0 || Date.now() - existing.start < maxAgeMs)) {
+	if (existing && (maxAgeMs <= 0 || performance.now() - existing.start < maxAgeMs)) {
 		return existing.promise as Promise<T>;
 	}
-	const entry = { promise: null as unknown as Promise<T>, start: Date.now() };
+	const entry = { promise: null as unknown as Promise<T>, start: performance.now() };
 	entry.promise = fn().finally(() => {
 		// Never drops a newer call that replaced a stale one.
 		if (inflight.get(key) === entry) inflight.delete(key);

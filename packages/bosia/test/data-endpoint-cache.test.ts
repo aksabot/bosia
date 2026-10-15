@@ -152,6 +152,16 @@ beforeAll(async () => {
 			`export function load({ metadata }: any) {\n\treturn { gclid: metadata?.gclid ?? null };\n}\n`,
 	);
 
+	mkdirSync(join(routes, "punya"), { recursive: true });
+	writeFileSync(join(routes, "punya", "+page.svelte"), `<p>Punya</p>\n`);
+	writeFileSync(
+		join(routes, "punya", "+page.server.ts"),
+		`export function metadata({ url }: any) {\n` +
+			`\treturn { data: { has: url.searchParams.has("tag", "svelte") } };\n}\n` +
+			`export function load({ url, metadata }: any) {\n` +
+			`\treturn { loader: url.searchParams.has("tag", "svelte"), meta: metadata?.has };\n}\n`,
+	);
+
 	// The first call never settles; later ones answer.
 	mkdirSync(join(routes, "macet"), { recursive: true });
 	writeFileSync(join(routes, "macet", "+page.svelte"), `<p>Macet</p>\n`);
@@ -493,4 +503,12 @@ describe("a request that never finishes", () => {
 		ac.abort();
 		await hung;
 	}, 15_000);
+});
+
+describe("loader url tracking", () => {
+	test("searchParams.has(name, value) still checks the value", async () => {
+		const page = await getData("/punya.json?tag=react");
+		expect(page.body.pageData.loader).toBe(false);
+		expect(page.body.pageData.meta).toBe(false);
+	});
 });
