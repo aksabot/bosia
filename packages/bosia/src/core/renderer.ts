@@ -627,6 +627,14 @@ export async function loadRouteData(
 
 // ─── Metadata Loader ─────────────────────────────────────
 
+/** metadata() calls that failed or timed out (keyed by their deps): the page
+ *  still renders, without title/meta/canonical, but isn't cached that way. */
+const failedMetadata = new WeakSet<LoaderDeps>();
+
+export function metadataFailed(deps: LoaderDeps): boolean {
+	return failedMetadata.has(deps);
+}
+
 export async function loadMetadata(
 	route: any,
 	params: Record<string, string>,
@@ -662,6 +670,7 @@ export async function loadMetadata(
 		// Control flow thrown from metadata() is intent, not failure — swallowing it
 		// here made every caller's Redirect/HttpError branch dead code.
 		if (isRedirect(err) || isHttpError(err)) throw err;
+		if (deps) failedMetadata.add(deps);
 		if (isDev) console.error("Metadata load error:", err);
 		else console.error("Metadata load error:", (err as Error).message ?? err);
 		if (isDev) reportDevErrorFromCatch(err);
@@ -991,7 +1000,8 @@ export async function renderSSRStream(
 		// on the data endpoint: a `private` page must not be replayed from cache.
 		const loaderOptOut =
 			isNoStoreCacheControl(data.loaderHeaders?.["cache-control"]) ||
-			varyBlocksCache(data.loaderHeaders?.["vary"]);
+			varyBlocksCache(data.loaderHeaders?.["vary"]) ||
+			metadataFailed(metaDeps);
 		if (cacheable && cacheKey && !loaderOptOut && (cookies as any).outgoing?.length === 0) {
 			// Oversized bodies skip early so they never pay compression; cacheSet
 			// re-checks as the authoritative guard.

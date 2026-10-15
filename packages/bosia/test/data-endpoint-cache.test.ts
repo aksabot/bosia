@@ -208,6 +208,18 @@ beforeAll(async () => {
 			`export function load() {\n\treturn { ok: true };\n}\n`,
 	);
 
+	// metadata() fails on the first call only.
+	mkdirSync(join(routes, "meta-gagal"), { recursive: true });
+	writeFileSync(join(routes, "meta-gagal", "+page.svelte"), `<p>Meta gagal</p>\n`);
+	writeFileSync(
+		join(routes, "meta-gagal", "+page.server.ts"),
+		`export function metadata() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tif (!g.__metaGagal) { g.__metaGagal = 1; throw new Error("cms down"); }\n` +
+			`\treturn { title: "Judul" };\n}\n` +
+			`export function load() {\n\treturn { ok: true };\n}\n`,
+	);
+
 	// The first call never settles; later ones answer.
 	mkdirSync(join(routes, "macet"), { recursive: true });
 	writeFileSync(join(routes, "macet", "+page.svelte"), `<p>Macet</p>\n`);
@@ -591,6 +603,18 @@ describe("a request that never finishes", () => {
 		ac.abort();
 		await hung;
 	}, 15_000);
+});
+
+describe("metadata() failures", () => {
+	test("a page whose metadata() failed is served but not cached without its title", async () => {
+		const failed = await getData("/meta-gagal.json");
+		expect(failed.res.status).toBe(200);
+		expect(failed.body.metadata).toBeNull();
+		await settle();
+		const next = await getData("/meta-gagal.json");
+		expect(next.res.headers.get("x-bosia-cache")).toBeNull();
+		expect(next.body.metadata.title).toBe("Judul");
+	});
 });
 
 describe("loader url tracking", () => {

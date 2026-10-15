@@ -68,6 +68,7 @@ import {
 	loadRouteData,
 	emptyDeps,
 	loadMetadata,
+	metadataFailed,
 	renderSSRStream,
 	renderErrorPage,
 	renderPageWithFormData,
@@ -534,7 +535,9 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			// A loader that said not to store its response is taken at its word.
 			const loaderOptOut =
 				isNoStoreCacheControl(loaderHeaders["cache-control"]) ||
-				varyBlocksCache(loaderHeaders["vary"]);
+				varyBlocksCache(loaderHeaders["vary"]) ||
+				// Failed or timed out: don't keep a copy without its title/meta.
+				metadataFailed(result.metaDeps);
 			let sent: Encoded | null | undefined;
 			if (
 				dataCacheable &&
