@@ -3,13 +3,17 @@ import type { LoadEvent } from "bosia";
 import { loadDoc } from "$lib/docs/content";
 import { getLocale, LOCALES, stripLocale } from "$lib/docs/i18n";
 import { buildSeoMeta } from "$lib/docs/seo";
-import { readdirSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 import { join } from "path";
 
 export const prerender = true;
 
 export function entries(): Record<string, string>[] {
 	const contentDir = join(process.cwd(), "content", "docs");
+	// A locale with its own landing route (src/routes/id) serves `/<locale>` itself.
+	const hasLanding = (slug: string) =>
+		(LOCALES as readonly string[]).includes(slug) &&
+		existsSync(join(process.cwd(), "src", "routes", slug));
 	const slugs: Record<string, string>[] = [];
 
 	function scan(dir: string, prefix: string) {
@@ -24,10 +28,9 @@ export function entries(): Record<string, string>[] {
 						: prefix
 							? `${prefix}/${base}` // e.g. guides/routing.md → "guides/routing"
 							: base; // e.g. getting-started.md → "getting-started"
-				// Skip the root empty slug and a locale's index (`id/index.md` → `id`): the
-				// landing routes (src/routes/+page, src/routes/<locale>) serve those URLs, so
-				// prerender would fail with "served by".
-				if (slug && !(LOCALES as readonly string[]).includes(slug)) {
+				// Skip the root empty slug and a locale's index (`id/index.md` → `id`) when its
+				// landing route serves that URL; prerender would fail with "served by".
+				if (slug && !hasLanding(slug)) {
 					slugs.push({ slug });
 				}
 			}

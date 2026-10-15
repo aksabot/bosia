@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender fetches a page and its data at once, so slow pages build up to twice as fast.
 - Prerender errors show a cause's code and message instead of `[object Object]`.
 - A failed 404.html says what the unknown URL answered, like `answered 200`.
+- `MAX_INFLIGHT` in `.env` no longer makes prerender fail with random `answered 503` errors.
+- When a page fails prerender, its slow data request is stopped instead of waited for.
+- A prerender error with no message shows its type, like `TypeError`, instead of `{}`.
 
 ## [1.2.4] - 2026-10-14
 

@@ -22,6 +22,10 @@
 - [x] 🟡 Review 2: a redirected data request is a 200 JSON `{ redirect }` (server.ts), so it passed the status check and was saved. `prerenderDataProblem` rejects `redirect`/`error` payloads.
 - [x] ⚪ Review 2: page and data fetched side by side (`Promise.allSettled`; an unread reply is cancelled); `describeError` reads plain-object causes, 3 deep.
 - [x] ⚪ Review 2: the 404 probe shares `prerenderReplyProblem` (status 404) and still follows redirects: a catch-all `always` page 308s it, and its 404 is the right 404.html.
+- [x] 🟡 Review 3: the prerender child inherited `MAX_INFLIGHT` (.env), so with the page+data fetch pair its own requests got 503s and the build failed at random. Child now sets it to `infinity` (Bun reloads .env if removed).
+- [x] ⚪ Review 3: a failed page aborts its data fetch (shared `AbortController`); cancel() errors are ignored so they can't replace the real ❌; one `fetchText` helper; describeError shows an Error's name and number codes.
+- [x] ⚪ Review 3: one server-start throw; parallel test allows 1s; docs skip a locale slug only if `src/routes/<locale>` exists.
+- [ ] ⚪ `findMisownedTargets` copies `matchRoutes`' API-first order; move it into a pure helper both call, so a routing change can't skip the check.
 - [ ] ⚪ The owner check ignores an API's `x.json` alias (`/api/x.json` served by `/api/[slug]`); a narrow case, add it if anyone hits it.
 - [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.
 - [ ] ⚪ `PrerenderEntriesError` now also carries reply/timeout/server-start failures; rename to `PrerenderError` (exported name).

@@ -137,6 +137,11 @@ describe("describeError()", () => {
 		expect(describeError(bare)).toBe("fetch failed (cause: ECONNREFUSED)");
 		expect(describeError(new Error("x", { cause: { n: 1 } }))).toBe(`x (cause: {"n":1})`);
 	});
+	test("an Error with no message shows its name; a number code or errno counts", () => {
+		expect(describeError(new TypeError())).toBe("TypeError");
+		expect(describeError(new Error("x", { cause: { errno: -54 } }))).toBe("x (cause: -54)");
+		expect(describeError(Object.assign(new Error("read"), { code: 5 }))).toBe("read [5]");
+	});
 	test("a cause that points back at itself stops", () => {
 		const err = new Error("loop");
 		err.cause = err;
@@ -320,9 +325,12 @@ test("a prerender server that crashes on boot fails the build", async () => {
 
 // The page and its data payload each run the loader. They're fetched side by side, each with its
 // own timeout: a loader at 60% of the limit builds, and the two loader runs start together
-// (one after the other, the second would start 1.2s later).
+// (one after the other, the second would start 1.2s later; under 1s leaves room for a slow CI).
 test("a slow loader's page and data are fetched side by side, within the timeout", async () => {
 	const dir = fixture("slow", {
+		// MAX_INFLIGHT is for live traffic; the prerender server must not shed its own two
+		// requests with a 503.
+		".env": "MAX_INFLIGHT=1\n",
 		"src/routes/slow/+page.svelte": "<h1>Slow</h1>\n",
 		"src/routes/slow/+page.server.ts": prerendered(
 			`import { appendFileSync } from "fs";\n` +
@@ -333,12 +341,41 @@ test("a slow loader's page and data are fetched side by side, within the timeout
 	});
 	try {
 		const { code, out } = await build(dir, { PRERENDER_TIMEOUT: "2000" });
+		expect(out).not.toContain("❌");
 		expect(out).not.toContain("timed out");
 		expect(code).toBe(0);
 		expect(existsSync(join(dir, "dist/prerendered/__bosia/data/slow.json"))).toBe(true);
 		const starts = readFileSync(join(dir, "starts.log"), "utf-8").trim().split("\n").map(Number);
 		expect(starts).toHaveLength(2);
-		expect(Math.abs(starts[1]! - starts[0]!)).toBeLessThan(600);
+		expect(Math.abs(starts[1]! - starts[0]!)).toBeLessThan(1000);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// ─── A failed page stops its data fetch ──────────────────
+
+// A hook fails the page at once, but its data request runs a 20s loader. The build reports the
+// page without waiting for that loader (PRERENDER_TIMEOUT is 60s, so only the stop ends it).
+test("a page that fails fast doesn't wait for its slow data", async () => {
+	const dir = fixture("stopdata", {
+		"src/routes/half/+page.svelte": "<h1>Half</h1>\n",
+		"src/routes/half/+page.server.ts": prerendered(
+			`export async function load() {\n\tawait Bun.sleep(20_000);\n\treturn {};\n}\n`,
+		),
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (!event.isDataRequest && event.url.pathname === "/half")\n` +
+			`\t\treturn new Response("down", { status: 500 });\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const started = Date.now();
+		const { code, out } = await build(dir, { PRERENDER_TIMEOUT: "60000" });
+		const lines = out.split("\n").filter((l) => l.startsWith("❌ Prerender: /half"));
+		expect(lines).toEqual(["❌ Prerender: /half answered 500"]);
+		expect(code).toBe(1);
+		expect(Date.now() - started).toBeLessThan(15_000);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
