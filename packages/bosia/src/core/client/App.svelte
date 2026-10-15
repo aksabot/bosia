@@ -352,7 +352,7 @@
 		// to avoid a flash of stale/empty data before the fetch completes.
 		// `fresh` covers `invalidated` plus dirty keys/URLs: a prefetch sent before
 		// an invalidate() skipped `_fresh`, so it may hold the server's stale copy.
-		const cached = match.route.hasServerData && !fresh ? consumePrefetch(path) : null;
+		const cached = match.route.hasServerData && !fresh ? consumePrefetch(path, maskBits) : null;
 		clearPrefetches(); // clear remaining entries on navigation — matches SvelteKit behavior
 		// A prerendered route's data is a fixed file, so there is nothing to omit.
 		const prerendered = match.route.prerender;

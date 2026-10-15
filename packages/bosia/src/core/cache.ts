@@ -59,12 +59,14 @@ export const CACHE_MAX_BODY_BYTES = parseMaxBodyBytes(env.CACHE_MAX_BODY_BYTES);
 /** Budget for every entry together (raw + gzip + brotli). 0 = entry count only. */
 export const CACHE_MAX_BYTES = parseBytes(env.CACHE_MAX_BYTES, 104_857_600); // 100MB
 export const CACHE_ENABLED = CACHE_MAX_ENTRIES > 0;
-/** Largest body worth reading or compressing for the cache: one entry can't
- *  pass the per-body cap or the whole budget. 0 = no limit. */
+/** Largest body worth reading or compressing for the cache: the per-body cap,
+ *  and at most a quarter of the budget (raw + two compressed copies still fit,
+ *  and one entry can't flush the rest). 0 = no limit. */
+const CACHE_BUDGET_SHARE = CACHE_MAX_BYTES > 0 ? Math.floor(CACHE_MAX_BYTES / 4) : 0;
 const CACHE_BODY_CAP =
-	CACHE_MAX_BODY_BYTES > 0 && CACHE_MAX_BYTES > 0
-		? Math.min(CACHE_MAX_BODY_BYTES, CACHE_MAX_BYTES)
-		: CACHE_MAX_BODY_BYTES || CACHE_MAX_BYTES;
+	CACHE_MAX_BODY_BYTES > 0 && CACHE_BUDGET_SHARE > 0
+		? Math.min(CACHE_MAX_BODY_BYTES, CACHE_BUDGET_SHARE)
+		: CACHE_MAX_BODY_BYTES || CACHE_BUDGET_SHARE;
 
 /** Whether a body of `bytes` could be stored — checked before paying compression. */
 export function bodyFitsCache(bytes: number): boolean {
@@ -234,16 +236,17 @@ export function isNoStoreCacheControl(cc: string | null | undefined): boolean {
 
 /**
  * A `Vary` the cache key can't honor. The key covers the URL and CACHE_KEYS;
- * Accept-Encoding is negotiated per hit and Origin is CORS's. Anything else
- * (`Cookie`, `Accept-Language`, `*`) means one stored copy would be served to
- * requests the response said differ.
+ * Accept-Encoding is negotiated per hit. Anything else (`Cookie`, `Origin`
+ * from a handler doing its own CORS, `Accept-Language`, `*`) means one stored
+ * copy would be served to requests the response said differ. The framework's
+ * own `Vary: Origin` is added after this check, on the way out.
  */
 export function varyBlocksCache(vary: string | null | undefined): boolean {
 	if (!vary) return false;
 	return vary
 		.split(",")
 		.map((t) => t.trim().toLowerCase())
-		.some((t) => t !== "" && t !== "accept-encoding" && t !== "origin");
+		.some((t) => t !== "" && t !== "accept-encoding");
 }
 
 // ─── Public-ish: read / write ────────────────────────────

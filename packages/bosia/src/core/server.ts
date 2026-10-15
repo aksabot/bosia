@@ -1102,7 +1102,9 @@ function finalizeResponse(
 		const corsHeaders = getCorsHeaders(request, CORS_CONFIG);
 		if (corsHeaders) {
 			// Vary: Origin is already merged in above; set() would drop Accept-Encoding.
-			for (const [k, v] of Object.entries(corsHeaders)) if (k !== "Vary") headers.set(k, v);
+			for (const [k, v] of Object.entries(corsHeaders)) {
+				if (k.toLowerCase() !== "vary") headers.set(k, v);
+			}
 		}
 	}
 	// Apply any Set-Cookie headers accumulated during the request

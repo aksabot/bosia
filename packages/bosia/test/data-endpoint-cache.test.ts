@@ -87,7 +87,7 @@ beforeAll(async () => {
 		`export function GET() {\n` +
 			`\tconst g = globalThis as any;\n` +
 			`\tg.__kecil = (g.__kecil ?? 0) + 1;\n` +
-			`\treturn Response.json({ runs: g.__kecil }, { headers: { vary: "Origin" } });\n}\n`,
+			`\treturn Response.json({ runs: g.__kecil }, { headers: { vary: "Accept-Encoding" } });\n}\n`,
 	);
 	mkdirSync(join(routes, "api", "kuki"), { recursive: true });
 	writeFileSync(
@@ -245,8 +245,8 @@ describe("what the cache leaves alone", () => {
 		await settle();
 		const second = await fetch(`${origin}/api/kecil`);
 		expect(second.headers.get("x-bosia-cache")).toBe("HIT");
-		// The handler's own Vary survives the hit, next to Accept-Encoding.
-		expect(second.headers.get("vary")).toBe("Origin, Accept-Encoding");
+		// The handler's own Vary survives the hit, without a duplicate token.
+		expect(second.headers.get("vary")).toBe("Accept-Encoding");
 		expect((await second.json()).runs).toBe(first.runs);
 	});
 

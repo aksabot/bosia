@@ -109,7 +109,8 @@ function errorMessage(res: Response): string {
 	return res.statusText || "Internal Server Error";
 }
 
-const prefetchCache = new Map<string, { data: any; ts: number }>();
+// `mask`: the `_invalidated` bits the prefetch sent (null = asked for every layer).
+const prefetchCache = new Map<string, { data: any; ts: number; mask: string | null }>();
 const MAX_PREFETCH_ENTRIES = 50;
 
 // In-flight prefetches. A click that lands while its prefetch is still loading
@@ -119,23 +120,26 @@ const MAX_PREFETCH_ENTRIES = 50;
 // router's own fetch; `null` only when the request itself failed.
 // `clearPrefetches()` empties it on every navigation, so a prefetch that started
 // before it neither fills the cache nor serves a later click.
-const pending = new Map<string, Promise<any | null>>();
+const pending = new Map<string, { run: Promise<any | null>; mask: string | null }>();
 
 /**
  * Prefetched data for a path, or the in-flight prefetch's promise (resolves to
  * the data, or `null` when the prefetch can't be used — fetch it yourself).
- * The entry is consumed: a second call gets `null`.
+ * The entry is consumed: a second call gets `null`. `mask` is the navigation's
+ * own `_invalidated` bits: a prefetch built against the loader cache as it was
+ * at hover time may have left out a layer this navigation needs.
  */
-export function consumePrefetch(path: string): any | Promise<any | null> | null {
+export function consumePrefetch(path: string, mask: string): any | Promise<any | null> | null {
 	const inflight = pending.get(path);
 	if (inflight) {
 		pending.delete(path);
-		return inflight;
+		return inflight.mask === null || inflight.mask === mask ? inflight.run : null;
 	}
 	const entry = prefetchCache.get(path);
 	if (entry === undefined) return null;
 	prefetchCache.delete(path);
 	if (Date.now() - entry.ts > 30_000) return null;
+	if (entry.mask !== null && entry.mask !== mask) return null;
 	return entry.data;
 }
 
@@ -176,13 +180,13 @@ export async function prefetchPath(path: string): Promise<void> {
 	// Only a plain data response is kept for a later click; `ok` alone would
 	// cache a guard's login page (200 after the redirect was followed).
 	let storable = false;
+	// Send the same mask as a real client nav would so the server leaves out
+	// layers the client already holds. Falls back to sending everything when
+	// the route can't be matched (e.g. external/unknown URL).
+	const mask = buildMaskBits(path);
 	const run = (async (): Promise<any | null> => {
 		try {
-			// Send the same mask as a real client nav would so the server leaves out
-			// layers the client already holds. Falls back to sending everything when
-			// the route can't be matched (e.g. external/unknown URL).
-			const maskBits = buildMaskBits(path) ?? undefined;
-			const res = await fetch(dataUrl(path, maskBits));
+			const res = await fetch(dataUrl(path, mask ?? undefined));
 			storable = res.ok && !res.redirected && isJsonResponse(res);
 			return await readDataResponse(res);
 		} catch {
@@ -190,10 +194,10 @@ export async function prefetchPath(path: string): Promise<void> {
 			return null;
 		}
 	})();
-	pending.set(path, run);
+	pending.set(path, { run, mask });
 	const data = await run;
 	// Consumed by a click, or dropped by a navigation, while in flight.
-	if (pending.get(path) !== run) return;
+	if (pending.get(path)?.run !== run) return;
 	pending.delete(path);
 	// A guard's redirect is the session's answer now, not in 30s.
 	if (data === null || !storable || data.error || data.redirect) return;
@@ -201,7 +205,7 @@ export async function prefetchPath(path: string): Promise<void> {
 		const oldest = prefetchCache.keys().next().value;
 		if (oldest !== undefined) prefetchCache.delete(oldest);
 	}
-	prefetchCache.set(path, { data, ts: Date.now() });
+	prefetchCache.set(path, { data, ts: Date.now(), mask });
 }
 
 function getLinkHref(anchor: HTMLAnchorElement): string | null {

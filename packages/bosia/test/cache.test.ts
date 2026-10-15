@@ -513,9 +513,10 @@ describe("precompressed responses opt out of runtime re-encoding", () => {
 // ─── concatChunks ────────────────────────────────────────
 
 describe("varyBlocksCache", () => {
-	test("only Accept-Encoding and Origin are honored by the key", () => {
+	test("only Accept-Encoding is honored by the key", () => {
 		expect(varyBlocksCache(null)).toBe(false);
-		expect(varyBlocksCache("Accept-Encoding, origin")).toBe(false);
+		expect(varyBlocksCache("Accept-Encoding")).toBe(false);
+		expect(varyBlocksCache("Origin")).toBe(true);
 		expect(varyBlocksCache("Cookie")).toBe(true);
 		expect(varyBlocksCache("accept-encoding, Accept-Language")).toBe(true);
 		expect(varyBlocksCache("*")).toBe(true);
