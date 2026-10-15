@@ -111,7 +111,7 @@ Each isolate renders `/` once at startup with no hooks, loaders, `metadata()` or
 
 ### R9 — Prerender pages that are the same for every visitor
 
-A prerendered page costs no worker CPU and no worker request. When a page's output doesn't depend on the visitor or on bindings (landing, pricing, docs, about), add `export const prerender = true` to its `+page.server.ts`. Its loader runs at build time: no cookies, no `event.platform.env`. Pages with `actions` stay live. The page must answer `200` HTML at build time (its data payload too): a loader `error()`, a `redirect()` (an auth guard in a layout or hook), or a file reply fails the build with `❌ … answered 307 → /login`. Don't prerender pages behind a login.
+A prerendered page costs no worker CPU and no worker request. When a page's output doesn't depend on the visitor or on bindings (landing, pricing, docs, about), add `export const prerender = true` to its `+page.server.ts`. Its loader runs at build time: no cookies, no `event.platform.env`. Pages with `actions` stay live. The page must answer `2xx` HTML at build time (its data payload too): a loader `error()`, a `redirect()` (an auth guard in a layout or hook), or a file reply fails the build with `❌ … answered 307 → /login`. Don't prerender pages behind a login.
 
 ## Anti-patterns
 

@@ -36,6 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The 404 page check no longer follows a redirect to another site during the build.
 - A stuck hook no longer hangs the build; it fails after 10s waiting for the prerender server.
 - A 404 page check that times out now says to raise `PRERENDER_TIMEOUT`, like page errors do.
+- Prerender saves any 2xx reply again, not only 200 (a 203 API no longer fails the build).
+- A redirect of unknown URLs (like to `/login`) is now named when 404.html can't be built.
 - A bad `PRERENDER_TIMEOUT` or `PRERENDER_CONCURRENCY` fails the build instead of skipping pages.
 - `PRERENDER_TIMEOUT` now also sets the loader time limit while prerendering.
 - A data request that times out says `data timed out`, so you know which request was slow.

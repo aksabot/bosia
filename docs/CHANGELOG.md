@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Docs skip a language's index page only when that language has its own landing page.
 - Env vars guide and skill: `PRERENDER_TIMEOUT` also sets the load and metadata limits at build.
 - Env vars guide and skill: `PRERENDER_CONCURRENCY` counts requests; a page and its data are two.
+- Security guide: a prerendered page or API may answer any 2xx, not only 200.
 
 ## [0.8.27] - 2026-10-14
 

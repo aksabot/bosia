@@ -163,9 +163,8 @@ export function prerenderApiOutPath(routePath: string): string {
 
 /**
  * Why the server's reply to a prerender fetch can't be saved, or null when it can. A page must
- * answer `status` (200) HTML; an API must answer `status`. Anything else (a loader's error(), a
- * redirect to /login, the static 404) would be saved and served as the route. The 404 probe
- * passes 404.
+ * answer 2xx HTML; an API any 2xx. Anything else (a loader's error(), a redirect to /login, the
+ * static 404) would be saved and served as the route. The 404 probe passes 404 (exactly).
  */
 export function prerenderReplyProblem(
 	kind: "page" | "api",
@@ -174,7 +173,9 @@ export function prerenderReplyProblem(
 ): string | null {
 	if (res.status >= 300 && res.status < 400)
 		return `answered ${res.status} → ${res.headers.get("location") ?? "(no Location)"}`;
-	if (res.status !== status) return `answered ${res.status}`;
+	// Any 2xx when a page is expected, as before this check; the 404 probe wants exactly 404.
+	const ok = status === 200 ? res.status >= 200 && res.status < 300 : res.status === status;
+	if (!ok) return `answered ${res.status}`;
 	const type = res.headers.get("content-type") ?? "";
 	if (kind === "page" && !type.includes("text/html"))
 		return `answered ${type || "no content-type"}, not an HTML page`;
@@ -212,8 +213,9 @@ export function describeError(err: unknown, depth = 0): string {
 	if (err == null || typeof err !== "object") return String(err);
 	const { message, code, errno, cause } = err as Record<string, unknown>;
 	// `code` may be a string (ECONNRESET) or a number; a bare `errno` (-54) stands in for it.
+	// A DOMException's number code is a legacy constant (AbortError is 20), not a reason.
 	const id =
-		typeof code === "string" || typeof code === "number"
+		typeof code === "string" || (typeof code === "number" && !(err instanceof DOMException))
 			? String(code)
 			: typeof errno === "number"
 				? String(errno)
@@ -658,19 +660,18 @@ export async function prerenderStaticRoutes(
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
 		if (target !== "workers")
 			try {
-				// Follows one same-origin redirect, unlike the pages: a catch-all `always` page 308s
+				// Follows only its own slash form, unlike the pages: a catch-all `always` page 308s
 				// the probe to `/__bosia-404-probe/`, and its 404 there is the page a static host
-				// should show. A redirect off the build server is reported, not fetched.
+				// should show. Any other redirect (a hook sending it to /login, or off the build
+				// server) is reported with where it goes, not fetched.
 				const probe = (url: string) =>
 					fetch(url, { redirect: "manual", signal: AbortSignal.timeout(timeout) });
-				let res = await probe(`${base}/__bosia-404-probe`);
+				const probeUrl = `${base}/__bosia-404-probe`;
+				let res = await probe(probeUrl);
 				const location = res.status >= 300 && res.status < 400 && res.headers.get("location");
-				if (location) {
-					const to = new URL(location, base);
-					if (to.origin === new URL(base).origin) {
-						await dropBody(res);
-						res = await probe(to.href);
-					}
+				if (location && new URL(location, probeUrl).href === `${probeUrl}/`) {
+					await dropBody(res);
+					res = await probe(`${probeUrl}/`);
 				}
 				// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
 				const problem = prerenderReplyProblem("page", res, 404);

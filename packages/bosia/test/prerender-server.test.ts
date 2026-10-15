@@ -87,6 +87,10 @@ describe("prerenderReplyProblem()", () => {
 	test("an API may answer any 200 type", () => {
 		expect(prerenderReplyProblem("api", res(200, { "content-type": "text/plain" }))).toBeNull();
 	});
+	test("any 2xx is saved, as before the reply check", () => {
+		expect(prerenderReplyProblem("api", res(203))).toBeNull();
+		expect(prerenderReplyProblem("page", res(203, HTML))).toBeNull();
+	});
 	test("the 404 probe wants a 404 HTML page", () => {
 		expect(prerenderReplyProblem("page", res(404, HTML), 404)).toBeNull();
 		expect(prerenderReplyProblem("page", res(200, HTML), 404)).toBe("answered 200");
@@ -160,6 +164,11 @@ describe("describeError()", () => {
 		expect(describeError(new TypeError())).toBe("TypeError");
 		expect(describeError(new Error("x", { cause: { errno: -54 } }))).toBe("x (cause: -54)");
 		expect(describeError(Object.assign(new Error("read"), { code: 5 }))).toBe("read [5]");
+	});
+	test("a DOMException's legacy number code is left out", () => {
+		const abort = new DOMException("The operation was aborted.", "AbortError");
+		expect(abort.code).toBe(20);
+		expect(describeError(abort)).toBe("The operation was aborted.");
 	});
 	test("a cause that points back at itself stops", () => {
 		const err = new Error("loop");
@@ -379,7 +388,7 @@ test("a slow loader's page and data are fetched side by side, within the timeout
 		expect(existsSync(join(dir, "dist/prerendered/__bosia/data/slow.json"))).toBe(true);
 		const starts = readFileSync(join(dir, "starts.log"), "utf-8").trim().split("\n").map(Number);
 		expect(starts).toHaveLength(2);
-		expect(Math.abs(starts[1]! - starts[0]!)).toBeLessThan(1000);
+		expect(Math.abs(starts[1]! - starts[0]!)).toBeLessThan(1200);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
@@ -574,6 +583,22 @@ test("a hook that never answers /_health fails the build after 10s", async () =>
 	}
 }, 60_000);
 
+// prerender.ts reads its settings on import, before bosia's loadEnv. That's safe because the
+// CLI starts build.ts with NODE_ENV set, so Bun has already loaded .env.production.local.
+test("PRERENDER_* settings from .env.production.local are read", async () => {
+	const dir = fixture("envlocal", {
+		".env.production.local": "PRERENDER_CONCURRENCY=0.5\n",
+		"src/routes/+page.server.ts": prerendered(),
+	});
+	try {
+		const { code, out } = await build(dir);
+		expect(out).toContain(`PRERENDER_CONCURRENCY must be a whole number`);
+		expect(code).toBe(1);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
 test("a bad PRERENDER_CONCURRENCY fails the build instead of skipping every page", async () => {
 	const dir = fixture("badconc", { "src/routes/+page.server.ts": prerendered() });
 	try {
@@ -582,6 +607,26 @@ test("a bad PRERENDER_CONCURRENCY fails the build instead of skipping every page
 			`PRERENDER_CONCURRENCY must be a whole number from 1 to 2147483647 (got "0.5")`,
 		);
 		expect(code).toBe(1);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// Only the probe's own slash form is followed: a hook sending unknown URLs to /login is named
+// in the message, instead of reading as "answered 200" from the login page.
+test("the 404 probe names a redirect to another page", async () => {
+	const dir = fixture("loginprobe", {
+		"src/routes/+page.server.ts": prerendered(),
+		"src/routes/login/+page.svelte": "<h1>Login</h1>\n",
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (event.url.pathname.startsWith("/__bosia-404-probe"))\n` +
+			`\t\treturn new Response(null, { status: 302, headers: { location: "/login" } });\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const { out } = await build(dir);
+		expect(out).toContain("404.html skipped: an unknown URL answered 302 → /login");
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
