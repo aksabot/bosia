@@ -34,6 +34,19 @@ import { serverTiming } from "bosia/plugins/server-timing";
 serverTiming({ metric: "bosia" }); // override default metric name
 ```
 
+### `bosia/plugins/access-log`
+
+Logs one line per request — `[GET] /blog 200 (1.2ms)` — measured like `serverTiming`. Bosia doesn't log requests by default; add this when you want an access log and no reverse proxy keeps one. Lines are written in batches (every 100ms, or at 64KB) instead of one write per request: on a piped stdout (`docker logs`, systemd) that's ~2µs of CPU per request instead of ~14µs. Lines still waiting are written on shutdown. On Workers every line is written at once.
+
+```ts
+import { accessLog } from "bosia/plugins/access-log";
+
+accessLog(); // every request
+accessLog({ filter: (e) => e.status >= 400 || e.ms > 200 }); // errors and slow requests only
+accessLog({ format: (e) => JSON.stringify({ m: e.method, p: e.path, s: e.status, ms: e.ms }) });
+accessLog({ flushMs: 0 }); // write each line immediately
+```
+
 ## Authoring a Plugin
 
 A plugin is any object matching `BosiaPlugin`:

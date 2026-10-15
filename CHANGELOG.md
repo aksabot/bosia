@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - `CACHE_MAX_BYTES` caps the response cache's memory (default 100MB); the oldest entries go first.
+- `bosia/plugins/access-log`: an opt-in access log, one line per request, written in batches.
+
+### Changed
+
+- New apps no longer log every request from `hooks.server.ts`. Use your proxy's log or add `accessLog()` to `bosia.config.ts`.
 
 ### Fixed
 

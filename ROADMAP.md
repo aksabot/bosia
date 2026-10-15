@@ -23,7 +23,7 @@
 - [ ] 🟡 Coalesce waiters stampede when the leader skips the write (error, cookie, too big): all rerun at once, no re-leadering.
 - [ ] 🟡 Viewport prefetch has no concurrency cap / idle scheduling / `saveData` check; nav clears results, and unobserved links never prefetch again.
 - [ ] 🟡 Superseded navigations keep their data fetch running (no `AbortController`).
-- [ ] 🟡 Template `hooks.server.ts` (demo/shop/store) `console.log` every request: ~30% of CPU on cached hits in a profile.
+- [x] 🟡 Template `hooks.server.ts` (demo/shop/store) `console.log`ged every request: on a piped stdout (`docker logs`, systemd) +14µs CPU per request (25 → 39µs; to a file ~0). Removed from templates, demo apps and docs examples. New opt-in `bosia/plugins/access-log`: batched writes (100ms / 64KB, flush on exit) ≈ +2µs, `filter`/`format`/`write`/`flushMs`; Workers writes each line via console.log.
 - [ ] 🟡 Query strings fragment the cache (`?utm_*`, random `?x=`): every value is a new entry and a full render. Data endpoint `_invalidated` mask isn't validated (`/^[01]*$/`).
 - [ ] ⚪ Cache-write gzip + brotli q5 run sync on the main thread (up to 2MB bodies). Use async zlib in the deferred write.
 - [ ] ⚪ A 404 scans every route 3× (`??=` rescans the `null` match; `renderErrorPage` matches again).

@@ -144,16 +144,16 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-const loggingHandle: Handle = async ({ event, resolve }) => {
+const headersHandle: Handle = async ({ event, resolve }) => {
 	const res = await resolve(event);
-	console.log(`${event.request.method} ${event.url.pathname} ${res.status}`);
+	res.headers.set("X-Robots-Tag", "noindex");
 	return res;
 };
 
-export const handle = sequence(authHandle, loggingHandle);
+export const handle = sequence(authHandle, headersHandle);
 ```
 
-`locals` set here are available in every loader and API handler.
+`locals` set here are available in every loader and API handler. For an access log, use your reverse proxy's or add `accessLog()` from `bosia/plugins/access-log` to `bosia.config.ts` — not a `console.log` per request.
 
 ## Public API
 

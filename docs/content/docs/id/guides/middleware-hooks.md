@@ -54,19 +54,18 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-const loggingHandle: Handle = async ({ event, resolve }) => {
-	const start = Date.now();
+const headersHandle: Handle = async ({ event, resolve }) => {
 	const res = await resolve(event);
-	const ms = Date.now() - start;
-	console.log(`[${event.request.method}] ${event.url.pathname} ${res.status} (${ms}ms)`);
-	res.headers.set("X-Response-Time", `${ms}ms`);
+	res.headers.set("X-Robots-Tag", "noindex");
 	return res;
 };
 
-export const handle = sequence(authHandle, loggingHandle);
+export const handle = sequence(authHandle, headersHandle);
 ```
 
 Handler dieksekusi dari kiri ke kanan. `resolve` milik setiap handler memanggil handler berikutnya dalam rantai.
+
+> **Access log:** jangan `console.log` setiap request dari hook. Saat stdout berupa pipe (`docker logs`, systemd) tiap baris adalah satu syscall, ~14µs CPU per request. Serahkan access log ke reverse proxy (nginx, Caddy), atau pasang plugin [`accessLog()`](/id/guides/plugins#bosiapluginsaccess-log) yang menulis secara batch.
 
 ## Menyetel Locals
 

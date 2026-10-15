@@ -34,6 +34,19 @@ import { serverTiming } from "bosia/plugins/server-timing";
 serverTiming({ metric: "bosia" }); // override default metric name
 ```
 
+### `bosia/plugins/access-log`
+
+Mencatat satu baris per request — `[GET] /blog 200 (1.2ms)` — diukur seperti `serverTiming`. Bosia tidak mencatat request secara default; pasang plugin ini kalau butuh access log dan tidak ada reverse proxy yang mencatatnya. Baris ditulis secara batch (tiap 100ms, atau saat mencapai 64KB), bukan satu write per request: pada stdout berupa pipe (`docker logs`, systemd) biayanya ~2µs CPU per request, bukan ~14µs. Baris yang masih menunggu ditulis saat shutdown. Di Workers setiap baris langsung ditulis.
+
+```ts
+import { accessLog } from "bosia/plugins/access-log";
+
+accessLog(); // setiap request
+accessLog({ filter: (e) => e.status >= 400 || e.ms > 200 }); // hanya error dan request lambat
+accessLog({ format: (e) => JSON.stringify({ m: e.method, p: e.path, s: e.status, ms: e.ms }) });
+accessLog({ flushMs: 0 }); // tulis setiap baris langsung
+```
+
 ## Menulis sebuah Plugin
 
 Plugin adalah objek apa pun yang cocok dengan `BosiaPlugin`:
