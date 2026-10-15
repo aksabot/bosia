@@ -36,20 +36,25 @@ Kalau konten per-user sebuah rute tidak dikunci oleh apa pun di `CACHE_KEYS`, ma
 
 ## Kelayakan
 
-| Kondisi                                                                             | Hasil                    |
-| ----------------------------------------------------------------------------------- | ------------------------ |
-| `export const cache = false` pada rute                                              | Lewati read + write      |
-| Method request ≠ `GET`                                                              | Lewati read + write      |
-| `CSP_DIRECTIVES` terset (CSP aktif)                                                 | Lewati read + write      |
-| `CACHE_MAX_ENTRIES=0`                                                               | Lewati read + write      |
-| Status response ≠ 200                                                               | Lewati write             |
-| Handler memanggil `cookies.set()`                                                   | Lewati write             |
-| `?_invalidated=…` di query                                                          | Lewati read; tetap write |
-| Request data dengan `_fresh=1`                                                      | Lewati read; tetap write |
-| Request data dikirim sebagai `POST`                                                 | Lewati read + write      |
-| Loader mengatur `Cache-Control: no-store`, `no-cache` atau `private` (request data) | Lewati write             |
+| Kondisi                                                                           | Hasil                    |
+| --------------------------------------------------------------------------------- | ------------------------ |
+| `export const cache = false` pada rute                                            | Lewati read + write      |
+| Method request ≠ `GET`                                                            | Lewati read + write      |
+| `CSP_DIRECTIVES` terset (CSP aktif)                                               | Lewati read + write      |
+| `CACHE_MAX_ENTRIES=0`                                                             | Lewati read + write      |
+| Status response ≠ 200                                                             | Lewati write             |
+| Handler memanggil `cookies.set()`                                                 | Lewati write             |
+| `?_invalidated=…` di query                                                        | Lewati read; tetap write |
+| Request data dengan `_fresh=1`                                                    | Lewati read; tetap write |
+| Request data dikirim sebagai `POST`                                               | Lewati read + write      |
+| Loader atau handler mengatur `Cache-Control: no-store`, `no-cache` atau `private` | Lewati write             |
+| `Vary` selain `Accept-Encoding` (mis. `Cookie`, `Origin`, `*`)                    | Lewati write             |
+| Response `+server.ts` sudah punya `Content-Encoding`                              | Lewati write             |
+| Body melebihi `CACHE_MAX_BODY_BYTES` atau seperempat `CACHE_MAX_BYTES`            | Lewati write             |
 
 Skip tidak akan merusak response — sekadar jatuh ke jalur render normal.
+
+Key cache adalah URL ditambah `CACHE_KEYS`, jadi tidak bisa menghormati `Vary` pada hal lain. Response yang mengatur `Vary: Cookie` (meski cookie itu ada di `CACHE_KEYS`) tidak di-cache; jangan pasang `Vary` dan andalkan `CACHE_KEYS`.
 
 ## Opt-out per rute
 

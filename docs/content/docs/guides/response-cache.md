@@ -45,20 +45,25 @@ If a route's per-user content is not keyed by anything in `CACHE_KEYS`, opt it o
 
 ## Eligibility
 
-| Condition                                                                     | Result                 |
-| ----------------------------------------------------------------------------- | ---------------------- |
-| `export const cache = false` on the route                                     | Skip read + write      |
-| Request method ≠ `GET`                                                        | Skip read + write      |
-| `CSP_DIRECTIVES` set (CSP enabled)                                            | Skip read + write      |
-| `CACHE_MAX_ENTRIES=0`                                                         | Skip read + write      |
-| Response status ≠ 200                                                         | Skip write             |
-| Handler called `cookies.set()`                                                | Skip write             |
-| `?_invalidated=…` query present                                               | Skip read; still write |
-| Data request with `_fresh=1`                                                  | Skip read; still write |
-| Data request sent as `POST`                                                   | Skip read + write      |
-| Loader set `Cache-Control: no-store`, `no-cache` or `private` (data requests) | Skip write             |
+| Condition                                                                | Result                 |
+| ------------------------------------------------------------------------ | ---------------------- |
+| `export const cache = false` on the route                                | Skip read + write      |
+| Request method ≠ `GET`                                                   | Skip read + write      |
+| `CSP_DIRECTIVES` set (CSP enabled)                                       | Skip read + write      |
+| `CACHE_MAX_ENTRIES=0`                                                    | Skip read + write      |
+| Response status ≠ 200                                                    | Skip write             |
+| Handler called `cookies.set()`                                           | Skip write             |
+| `?_invalidated=…` query present                                          | Skip read; still write |
+| Data request with `_fresh=1`                                             | Skip read; still write |
+| Data request sent as `POST`                                              | Skip read + write      |
+| Loader or handler set `Cache-Control: no-store`, `no-cache` or `private` | Skip write             |
+| `Vary` other than `Accept-Encoding` (e.g. `Cookie`, `Origin`, `*`)       | Skip write             |
+| `+server.ts` response already has `Content-Encoding`                     | Skip write             |
+| Body over `CACHE_MAX_BODY_BYTES` or a quarter of `CACHE_MAX_BYTES`       | Skip write             |
 
 A skip never breaks the response — it just falls back to the normal render path.
+
+The cache key is the URL plus `CACHE_KEYS`, so it can't honor a `Vary` on anything else. A response that sets `Vary: Cookie` (even with that cookie in `CACHE_KEYS`) is not cached; leave `Vary` off and rely on `CACHE_KEYS` instead.
 
 ## Opting out per route
 

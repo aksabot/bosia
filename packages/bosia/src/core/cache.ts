@@ -76,7 +76,7 @@ export function bodyFitsCache(bytes: number): boolean {
 if (isServer) {
 	if (CACHE_ENABLED) {
 		console.log(
-			`💾 Response cache: max ${CACHE_MAX_ENTRIES} entries${CACHE_MAX_BYTES === 0 ? "" : ` / ${CACHE_MAX_BYTES} bytes`}, max body ${CACHE_MAX_BODY_BYTES === 0 ? "unlimited" : `${CACHE_MAX_BODY_BYTES} bytes`}, identity keys [${CACHE_KEYS.join(", ")}]`,
+			`💾 Response cache: max ${CACHE_MAX_ENTRIES} entries${CACHE_MAX_BYTES === 0 ? "" : ` / ${CACHE_MAX_BYTES} bytes`}, max body ${CACHE_BODY_CAP === 0 ? "unlimited" : `${CACHE_BODY_CAP} bytes`}, identity keys [${CACHE_KEYS.join(", ")}]`,
 		);
 	} else {
 		console.log("💾 Response cache: disabled (CACHE_MAX_ENTRIES=0)");
