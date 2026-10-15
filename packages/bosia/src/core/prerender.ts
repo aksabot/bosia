@@ -7,7 +7,8 @@ import type { RuntimeTarget } from "./types/plugin.ts";
 import { BOSIA_NODE_PATH, OUT_DIR } from "./paths.ts";
 import { currentBase } from "./appBase.ts";
 import { prerenderSkipReason, wantsPrerender } from "./scanner.ts";
-import { isDynamic, segmentName, segmentRank } from "./matcher.ts";
+import { findMatch, isDynamic, segmentName, segmentRank } from "./matcher.ts";
+import { sortRoutes } from "./routeFile.ts";
 import { HEALTH_PATH, isFrameworkPath, isStaticPath } from "./staticPath.ts";
 
 /** Acquire an OS-assigned ephemeral port. Tiny TOCTOU race window; acceptable for build-time use. */
@@ -51,8 +52,19 @@ export function needsStatic404(cwd = process.cwd()): boolean {
 	return false;
 }
 
-const PRERENDER_TIMEOUT = Number(process.env.PRERENDER_TIMEOUT) || 5_000; // 5s default
-const PRERENDER_CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 6;
+// Up to 2^31-1 (about 24 days), the longest delay a timer takes as written.
+const SETTING_MAX = 2_147_483_647;
+
+/** A whole number from 1 to SETTING_MAX, `fallback` when unset, null when anything else. */
+export function prerenderSetting(raw: string | undefined, fallback: number): number | null {
+	if (raw === undefined || raw.trim() === "") return fallback;
+	// Number(), as in 1.2.4: `1e3` and `5000.0` keep working.
+	const n = Number(raw);
+	return Number.isInteger(n) && n >= 1 && n <= SETTING_MAX ? n : null;
+}
+
+const PRERENDER_TIMEOUT = prerenderSetting(process.env.PRERENDER_TIMEOUT, 5_000); // 5s default
+const PRERENDER_CONCURRENCY = prerenderSetting(process.env.PRERENDER_CONCURRENCY, 6);
 
 // ─── Prerendering ─────────────────────────────────────────
 
@@ -150,6 +162,105 @@ export function prerenderApiOutPath(routePath: string): string {
 	return `${OUT_DIR}/prerendered${routePath.replace(/\/$/, "")}.json`;
 }
 
+/**
+ * Why the server's reply to a prerender fetch can't be saved, or null when it can. A page must
+ * answer 2xx HTML; an API any 2xx but 204/205 (no body, saved as an empty file). Anything else (a
+ * loader's error(), a redirect to /login, the static 404) would be saved and served as the route.
+ * The 404 probe expects exactly 404.
+ */
+export function prerenderReplyProblem(
+	kind: "page" | "api",
+	res: Response,
+	expect: "ok" | 404 = "ok",
+): string | null {
+	if (res.status >= 300 && res.status < 400)
+		return `answered ${res.status} → ${res.headers.get("location") ?? "(no Location)"}`;
+	const ok = expect === "ok" ? res.status >= 200 && res.status < 300 : res.status === expect;
+	if (!ok) return `answered ${res.status}`;
+	if (res.status === 204 || res.status === 205) return `answered ${res.status}, no content`;
+	const type = res.headers.get("content-type") ?? "";
+	if (kind === "page" && !type.includes("text/html"))
+		return `answered ${type || "no content-type"}, not an HTML page`;
+	return null;
+}
+
+/**
+ * Why a 200 data payload can't be saved, or null when it can. The server answers a data
+ * request's redirect (a loader's, or a hook's 3xx) with a 200 JSON `{ redirect, status }`,
+ * so the client router can follow it (server.ts data endpoint and handleRequest). A loader
+ * payload is `{ pageData, layoutData, … }` and never has `redirect` or `error` at the top.
+ */
+export function prerenderDataProblem(body: string): string | null {
+	let data: unknown;
+	try {
+		data = JSON.parse(body);
+	} catch {
+		return "answered a body that isn't JSON";
+	}
+	if (!data || typeof data !== "object") return "answered a body that isn't a data payload";
+	const { redirect, status, error } = data as Record<string, any>;
+	if (redirect != null) return `answered redirect ${status ?? "?"} → ${redirect}`;
+	// The server sends a data error with its own status, which prerenderReplyProblem rejects
+	// first; this catches a hook that answers a data request with its own 200 `{ error }`.
+	if (error != null) {
+		const why = typeof error === "string" ? error : (error.status ?? error.message);
+		return `answered error ${why ?? "?"}`;
+	}
+	return null;
+}
+
+/**
+ * An error's message plus its `code` (EACCES) and `cause` (Bun's fetch puts ECONNRESET there).
+ * Reads any object, not just an Error: a cause is often a plain `{ code, message }`. Causes are
+ * followed 3 deep, so a cycle can't loop.
+ */
+export function describeError(err: unknown, depth = 0): string {
+	if (err == null || typeof err !== "object") return String(err);
+	const { message, code, errno, cause } = err as Record<string, unknown>;
+	// `code` may be a string (ECONNRESET) or a number; a bare `errno` (-54) stands in for it.
+	// A DOMException's number code is a legacy constant (AbortError is 20), not a reason.
+	const id =
+		typeof code === "string" || (typeof code === "number" && !(err instanceof DOMException))
+			? String(code)
+			: typeof errno === "number"
+				? String(errno)
+				: "";
+	let out = typeof message === "string" && message ? message : "";
+	if (id && !out.includes(id)) out += out ? ` [${id}]` : id;
+	// An Error's own fields aren't enumerable, so JSON would print `{}`: use its name.
+	if (!out && err instanceof Error) out = err.name;
+	if (!out) {
+		try {
+			out = JSON.stringify(err) ?? String(err);
+		} catch {
+			out = String(err);
+		}
+	}
+	if (cause != null && cause !== "" && depth < 3)
+		out += ` (cause: ${describeError(cause, depth + 1)})`;
+	return out;
+}
+
+/** A prerender fetch that can't be saved; its message says why (a reply, a timeout, a reset). */
+class ReplyProblem extends Error {}
+
+const isTimeout = (err: unknown) => err instanceof DOMException && err.name === "TimeoutError";
+
+/** Why a prerender fetch threw: a timeout names the env var that raises it. */
+function fetchFailure(err: unknown, timeout: number): string {
+	if (isTimeout(err))
+		return `timed out after ${timeout / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`;
+	return `failed: ${describeError(err)}`;
+}
+
+/**
+ * Cancels a reply's unread body so its socket is freed. cancel() rejects once the stream has
+ * errored (a timeout fired), and that must not replace the real problem.
+ */
+async function dropBody(res: Response): Promise<void> {
+	await res.body?.cancel().catch(() => {});
+}
+
 /** A dynamic prerender route whose entries() can't be used. build.ts prints `message` and exits. */
 export class PrerenderEntriesError extends Error {
 	override name = "PrerenderEntriesError";
@@ -173,11 +284,14 @@ export function checkPrerenderPaths(
 		const lower = p.toLowerCase();
 		if (isFrameworkPath(kind === "page" ? `${lower}/` : lower))
 			throw new Error(`entries() gives ${p}; dist and __bosia are the framework's folders`);
-		// The server answers `/_health`, and for pages any static-file ending like `.png`, itself,
-		// so the saved file would hold its reply, not the route. Checked on the slash-less form:
-		// `/logo.png` 404s before the 308 to `/logo.png/`, and the `/` form adds only the prefixes
-		// rejected above (the invariant test checks both forms).
-		if (p === HEALTH_PATH || (kind === "page" && isStaticPath(p)))
+		// The server answers `/_health` before any route. Its JSON looks like a valid API reply,
+		// so prerenderReplyProblem can't catch it for an API.
+		if (p === HEALTH_PATH) throw new Error(`entries() gives ${p}, a URL the server answers itself`);
+		// A static-file ending (`.png`) is answered as a file, in every slash mode. prerenderReplyProblem
+		// would catch the fetched URL too (a 404, or public/'s image), but later and less clearly,
+		// and an `always` page fetches `/logo.png/`: its slash-less form 404s before the 308, and
+		// nothing fetches that one. The `/` form adds only the prefixes rejected above.
+		if (kind === "page" && isStaticPath(p))
 			throw new Error(`entries() gives ${p}, a URL the server answers itself`);
 		// generateStaticSite copies prerendered/ over static/, where the 404 probe saves
 		// 404.html. A static src/routes/404 page may replace it on purpose; a slug may not.
@@ -249,9 +363,42 @@ export async function detectPrerenderRoutes(manifest: RouteManifest): Promise<Pr
 			cause: failed,
 		});
 	const targets = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-	const clash = findPrerenderClash(targets);
-	if (clash.length) throw new PrerenderEntriesError(clash.join("\n"));
+	const misowned = findMisownedTargets(manifest, targets);
+	// Mis-owned targets stay out of the clash check, so one problem prints one ❌.
+	const clash = findPrerenderClash(targets.filter((t) => !misowned.has(t)));
+	const problems = [...misowned.values(), ...clash];
+	if (problems.length) throw new PrerenderEntriesError(problems.join("\n"));
 	return targets;
+}
+
+/** How the build's ❌ lines name a target: its URL, plus the route a slug came from. */
+function targetLabel(t: PrerenderTarget): string {
+	return t.route === t.path ? t.path : `${t.path} (from ${t.route})`;
+}
+
+/**
+ * Targets whose URL another route serves: `/blog/[slug]` giving `new` while
+ * `src/routes/blog/new` exists, or a page slug at a `+server.ts` URL (an API
+ * wins, as in server.ts matchRoutes). Saving it would freeze the other route.
+ */
+export function findMisownedTargets(
+	manifest: Pick<RouteManifest, "pages" | "apis">,
+	targets: PrerenderTarget[],
+): Map<PrerenderTarget, string> {
+	// Copies: findMatch caches a compiled regex on each route object it sees.
+	const pages = sortRoutes(manifest.pages.map((r) => ({ pattern: r.pattern })));
+	const apis = sortRoutes(manifest.apis.map((r) => ({ pattern: r.pattern })));
+	const out = new Map<PrerenderTarget, string>();
+	for (const t of targets) {
+		const api = findMatch(apis, t.path)?.route.pattern;
+		let owner = api;
+		// A page loses to any API at its URL, even a +server.ts in its own folder.
+		if (t.kind === "page")
+			owner = api ? `${api} (+server.ts)` : findMatch(pages, t.path)?.route.pattern;
+		if (owner && owner !== t.route)
+			out.set(t, `❌ Prerender: ${targetLabel(t)} is served by ${owner}, not this route`);
+	}
+	return out;
 }
 
 /**
@@ -264,7 +411,7 @@ export function findPrerenderClash(targets: PrerenderTarget[]): string[] {
 	const clashes: string[] = [];
 	for (const t of targets) {
 		// Name the route a slug came from, so the message says which file to fix.
-		const who = t.route === t.path ? t.path : `${t.path} (from ${t.route})`;
+		const who = targetLabel(t);
 		let clash = "";
 		const files =
 			t.kind === "api"
@@ -295,6 +442,24 @@ export async function prerenderStaticRoutes(
 	manifest: RouteManifest,
 	target: RuntimeTarget = "bun",
 ): Promise<void> {
+	// A bad value would leave every page waiting for a request slot, or make every fetch throw.
+	const bad = (
+		[
+			["PRERENDER_TIMEOUT", PRERENDER_TIMEOUT],
+			["PRERENDER_CONCURRENCY", PRERENDER_CONCURRENCY],
+		] as const
+	).filter(([, value]) => value === null);
+	if (bad.length)
+		throw new PrerenderEntriesError(
+			bad
+				.map(
+					([name]) =>
+						`❌ ${name} must be a whole number from 1 to ${SETTING_MAX} (got "${process.env[name]}")`,
+				)
+				.join("\n"),
+		);
+	const timeout = PRERENDER_TIMEOUT!;
+	const concurrency = PRERENDER_CONCURRENCY!;
 	const targets = await detectPrerenderRoutes(manifest);
 	// On Workers the worker answers unknown paths, so 404.html is never required.
 	const require404 = target !== "workers" && needsStatic404();
@@ -319,6 +484,16 @@ export async function prerenderStaticRoutes(
 			...env,
 			NODE_ENV: "production",
 			PORT: String(port),
+			// Live-traffic limits from .env, set rather than removed (Bun would load them back).
+			// MAX_INFLIGHT would 503 the build's own requests (a page and its data,
+			// PRERENDER_CONCURRENCY at once); IDLE_TIMEOUT (0 = off) and LOAD_TIMEOUT would cut a
+			// loader that PRERENDER_TIMEOUT allows, and METADATA_TIMEOUT would save the page without
+			// its metadata (a timeout there is swallowed). All off, so PRERENDER_TIMEOUT alone rules
+			// the build: an equal server limit would race it, and its 500 would hide the hint.
+			MAX_INFLIGHT: "infinity",
+			IDLE_TIMEOUT: "0",
+			LOAD_TIMEOUT: "Infinity",
+			METADATA_TIMEOUT: "Infinity",
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
 		stdout: "ignore",
@@ -329,6 +504,9 @@ export async function prerenderStaticRoutes(
 	// watch `exited` instead.
 	let exited = false;
 	child.exited.then(() => (exited = true));
+	const exitsWithin = (ms: number) =>
+		Promise.race([child.exited.then(() => true), Bun.sleep(ms).then(() => false)]);
+	const stopReason = () => child.signalCode ?? `exit code ${child.exitCode}`;
 
 	const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 	let receivedSignal: NodeJS.Signals | null = null;
@@ -348,7 +526,10 @@ export async function prerenderStaticRoutes(
 		const deadline = Date.now() + 10_000;
 		while (Date.now() < deadline && !exited) {
 			try {
-				const res = await fetch(`${base}/_health`);
+				// Answered after the hooks, so a stuck hook would hang here past the deadline.
+				const res = await fetch(`${base}${HEALTH_PATH}`, {
+					signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+				});
 				if (res.ok) {
 					ready = true;
 					break;
@@ -360,30 +541,82 @@ export async function prerenderStaticRoutes(
 		}
 
 		if (!ready || exited) {
-			const why = child.signalCode ?? `exit code ${child.exitCode ?? "none"}`;
-			if (require404)
-				throw new Error(
-					`Prerender server failed to start (${why}), so 404.html could not be built, but ` +
-						`wrangler sets not_found_handling "404-page". Fix the server, or add public/404.html.`,
-				);
-			console.error(`❌ Prerender server failed to start (${why})`);
-			return;
+			// Alive but never healthy (slow hooks init, a bad BASE_PATH) is not a crash.
+			const why = exited ? stopReason() : "not ready within 10s";
+			// Returning here would ship a build with every prerendered page missing.
+			throw new PrerenderEntriesError(
+				`❌ Prerender server failed to start (${why})` +
+					(require404
+						? `, so 404.html could not be built, but wrangler sets not_found_handling ` +
+							`"404-page". Fix the server, or add public/404.html.`
+						: ""),
+			);
 		}
 
 		mkdirSync(`${OUT_DIR}/prerendered`, { recursive: true });
 
-		const prerenderOne = async ({
-			path: routePath,
-			kind,
-			trailingSlash: ts,
-		}: PrerenderTarget): Promise<void> => {
+		// Every target that can't be saved; the build fails with all of them once the pool drains.
+		const failures: string[] = [];
+		// Pages whose connection broke (a reset, a refused connect), with their ❌ line. If the
+		// server turns out to have died (a loader that exits or runs out of memory), one line
+		// names the exit instead. A timeout isn't one: a dead server resets its connections, it
+		// doesn't leave them hanging, so a timeout keeps its own line and hint.
+		const connLost: { route: string; line: string }[] = [];
+		class ConnLost extends ReplyProblem {}
+		// A timeout can mean a loader stuck the server, which may die next: counted, so the
+		// check after the pages waits for that too.
+		class TimedOut extends ReplyProblem {}
+		let timedOut = 0;
+		// PRERENDER_CONCURRENCY counts requests, not pages: a page's HTML and data each run its
+		// loaders, so N slots keep N loader runs at once (a cap users set for rate-limited APIs).
+		let free = concurrency;
+		const waiting: (() => void)[] = [];
+		const acquire = async () => {
+			if (free > 0) free--;
+			else await new Promise<void>((resolve) => waiting.push(resolve));
+		};
+		const release = () => {
+			const nextInLine = waiting.shift();
+			if (nextInLine) nextInLine();
+			else free++;
+		};
+
+		const prerenderOne = async (t: PrerenderTarget): Promise<void> => {
+			const { path: routePath, kind, trailingSlash: ts } = t;
+			// `manual`: a redirect is reported, not followed into another page that gets saved.
+			// A new timeout per fetch: a shared one would give the page and its data (two
+			// loader runs) one PRERENDER_TIMEOUT between them.
+			// `stop` ends a page's data fetch once the page itself has failed.
+			const stop = new AbortController();
+			const line = (why: string) => `❌ Prerender: ${targetLabel(t)} ${why}`;
+			const fail = (why: string) => failures.push(line(why));
+			// Fetches `url` and reads its body. Any failure (a bad reply, a timeout, a reset) is
+			// thrown as a ReplyProblem carrying `label`, so a data fetch's says "data".
+			// The timeout starts once a slot is free, so time spent queued isn't counted.
+			const fetchText = async (url: string, as: "page" | "api", label = "") => {
+				await acquire();
+				try {
+					stop.signal.throwIfAborted();
+					const res = await fetch(url, {
+						redirect: "manual",
+						signal: AbortSignal.any([AbortSignal.timeout(timeout), stop.signal]),
+					});
+					const problem = prerenderReplyProblem(as, res);
+					if (!problem) return await res.text();
+					await dropBody(res);
+					throw new ReplyProblem(label + problem);
+				} catch (err) {
+					if (err instanceof ReplyProblem) throw err;
+					const why = label + fetchFailure(err, timeout);
+					throw isTimeout(err) ? new TimedOut(why) : new ConnLost(why);
+				} finally {
+					release();
+				}
+			};
 			try {
 				if (kind === "api") {
 					// APIs: fetch the bare route URL, write body to `<path>.json`.
-					const res = await fetch(`${base}${routePath.replace(/\/$/, "")}`, {
-						signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-					});
-					const body = await res.text();
+					const body = await fetchText(`${base}${routePath.replace(/\/$/, "")}`, kind);
 					const outPath = prerenderApiOutPath(routePath);
 					mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
 					writeFileSync(outPath, body);
@@ -394,10 +627,22 @@ export async function prerenderStaticRoutes(
 				// Hit the canonical URL so the server doesn't 308 us mid-prerender
 				const canonicalRoute = canonicalRouteFor(routePath, ts);
 
-				const res = await fetch(`${base}${canonicalRoute}`, {
-					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-				});
-				const html = await res.text();
+				// The data payload (filename matches dataUrl() — strips trailing slash). Client
+				// navigation on a static host fetches it, so a page saved without it is broken:
+				// both are checked before either is written. Fetched side by side, each with its
+				// own timeout. One ❌ per page, the page's own problem first: a failed page stops
+				// its data fetch, and a failed data fetch still waits for the page.
+				const dataPath = prerenderDataPath(routePath);
+				const htmlP = fetchText(`${base}${canonicalRoute}`, kind);
+				htmlP.catch(() => stop.abort());
+				const dataP = fetchText(`${base}/__bosia/data${dataPath}`, "api", "data ");
+				const [htmlGot, dataGot] = await Promise.allSettled([htmlP, dataP]);
+				if (htmlGot.status === "rejected") throw htmlGot.reason;
+				if (dataGot.status === "rejected") throw dataGot.reason;
+				const html = htmlGot.value;
+				const dataJson = dataGot.value;
+				const payloadProblem = prerenderDataProblem(dataJson);
+				if (payloadProblem) return void fail(`data ${payloadProblem}`);
 
 				// Filename strategy:
 				//   never  → about.html        (canonical /about, served by static host as /about → about.html)
@@ -405,47 +650,35 @@ export async function prerenderStaticRoutes(
 				//   ignore → about/index.html  (single emit; both URLs resolve via server canonicalize=off)
 				//   root   → index.html
 				const outPath = prerenderOutPath(routePath, ts);
+
 				mkdirSync(outPath.substring(0, outPath.lastIndexOf("/")), { recursive: true });
 				writeFileSync(outPath, html);
-
-				// Also prerender the data payload (filename matches dataUrl() — strips trailing slash)
-				const dataPath = prerenderDataPath(routePath);
-				const dataRes = await fetch(`${base}/__bosia/data${dataPath}`, {
-					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-				});
-				if (dataRes.ok) {
-					const dataJson = await dataRes.text();
-					const dataOutPath = prerenderDataOutPath(routePath);
-					mkdirSync(dataOutPath.substring(0, dataOutPath.lastIndexOf("/")), {
-						recursive: true,
-					});
-					writeFileSync(dataOutPath, dataJson);
-					console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
-				} else {
-					console.log(`   ✅ ${routePath} → ${outPath}`);
-				}
+				const dataOutPath = prerenderDataOutPath(routePath);
+				mkdirSync(dataOutPath.substring(0, dataOutPath.lastIndexOf("/")), { recursive: true });
+				writeFileSync(dataOutPath, dataJson);
+				console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
 			} catch (err) {
-				if (err instanceof DOMException && err.name === "TimeoutError") {
-					console.error(
-						`   ❌ Prerender timed out for ${routePath} after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`,
-					);
-				} else {
-					console.error(`   ❌ Failed to prerender ${routePath}:`, err);
-				}
+				const why = err instanceof ReplyProblem ? err.message : fetchFailure(err, timeout);
+				if (err instanceof TimedOut) timedOut++;
+				if (err instanceof ConnLost) connLost.push({ route: routePath, line: line(why) });
+				else fail(why);
 			}
 		};
 
-		// Bounded worker pool: N workers pull from a shared index until targets drain.
-		let next = 0;
-		const worker = async () => {
-			while (next < targets.length) {
-				const target = targets[next++];
-				if (target) await prerenderOne(target);
-			}
-		};
-		await Promise.all(
-			Array.from({ length: Math.min(PRERENDER_CONCURRENCY, targets.length) }, worker),
-		);
+		// Every page starts at once; the request slots above are the only limit, and they're
+		// handed out in target order (a page's HTML, then its data).
+		await Promise.all(targets.map(prerenderOne));
+		// Checked once, after the pages, and only when a page broke or timed out: the exit can
+		// land well after the errors it causes, so a dead server gets up to 1s to show it. A
+		// server that dies with every page saved lost nothing; the 404 probe says so if it hits it.
+		const died = connLost.length + timedOut > 0 && (await exitsWithin(1000));
+		if (died) {
+			// An example, not the culprit: a crash breaks every page in flight at once.
+			const pages = connLost.length
+				? `; ${connLost.length} page(s) not built, e.g. ${connLost[0]!.route}`
+				: "";
+			failures.push(`❌ The prerender server stopped (${stopReason()})${pages}`);
+		} else failures.push(...connLost.map((f) => f.line));
 
 		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
 		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
@@ -454,34 +687,60 @@ export async function prerenderStaticRoutes(
 		// Skipped on Workers: the worker answers unknown paths, and an uploaded file
 		// would only add that soft 404. A public/404.html overwrites it.
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
-		if (target !== "workers")
+		// A server that died is already reported, and the probe would only fail too.
+		if (target !== "workers" && !died)
 			try {
-				const res = await fetch(`${base}/__bosia-404-probe`, {
-					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-				});
-				if (res.status !== 404) throw new Error(`expected a 404 page, got ${res.status}`);
+				// Follows only its own slash form, unlike the pages: a catch-all `always` page 308s
+				// the probe to `/__bosia-404-probe/`, and its 404 there is the page a static host
+				// should show. Any other redirect (a hook sending it to /login, or off the build
+				// server) is reported with where it goes, not fetched.
+				const probe = (url: string) =>
+					fetch(url, { redirect: "manual", signal: AbortSignal.timeout(timeout) });
+				const probeUrl = `${base}/__bosia-404-probe`;
+				let res = await probe(probeUrl);
+				const location = res.status >= 300 && res.status < 400 && res.headers.get("location");
+				if (location && new URL(location, probeUrl).href === `${probeUrl}/`) {
+					await dropBody(res);
+					res = await probe(`${probeUrl}/`);
+				}
 				// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
-				if (!res.headers.get("content-type")?.includes("text/html"))
-					throw new Error(`expected an HTML 404 page, got ${res.headers.get("content-type")}`);
+				const problem = prerenderReplyProblem("page", res, 404);
+				if (problem) {
+					await dropBody(res);
+					throw new ReplyProblem(`an unknown URL ${problem}`);
+				}
 				mkdirSync(`${OUT_DIR}/static`, { recursive: true });
 				writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
 				console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
 			} catch (err) {
+				// A broken connection (not a timeout, as with pages) may mean the server died.
+				const gone = !(err instanceof ReplyProblem) && !isTimeout(err) && (await exitsWithin(1000));
+				const reason = gone
+					? `the prerender server stopped (${stopReason()})`
+					: err instanceof ReplyProblem
+						? err.message
+						: fetchFailure(err, timeout);
 				// Only a deploy that serves 404.html needs it; elsewhere (an app whose
 				// hooks redirect every request) a missing one is fine, so just warn.
-				const reason = (err as Error).message;
+				// Listed with the page failures, so one build shows every problem.
 				if (require404)
-					throw new Error(
-						`404.html could not be built (${reason}), but wrangler sets ` +
+					failures.push(
+						`❌ 404.html could not be built (${reason}), but wrangler sets ` +
 							`not_found_handling "404-page". Make unknown paths answer 404, or add public/404.html.`,
 					);
-				console.warn(`   ⚠️  404.html skipped: ${reason}`);
+				else console.warn(`   ⚠️  404.html skipped: ${reason}`);
 			}
 
+		// build.ts prints this and exits 1; the finally below still stops the server.
+		if (failures.length) throw new PrerenderEntriesError(failures.join("\n"));
 		if (targets.length) console.log("✅ Prerendering complete");
 	} finally {
 		for (const sig of signals) process.off(sig, onSignal);
+		// SIGTERM drains in-flight requests for up to 10s (server.bun.ts), and an aborted fetch
+		// doesn't stop its loader. Nothing here needs that drain: give it 1s, then SIGKILL.
 		child.kill();
+		const stopped = await exitsWithin(1000);
+		if (!stopped) child.kill("SIGKILL");
 		await child.exited;
 		if (receivedSignal) {
 			// Re-raise so parent exit code is 128+signum (standard Unix convention)

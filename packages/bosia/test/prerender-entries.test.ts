@@ -221,6 +221,11 @@ describe("detectPrerenderRoutes()", () => {
 	};
 	const entries = (...values: string[]) =>
 		`export const prerender = true;\nexport const entries = () => ${JSON.stringify(values.map((slug) => ({ slug })))};\n`;
+	// A live (not prerendered) +server.ts, written so detect can read it.
+	const liveApi = (pattern: string, file: string) => {
+		route(pattern, file, "export const GET = () => new Response();\n");
+		return { pattern, server: file };
+	};
 	const detect = (pages: unknown[], apis: unknown[] = []) =>
 		detectPrerenderRoutes({ pages, apis, errorPage: null } as any).catch((e) => e);
 
@@ -263,13 +268,17 @@ describe("detectPrerenderRoutes()", () => {
 		]);
 	});
 
+	// 1.2.5: these still fail, now as "served by" (the route owner check runs before the clash
+	// check, and a mis-owned target prints one ❌, not two).
 	test("one URL from a static and a dynamic route is a clash, not a silent drop", async () => {
 		const err = await detect([
 			route("/about", "about/+page.server.ts", "export const prerender = true;\n", "always"),
 			route("/[slug]", "[slug]/+page.server.ts", entries("about")),
 		]);
 		expect(err).toBeInstanceOf(PrerenderEntriesError);
-		expect(err.message).toContain("/about and /about (from /[slug]) write the same file");
+		expect(err.message).toBe(
+			"❌ Prerender: /about (from /[slug]) is served by /about, not this route",
+		);
 	});
 
 	test("one URL from a static and a dynamic route in the same slash mode is a clash", async () => {
@@ -278,7 +287,7 @@ describe("detectPrerenderRoutes()", () => {
 			route("/[slug]", "[slug]/+page.server.ts", entries("about")),
 		]);
 		expect(err).toBeInstanceOf(PrerenderEntriesError);
-		expect(err.message).toContain("/about and /about (from /[slug]) write the same file");
+		expect(err.message).toContain("/about (from /[slug]) is served by /about, not this route");
 	});
 
 	test("one value from [slug] and [...rest] is a clash", async () => {
@@ -287,8 +296,67 @@ describe("detectPrerenderRoutes()", () => {
 			route("/d/[...slug]", "d/[...slug]/+page.server.ts", entries("x")),
 		]);
 		expect(err.message).toContain(
-			"/d/x (from /d/[slug]) and /d/x (from /d/[...slug]) write the same file",
+			"/d/x (from /d/[...slug]) is served by /d/[slug], not this route",
 		);
+	});
+
+	// ─── Route owner (1.2.5): a slug must not freeze another route ───
+
+	test("fails: a slug that a static page serves (blog/[slug] ← new)", async () => {
+		const err = await detect([
+			route("/blog/[slug]", "blog/[slug]/+page.server.ts", entries("new", "hello")),
+			{ pattern: "/blog/new", trailingSlash: "never" }, // live, not prerendered
+		]);
+		expect(err).toBeInstanceOf(PrerenderEntriesError);
+		expect(err.message).toBe(
+			"❌ Prerender: /blog/new (from /blog/[slug]) is served by /blog/new, not this route",
+		);
+	});
+
+	test("fails: a page slug where a +server.ts answers", async () => {
+		const err = await detect(
+			[route("/[slug]", "[slug]/+page.server.ts", entries("feed", "about"))],
+			[liveApi("/feed", "feed/+server.ts")],
+		);
+		expect(err.message).toBe(
+			"❌ Prerender: /feed (from /[slug]) is served by /feed (+server.ts), not this route",
+		);
+	});
+
+	test("fails: a page whose own folder has a +server.ts (the API wins)", async () => {
+		const err = await detect(
+			[route("/x", "x/+page.server.ts", "export const prerender = true;\n")],
+			[liveApi("/x", "x/+server.ts")],
+		);
+		expect(err.message).toContain("/x is served by /x (+server.ts), not this route");
+	});
+
+	test("fails: an API slug that a static API serves", async () => {
+		route("/api/[slug]", "api/[slug]/+server.ts", entries("all"));
+		const err = await detect(
+			[],
+			[
+				{ pattern: "/api/[slug]", server: "api/[slug]/+server.ts" },
+				liveApi("/api/all", "api/all/+server.ts"),
+			],
+		);
+		expect(err.message).toContain(
+			"/api/all (from /api/[slug]) is served by /api/all, not this route",
+		);
+	});
+
+	test("builds: a slug no other route serves, and the manifest is left alone", async () => {
+		const pages = [
+			route("/blog/[slug]", "blog/[slug]/+page.server.ts", entries("hello")),
+			{ pattern: "/blog/new", trailingSlash: "never" },
+			{ pattern: "/blog/[slug]/edit", trailingSlash: "never" },
+		];
+		const apis = [liveApi("/api/blog", "api/blog/+server.ts")];
+		const targets = await detect(pages, apis);
+		expect(targets).toEqual([
+			{ path: "/blog/hello", route: "/blog/[slug]", kind: "page", trailingSlash: "never" },
+		]);
+		expect(pages.some((r) => "_compiled" in r)).toBe(false);
 	});
 
 	test("a slug named 404 can't overwrite 404.html, but a /404/ folder is fine", async () => {
@@ -341,7 +409,7 @@ describe("detectPrerenderRoutes()", () => {
 		["/[slug]/x", "__Bosia", "never", "page", false], // its own data lives in __bosia/
 		["/[...slug]", "DIST/x", "never", "api", false],
 		["/[slug]", "dist", "never", "api", true], // dist.json, not a folder
-		["/blog/[slug]", "logo.PNG", "never", "page", true],
+		["/blog/[slug]", "logo.PNG", "never", "page", true], // the server's endings are lowercase
 		["/api/[slug]", "a.png", "never", "api", true], // an API wins over static files
 	];
 	for (const [pattern, value, ts, kind, ok] of SERVER_URL)

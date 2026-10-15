@@ -1,7 +1,7 @@
 // Invariant sweep for prerender values. The regression table (prerender-entries.test.ts) checks
 // rules; this checks outcomes, with an oracle that doesn't share the rules' code:
-//   1. every URL a page answers (with and without its `/`) reaches the page, not the server's
-//      own handlers (real isStaticPath, same function server.ts uses);
+//   1. every URL of an accepted page (both `/` forms) reaches the page, not the server's own
+//      handlers (real isStaticPath, same function server.ts uses);
 //   2. the final static/ tree, modelled on a case-insensitive disk (macOS/Windows) in
 //      generateStaticSite's copy order, keeps every file at its exact name with one writer.
 // A value the rules accept that breaks either invariant fails here, even with no table row.

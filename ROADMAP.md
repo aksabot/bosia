@@ -1,7 +1,7 @@
 # Bosia — Roadmap
 
 > Track what's done, what's next, and where we're headed.
-> Current version: **1.2.4**
+> Current version: **1.2.5**
 
 ---
 
@@ -29,7 +29,8 @@
 - [x] 🟠 Query strings fragment the cache. Every query value was its own entry, including ones that never change the page (`utm_*`, `fbclid`, `gclid` from ads and social links). Measured: `/blog` cached ~19k rps vs `/blog?q=<random>` ~1.6k rps (~12×). New `CACHE_IGNORE_PARAMS` (default: `utm_*` and common click ids; `ref` left out, it's often a referral code): SSR and data requests read the stripped URL's entry first, then their own full-URL entry as before; they never write the stripped one (a component may render `page.url`). An entry is `queryAware` when a loader or `metadata()` read an ignored param or the whole query (`search`, `href`, iterating `searchParams`) and isn't served to such requests. API keys and dedup keep the full URL.
 - [ ] 🟡 Pre-existing: a build that started before an `invalidate()` and finishes after it still writes its (pre-change) result; most visible with a slow API handler. A global or per-entry invalidation sequence was tried (review rounds 6–8) and dropped: it emptied the cache for apps that invalidate on every POST and needed a bounded log. Revisit with per-tag versions stored on the entry.
 - [x] 🟡 With `METADATA_TIMEOUT` now on by default, a page whose `metadata()` failed or timed out was cached without its title/meta/canonical for everyone. Such responses are served but not cached (SSR and data).
-- [ ] 🟡 Prerender writes a page whose `metadata()` timed out (now 10s by default) without its title/meta; fail or retry the page instead. A loader `cache-control: s-maxage` still lets a CDN keep such a response.
+- [x] 🟡 Prerender would write a page whose `metadata()` timed out (now 10s by default) without its title/meta. Resolved by 1.2.5: the prerender server runs with `LOAD_TIMEOUT`/`METADATA_TIMEOUT=Infinity`, which the new parser still reads as off.
+- [ ] ⚪ A loader `cache-control: s-maxage` still lets a CDN keep a response whose `metadata()` failed.
 - [ ] ⚪ Tracking params: with no usable plain entry (evicted, or `queryAware` — e.g. `metadata()` builds `canonical: url.href`), each unique `fbclid`/`gclid` still writes a single-use entry and churns the LRU. Skipping writes for tracked URLs would undo the repeated-newsletter-link case; maybe skip only for click-id params (`*clid`), keep `utm_*`.
 - [ ] ⚪ Slow loaders: `LOAD_TIMEOUT` (30s) and `CACHE_WAIT_TIMEOUT` (60s) outlast Bun's default `IDLE_TIMEOUT` (10s), so the client of a 15s loader is cut off before either applies; documented, raise `IDLE_TIMEOUT` too.
 - [ ] 🟠 Pre-existing, reproduced 2026-10-15 (Playwright, built app): client navigation skips a loader that read the whole query (`Object.fromEntries(url.searchParams)`, `url.search`): `deps.searchParams` stays empty and `uses_url` re-runs only on a pathname change, so `?page=1` → `?page=2` sends `_invalidated=0` and keeps page-1 data (URL says 2, page shows 1). `url.searchParams.get("page")` works (`_invalidated=1`). Server now detects these reads (`markWholeQueryRead`); send a marker in deps and compare the full query in `loaderCache.ts`.
@@ -42,6 +43,64 @@
 - [ ] ⚪ Permanent `MutationObserver` on `document.body` even with no viewport links; scroll/snapshot maps never trimmed; `use:enhance` double submit sends two POSTs; `loaderCache.layouts` keeps every layout visited.
 - [ ] ⚪ Files over `ASSET_CACHE_MAX_FILE_BYTES` retry `cache.fill()` (stat + promise) every request.
 - [ ] ⚪ `parseBytes` lives in both `cache.ts` and `assetCache.ts` (assetCache is Bun-only, cache.ts also runs on Workers).
+
+---
+
+## bosia 1.2.5 (2026-10-15) — prerender checks the server's reply
+
+- [x] 🟡 `prerenderOne` saved any reply and logged ✅. Now `redirect: "manual"`; a page needs 2xx HTML, an API 2xx, not 204/205 (`prerenderReplyProblem`). Bad replies and timeouts fail the build, one ❌ each.
+- [x] 🟡 A slug can't freeze a live route: each target is matched like `matchRoutes` (an API wins); `/blog/[slug]` ← `new` with `src/routes/blog/new` fails as "served by". Replaces the clash ❌ for that case.
+- [x] ⚪ The trailing-slash 308 runs before the prerendered lookup: `/always/one` 308s to `/always/one/`, `/about/` (never) to `/about`.
+- [x] ⚪ Kept the `isStaticPath` page rule in every slash mode (review 2): the reply check catches `.png` too, but later and less clearly, and `always` never fetches `/logo.png`.
+- [x] ⚪ `test/prerender-server.test.ts` builds and boots real fixtures: 308s on saved pages, and a failing build listing every bad reply.
+- [x] ⚪ docs: `[...slug]` skips `id` (the `id` landing owns `/id`); the `id` landing is prerendered on purpose. `content/docs/id/index.md` is still never shown.
+- [x] 🟡 Review: a prerender server that fails to start fails the build; it used to log ❌ and ship with every prerendered page missing.
+- [x] 🟡 Review: the data payload gets the same check (`redirect: "manual"`, 200); a page is saved only with its data, else navigation on a static host broke.
+- [x] ⚪ Review: a failed 404 probe (wrangler `404-page`) is listed with the page ❌s instead of thrown first, so one build shows all.
+- [x] ⚪ Review: a bad reply's body is cancelled (socket back to the pool); `describeError` keeps an error's `code` and `cause`.
+- [x] ⚪ Review: docs skip every locale index via `LOCALES` (not a hard-coded `id`); routing and cloudflare skills say what now fails.
+- [x] 🟡 Review 2 (regression): one `AbortSignal.timeout` was shared by the page and data fetches, so both loader runs had one PRERENDER_TIMEOUT. Now one per fetch.
+- [x] 🟡 Review 2: a redirected data request is a 200 JSON `{ redirect }` (server.ts), so it passed the status check and was saved. `prerenderDataProblem` rejects `redirect`/`error` payloads.
+- [x] ⚪ Review 2: page and data fetched side by side (`Promise.allSettled`; an unread reply is cancelled); `describeError` reads plain-object causes, 3 deep.
+- [x] ⚪ Review 2: the 404 probe shares `prerenderReplyProblem` (status 404) and still follows redirects: a catch-all `always` page 308s it, and its 404 is the right 404.html.
+- [x] 🟡 Review 3: the prerender child inherited `MAX_INFLIGHT` (.env), so with the page+data fetch pair its own requests got 503s and the build failed at random. Child now sets it to `infinity` (Bun reloads .env if removed).
+- [x] ⚪ Review 3: a failed page aborts its data fetch (shared `AbortController`); cancel() errors are ignored so they can't replace the real ❌; one `fetchText` helper; describeError shows an Error's name and number codes.
+- [x] ⚪ Review 3: one server-start throw; parallel test allows 1s; docs skip a locale slug only if `src/routes/<locale>` exists.
+- [x] ⚪ Review 4: prerender child SIGKILLed 1s after SIGTERM (its drain waited 10s for aborted loaders); `IDLE_TIMEOUT=255` and `LOAD_TIMEOUT=PRERENDER_TIMEOUT` in the child (Bun's idle timer is coarse, ~4-5s at 1).
+- [x] 🟡 Review 5: prerender child gets `IDLE_TIMEOUT=0` (off, not 255) and `METADATA_TIMEOUT=PRERENDER_TIMEOUT`; a timed-out metadata() was swallowed and the page saved without its title.
+- [x] 🟡 Review 5: `PRERENDER_CONCURRENCY` caps requests (shared slots), so side-by-side page+data no longer doubles loader runs. 404 probe follows one same-origin redirect only. stopdata test allows 9s.
+- [x] 🟡 Review 6: per-fetch limit on the ready check (a stuck hook hung it); PRERENDER_TIMEOUT/CONCURRENCY must be whole 1..2^31-1 (0.5 = no workers, >2^31 fires setTimeout at once). Probe errors use `fetchFailure`.
+- [x] 🟡 Review 7: a page or API reply may be any 2xx again (exact 200 broke a 203 API that `main` saved).
+- [x] 🟡 Review 8: a 204/205 reply fails prerender (any-2xx saved it as an empty page).
+- [x] 🟡 Review 13: a server that exits with every page saved no longer fails the build (the 404 probe says it stopped). The exit is checked after a broken or timed-out page, Workers too; a probe timeout keeps its hint.
+- [x] ⚪ Review 12: crash line says `e.g. /p/x` (with several in flight, the first to fail isn't the culprit); a test pins hex/binary/octal as accepted, as in 1.2.4.
+- [x] 🟡 Review 12: a server that dies with no broken page (its pages timed out, or during the 404 probe) is still reported. The child's LOAD/METADATA_TIMEOUT are off (`Infinity`): equal to PRERENDER_TIMEOUT they raced it.
+- [x] 🟡 Review 11: a timeout keeps its own line when the server later dies; only broken connections fold into the crash line. All-fail test: 150 pages, under 10s.
+- [x] 🟡 Review 10: crash is checked once after all pages (1s grace), not a 100ms race per fetch, so a slow-reaped crash is still one line. Settings use Number() again (`1e3`, `5000.0` worked in 1.2.4).
+- [x] ⚪ Review 9: `fetchFailure` gets the checked timeout; roadmap says finish order, not worker-pool.
+- [x] 🟡 Review 9: a stopped data fetch no longer holds its slot for a 100ms crash check (every-page-fails build at 1 slot: 8.9s → 0.5s).
+- [x] ⚪ Review 8: a crashed prerender server is one ❌ with its exit code; request slots are the only limit (no worker pool); reply check takes `expect: "ok" | 404`; text `{error}` shown; 1.2.5 changelog lists only changes from 1.2.4.
+- [x] ⚪ Review 7: 404 probe follows only its own slash form (`/login` is named); DOMException number codes dropped; parallel-start test allows 1.2s. A failed data fetch still waits for its page (kept: stopping it made the ❌ line random).
+- [ ] ⚪ Each prerendered page runs its loaders twice (HTML, then data JSON): double API calls, and the two can disagree. Render once and take the JSON from the SSR payload.
+- [ ] ⚪ Prerender child overrides live-traffic env one by one (MAX_INFLIGHT, IDLE/LOAD/METADATA_TIMEOUT); a new server limit must be added here too. One `BOSIA_PRERENDER=1` flag the server reads would cover all.
+- [x] ⚪ Review 4: data fetch errors carry `data` (timeouts too); 404 probe drops its body via `dropBody`; ready poll uses `HEALTH_PATH`, says "not ready within 10s"; docs check `<locale>/+page.svelte`.
+- [ ] ⚪ The 10s prerender server ready deadline is fixed; make it an env var if a slow hooks `init()` hits it.
+- [ ] ⚪ `findMisownedTargets` copies `matchRoutes`' API-first order; move it into a pure helper both call, so a routing change can't skip the check.
+- [ ] ⚪ The owner check ignores an API's `x.json` alias (`/api/x.json` served by `/api/[slug]`); a narrow case, add it if anyone hits it.
+- [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.
+- [ ] ⚪ `PrerenderEntriesError` now also carries reply/timeout/server-start failures; rename to `PrerenderError` (exported name).
+- [ ] ⚪ When the prerender server died, page timeout lines still say "increase PRERENDER_TIMEOUT"; drop the hint when the crash is the cause.
+- [ ] ⚪ A 404 probe that times out because a hook blocked and then crashed the server shows the timeout hint, not the exit code; check the exit after a probe timeout too.
+- [ ] ⚪ The prerender child turns LOAD/METADATA_TIMEOUT off with the exact string `Infinity` (renderer's parseTimeout); `0` or `infinity` means 5000. Share one documented "off" value.
+- [ ] ⚪ The "no load or metadata limit" test checks env strings only; test the effect (a 300ms loader with `.env` LOAD_TIMEOUT=100 is still saved).
+- [ ] ⚪ A stopped data fetch's AbortError is classed as a broken connection; harmless now (the page's error wins), but check `stop.signal.aborted` first.
+- [ ] ⚪ A timed-out prerender fetch frees its slot while its loader keeps running, so a hung API call can exceed PRERENDER_CONCURRENCY; note it in the docs or wait for the loader.
+- [ ] ⚪ The "dies after its pages time out" test comment says the exit lands during the 404 probe; it's now caught by the check after the pages.
+- [ ] ⚪ The ❌ reply lines print in the order fetches finish (broken-connection lines last), not route order; sort them if it confuses anyone.
+- [ ] ⚪ Any non-timeout fetch error (a bad gzip body too) counts as a broken connection, so it folds into the crash line if the server also dies; match reset/refused codes only.
+- [ ] ⚪ The prerender server gets SIGKILL 1s after SIGTERM even on success, cutting an app's own slow `process.on("SIGTERM")` handler; only force it when the build failed.
+- [ ] ⚪ "Did the child exit within N ms" is written out in dev.ts twice, beside prerender's local `exitsWithin`; share one helper.
+- [ ] ⚪ Env integers are parsed by hand in 4 places (prerender, renderer, cache, assetCache) with different rules; share one `parseIntEnv(name, {min, max, fallback})`.
 
 ---
 
@@ -63,12 +122,10 @@
 - [x] 🟡 `entries()` values can't give URLs the server answers itself, checked on the fetched URL with server.ts rules: `/_health`, `/dist/`, `/__bosia/`, and `isStaticPath` endings (`.png`) for pages. Case-sensitive like the server.
 - [ ] ⚪ Static prerender routes skip the value rules: `src/routes/_health` saves the health JSON; a static `logo.png` or `index` folder too. Scanner check; separate branch.
 - [ ] ⚪ A `public/` file at a prerendered path (`public/about.html` vs slug `about`) is silently replaced by `generateStaticSite`. Seed the clash check from `public/`.
-- [ ] 🟡 `prerenderOne` saves any response and logs ✅ (loader 500, redirect to `/login`, a user `+server.ts` at the slug's URL). Check `res.ok`, HTML type, `redirect: "manual"`; then drop the copied server rules. Separate branch.
 - [ ] ⚪ A static folder `index` at a route's end (`src/routes/blog/index`) in `never` mode writes `blog/index.html`, replacing `/blog/`. Scanner check; separate branch.
 - [ ] ⚪ Device-name check rejects `com0`/`lpt0`, which Windows doesn't reserve; use `com[1-9]|lpt[1-9]`.
 - [x] 🟡 `isStaticPath` moved to side-effect-free `staticPath.ts`: importing it from `html.ts` loaded that module in the build before `loadEnv()`, pinning BASE_PATH to `""`. Test guards build.ts's imports; html.ts no longer re-exports it.
 - [x] ⚪ Page values are checked with and without the trailing `/`: in always mode `logo.png` passed as `/logo.png/`, but `/logo.png` 404s before the 308.
-- [ ] 🟡 A slug can freeze a live route: `/blog/[slug]` giving `new` saves `src/routes/blog/new` (not prerendered) as a snapshot. Match each URL with the server's `matchRoutes`; reject if another route wins. Separate branch.
 - [ ] ⚪ A slug `__bosia-404-probe` that a loader answers with 200 breaks the 404 probe. Reserve the probe path.
 - [x] 🟡 URLs can't start with `dist`/`__bosia` in any case: on macOS/Windows `DIST/` swallowed the `dist/client` bundle copied after it. Pure `checkPrerenderPaths()`.
 - [x] 🟡 `test/prerender-invariants.test.ts`: sweeps values × patterns × modes; checks outcomes (server reach via real `isStaticPath`, a case-insensitive disk model of static/), not the rules.
@@ -77,7 +134,6 @@
 - [ ] ⚪ `~` is allowed in values, so on Windows with 8.3 names `GUIDES~1/intro` can point at another route's `guides-old/` folder. Clash check can't see it.
 - [ ] ⚪ Clash errors run only after every `entries()` call passes; a bad value plus a clash needs two builds to see both.
 - [ ] ⚪ The prerender ready poll (`prerender.ts`) and `dev.ts` still hard-code `/_health`; use `HEALTH_PATH` from `staticPath.ts`.
-- [ ] ⚪ A prerendered `always` page answers `/always/one` with 200, not a 308 to `/always/one/`: server.ts serves prerendered files before the slash check. Two URLs, one page (SEO).
 
 ## bosia 1.2.3 (2026-10-13) — same-page refresh keeps scroll
 

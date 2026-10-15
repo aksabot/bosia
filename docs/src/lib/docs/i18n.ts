@@ -1,4 +1,5 @@
-export type Locale = "en" | "id";
+export const LOCALES = ["en", "id"] as const;
+export type Locale = (typeof LOCALES)[number];
 
 export function getLocale(slug: string): Locale {
 	return slug.startsWith("id/") || slug === "id" ? "id" : "en";

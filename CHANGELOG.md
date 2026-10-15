@@ -33,6 +33,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - One loader or `+server.ts` GET that never finished no longer made its URL hang for everyone until a restart.
 - A page whose `metadata()` failed or timed out is no longer cached without its title and meta tags.
 
+## [1.2.5] - 2026-10-15
+
+### Changed
+
+- Prerender fails the build when a page answers an error, a redirect or a non-HTML file.
+- A prerendered page or API may answer any 2xx, but not 204 or 205 (an empty file).
+- Prerender fails when another route serves a slug's URL, like `/blog/[slug]` giving `new`.
+- `PRERENDER_TIMEOUT` is the only time limit while prerendering; the server's own are off.
+- `PRERENDER_CONCURRENCY` counts requests: a page and its data are two, each running `load()`.
+
+### Fixed
+
+- Prerendered pages now 308 to the right trailing slash, like `/about/` to `/about`.
+- A prerender timeout or network error fails the build instead of only logging.
+- The build fails when the prerender server can't start, instead of shipping with pages missing.
+- A server that's slow to start says "not ready within 10s" instead of "exit code none".
+- A stuck hook no longer hangs the build; it fails after 10s waiting for the prerender server.
+- A prerendered page is saved only with its data file, so client navigation works on static hosts.
+- A page whose data request redirects (like to `/login`) fails prerender instead of saving it.
+- A data request that times out says `data timed out`, so you know which request was slow.
+- Prerender errors name their cause, like `ECONNRESET`, in one line per page.
+- A prerender server that crashes mid-build is reported once, with its exit code.
+- A missing 404.html is listed with the other prerender errors, so one build shows them all.
+- The 404 page check names a redirect (like to `/login`) and never fetches another site.
+- `MAX_INFLIGHT` in `.env` no longer makes prerender fail with random `answered 503` errors.
+- `IDLE_TIMEOUT`, `LOAD_TIMEOUT` and `METADATA_TIMEOUT` in `.env` no longer cut prerendering.
+- A failed prerender ends about 10s sooner: the build server is stopped instead of drained.
+- A bad `PRERENDER_TIMEOUT` or `PRERENDER_CONCURRENCY` fails the build instead of skipping pages.
+
 ## [1.2.4] - 2026-10-14
 
 ### Changed
