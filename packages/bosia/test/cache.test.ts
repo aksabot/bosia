@@ -12,6 +12,7 @@ import {
 	deferCacheWrite,
 	invalidate,
 	invalidateAll,
+	readBodyForCache,
 	serveCached,
 	type CacheEntry,
 } from "../src/core/cache.ts";
@@ -199,6 +200,23 @@ describe("cacheGet / cacheSet", () => {
 		) as Uint8Array<ArrayBuffer>;
 		cacheSet("/fit|i=0", mkEntry({ raw: atLimit }));
 		expect(cacheGet("/fit|i=0")).toBeDefined();
+	});
+
+	test("CACHE_MAX_BYTES evicts the oldest entries once the total passes it", async () => {
+		const { CACHE_MAX_BYTES, CACHE_MAX_BODY_BYTES } = await import("../src/core/cache.ts");
+		// 0 means "no limit" for either; nothing to fill then.
+		if (CACHE_MAX_BYTES === 0 || CACHE_MAX_BODY_BYTES === 0) return;
+		// One shared buffer for all three copies: weighed as 3×, allocated once.
+		const buf = new Uint8Array(new ArrayBuffer(CACHE_MAX_BODY_BYTES)) as Uint8Array<ArrayBuffer>;
+		const per = buf.byteLength * 3;
+		const fits = Math.floor(CACHE_MAX_BYTES / per);
+		for (let i = 0; i <= fits; i++) {
+			cacheSet(`/big-${i}|i=0`, mkEntry({ raw: buf, gzip: buf, brotli: buf }));
+		}
+		expect(cacheGet("/big-0|i=0")).toBeUndefined();
+		expect(cacheGet(`/big-${fits}|i=0`)).toBeDefined();
+		// The evicted entry left no path index behind.
+		expect(invalidate("/big-0")).toBe(0);
 	});
 
 	test("warns loudly once per cookie read that is not in CACHE_KEYS", () => {
@@ -492,6 +510,48 @@ describe("precompressed responses opt out of runtime re-encoding", () => {
 });
 
 // ─── concatChunks ────────────────────────────────────────
+
+describe("readBodyForCache", () => {
+	test("returns the whole body when it fits", async () => {
+		const buf = await readBodyForCache(new Response("hello"));
+		expect(new TextDecoder().decode(buf!)).toBe("hello");
+	});
+
+	test("encodes string chunks instead of corrupting them", async () => {
+		const res = new Response(
+			new ReadableStream({
+				start(c) {
+					c.enqueue('{"a":');
+					c.enqueue(new TextEncoder().encode("1}"));
+					c.close();
+				},
+			}),
+		);
+		const buf = await readBodyForCache(res.clone());
+		expect(new TextDecoder().decode(buf!)).toBe('{"a":1}');
+	});
+
+	test("gives up and cancels the copy past CACHE_MAX_BODY_BYTES", async () => {
+		const { CACHE_MAX_BODY_BYTES } = await import("../src/core/cache.ts");
+		let pulled = 0;
+		let cancelled = false;
+		const chunk = new Uint8Array(64 * 1024);
+		const res = new Response(
+			new ReadableStream({
+				pull(c) {
+					pulled += chunk.byteLength;
+					c.enqueue(chunk);
+				},
+				cancel() {
+					cancelled = true;
+				},
+			}),
+		);
+		expect(await readBodyForCache(res)).toBeNull();
+		expect(cancelled).toBe(true);
+		expect(pulled).toBeLessThan(CACHE_MAX_BODY_BYTES + 4 * chunk.byteLength);
+	});
+});
 
 describe("concatChunks", () => {
 	test("concatenates multiple chunks in order", () => {

@@ -8,7 +8,7 @@ import type { Cookies, LoaderDeps } from "./hooks.ts";
 import { CSP_ENABLED } from "./csp.ts";
 import {
 	CACHE_ENABLED,
-	CACHE_MAX_BODY_BYTES,
+	bodyFitsCache,
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
@@ -16,6 +16,7 @@ import {
 	collectTags,
 	computeCacheKey,
 	deferCacheWrite,
+	isNoStoreCacheControl,
 	serveCached,
 } from "./cache.ts";
 import type { CookieJar } from "./cookies.ts";
@@ -968,10 +969,13 @@ export async function renderSSRStream(
 		// Skip if the handler set cookies — cached response can't reproduce
 		// per-request Set-Cookie headers. deferCacheWrite runs the variant
 		// compression after this response is flushed, not ahead of it.
-		if (cacheable && cacheKey && (cookies as any).outgoing?.length === 0) {
+		// A loader that said not to store its response is taken at its word, as
+		// on the data endpoint: a `private` page must not be replayed from cache.
+		const loaderOptOut = isNoStoreCacheControl(data.loaderHeaders?.["cache-control"]);
+		if (cacheable && cacheKey && !loaderOptOut && (cookies as any).outgoing?.length === 0) {
 			// Oversized bodies skip early so they never pay compression; cacheSet
 			// re-checks as the authoritative guard.
-			if (CACHE_MAX_BODY_BYTES === 0 || fullBody.length <= CACHE_MAX_BODY_BYTES) {
+			if (bodyFitsCache(fullBody.length)) {
 				const tags = collectTags(data.layoutDeps ?? null, data.pageDeps ?? null);
 				const keyForWrite = cacheKey;
 				// Hand the gate release to the deferred write: waiters resume only

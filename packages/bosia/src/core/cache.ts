@@ -34,12 +34,15 @@ function parseMaxEntries(raw: string | undefined): number {
 	return n;
 }
 
-function parseMaxBodyBytes(raw: string | undefined): number {
-	const DEFAULT = 2_097_152; // 2MB; 0 = unlimited
-	if (!raw) return DEFAULT;
+function parseBytes(raw: string | undefined, fallback: number): number {
+	if (!raw) return fallback;
 	const n = parseInt(raw, 10);
-	if (!Number.isFinite(n) || n < 0) return DEFAULT;
+	if (!Number.isFinite(n) || n < 0) return fallback;
 	return n;
+}
+
+function parseMaxBodyBytes(raw: string | undefined): number {
+	return parseBytes(raw, 2_097_152); // 2MB; 0 = unlimited
 }
 
 // Server-only module (imported by core/renderer.ts, core/server.ts,
@@ -53,12 +56,25 @@ const isServer = typeof process !== "undefined";
 export const CACHE_KEYS: readonly string[] = parseCacheKeys(env.CACHE_KEYS);
 export const CACHE_MAX_ENTRIES = parseMaxEntries(env.CACHE_MAX_ENTRIES);
 export const CACHE_MAX_BODY_BYTES = parseMaxBodyBytes(env.CACHE_MAX_BODY_BYTES);
+/** Budget for every entry together (raw + gzip + brotli). 0 = entry count only. */
+export const CACHE_MAX_BYTES = parseBytes(env.CACHE_MAX_BYTES, 104_857_600); // 100MB
 export const CACHE_ENABLED = CACHE_MAX_ENTRIES > 0;
+/** Largest body worth reading or compressing for the cache: one entry can't
+ *  pass the per-body cap or the whole budget. 0 = no limit. */
+const CACHE_BODY_CAP =
+	CACHE_MAX_BODY_BYTES > 0 && CACHE_MAX_BYTES > 0
+		? Math.min(CACHE_MAX_BODY_BYTES, CACHE_MAX_BYTES)
+		: CACHE_MAX_BODY_BYTES || CACHE_MAX_BYTES;
+
+/** Whether a body of `bytes` could be stored — checked before paying compression. */
+export function bodyFitsCache(bytes: number): boolean {
+	return CACHE_BODY_CAP === 0 || bytes <= CACHE_BODY_CAP;
+}
 
 if (isServer) {
 	if (CACHE_ENABLED) {
 		console.log(
-			`💾 Response cache: max ${CACHE_MAX_ENTRIES} entries, max body ${CACHE_MAX_BODY_BYTES === 0 ? "unlimited" : `${CACHE_MAX_BODY_BYTES} bytes`}, identity keys [${CACHE_KEYS.join(", ")}]`,
+			`💾 Response cache: max ${CACHE_MAX_ENTRIES} entries${CACHE_MAX_BYTES === 0 ? "" : ` / ${CACHE_MAX_BYTES} bytes`}, max body ${CACHE_MAX_BODY_BYTES === 0 ? "unlimited" : `${CACHE_MAX_BODY_BYTES} bytes`}, identity keys [${CACHE_KEYS.join(", ")}]`,
 		);
 	} else {
 		console.log("💾 Response cache: disabled (CACHE_MAX_ENTRIES=0)");
@@ -84,10 +100,18 @@ export type CacheEntry = {
 
 // ─── Tiny LRU ────────────────────────────────────────────
 // Uses Map's insertion-order iteration. get() promotes by re-inserting.
+// Bounded by entry count and, when `maxBytes` > 0, by the summed `weigh()` —
+// 500 entries of up to 2MB plus two compressed copies each could otherwise
+// reach gigabytes of heap.
 
 class LRU<K, V> {
 	private map = new Map<K, V>();
-	constructor(private cap: number) {}
+	private bytes = 0;
+	constructor(
+		private cap: number,
+		private maxBytes: number,
+		private weigh: (value: V) => number,
+	) {}
 	get(key: K): V | undefined {
 		const v = this.map.get(key);
 		if (v === undefined) return undefined;
@@ -95,20 +119,30 @@ class LRU<K, V> {
 		this.map.set(key, v);
 		return v;
 	}
-	set(key: K, value: V): { key: K; value: V } | undefined {
-		if (this.map.has(key)) this.map.delete(key);
+	/** Stores `value` and returns what was evicted to make room. A value
+	 *  heavier than the whole budget is not stored. */
+	set(key: K, value: V): { stored: boolean; evicted: { key: K; value: V }[] } {
+		this.delete(key);
+		const evicted: { key: K; value: V }[] = [];
+		const weight = this.weigh(value);
+		if (this.maxBytes > 0 && weight > this.maxBytes) return { stored: false, evicted };
 		this.map.set(key, value);
-		if (this.map.size > this.cap) {
-			const oldest = this.map.keys().next().value as K | undefined;
-			if (oldest !== undefined) {
-				const evicted = this.map.get(oldest) as V;
-				this.map.delete(oldest);
-				return { key: oldest, value: evicted };
-			}
+		this.bytes += weight;
+		while (
+			this.map.size > this.cap ||
+			(this.maxBytes > 0 && this.bytes > this.maxBytes && this.map.size > 1)
+		) {
+			const oldest = this.map.keys().next().value as K;
+			const old = this.map.get(oldest) as V;
+			this.delete(oldest);
+			evicted.push({ key: oldest, value: old });
 		}
-		return undefined;
+		return { stored: true, evicted };
 	}
 	delete(key: K): boolean {
+		const v = this.map.get(key);
+		if (v === undefined) return false;
+		this.bytes -= this.weigh(v);
 		return this.map.delete(key);
 	}
 	keys(): IterableIterator<K> {
@@ -116,6 +150,7 @@ class LRU<K, V> {
 	}
 	clear(): void {
 		this.map.clear();
+		this.bytes = 0;
 	}
 	get size(): number {
 		return this.map.size;
@@ -124,7 +159,11 @@ class LRU<K, V> {
 
 // ─── Storage ─────────────────────────────────────────────
 
-const htmlCache = new LRU<string, CacheEntry>(CACHE_MAX_ENTRIES || 1);
+const htmlCache = new LRU<string, CacheEntry>(
+	CACHE_MAX_ENTRIES || 1,
+	CACHE_MAX_BYTES,
+	(e) => e.raw.byteLength + (e.gzip?.byteLength ?? 0) + (e.brotli?.byteLength ?? 0),
+);
 const tagIndex = new Map<string, Set<string>>();
 const pathIndex = new Map<string, Set<string>>(); // pathname → cacheKeys
 
@@ -184,6 +223,11 @@ export function collectTags(
 	return [...tags];
 }
 
+/** A `Cache-Control` value that says not to reuse the response. */
+export function isNoStoreCacheControl(cc: string | null | undefined): boolean {
+	return /no-store|no-cache|private/i.test(cc ?? "");
+}
+
 // ─── Public-ish: read / write ────────────────────────────
 
 export function cacheGet(key: string): CacheEntry | undefined {
@@ -226,8 +270,10 @@ export function cacheSet(key: string, entry: CacheEntry, cookies?: Cookies): voi
 	entry.etag ??= createHash("sha1").update(entry.raw).digest("base64url").slice(0, 22);
 	// Drop any existing entry's index pointers first
 	cacheDeleteKey(key);
-	const evicted = htmlCache.set(key, entry);
-	if (evicted) cacheDeleteIndexOnly(evicted.key, evicted.value);
+	const { stored, evicted } = htmlCache.set(key, entry);
+	for (const e of evicted) cacheDeleteIndexOnly(e.key, e.value);
+	// Heavier than the whole budget: not stored, so nothing to index.
+	if (!stored) return;
 	for (const tag of entry.tags) {
 		let set = tagIndex.get(tag);
 		if (!set) {
@@ -328,6 +374,62 @@ export function buildCompressedVariants(
 export function deferCacheWrite(fn: () => void | Promise<void>): void {
 	if (compressionOn) setImmediate(fn);
 	else queueMicrotask(fn);
+}
+
+const textEncoder = new TextEncoder();
+
+/** How long a cache write may spend reading a response body it copied. */
+const CACHE_READ_TIMEOUT_MS = 10_000;
+
+/**
+ * Read a copied response body for the cache, giving up (and cancelling the
+ * copy) once it can't fit the cache (`bodyFitsCache`) or takes longer than
+ * `CACHE_READ_TIMEOUT_MS`. `null` = don't cache.
+ *
+ * `arrayBuffer()` on the copy held the whole body before any size check: a
+ * 1GB file served from a `+server.ts` GET took 1GB of RAM per download, and an
+ * endless non-SSE stream kept the miss gate (and every waiter) for good.
+ */
+export async function readBodyForCache(res: Response): Promise<Bytes | null> {
+	const stream = res.body;
+	if (!stream) return new Uint8Array(new ArrayBuffer(0));
+	const reader = stream.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timedOut = new Promise<"timeout">((r) => {
+		timer = setTimeout(() => r("timeout"), CACHE_READ_TIMEOUT_MS);
+	});
+	try {
+		for (;;) {
+			const step = await Promise.race([reader.read(), timedOut]);
+			if (step === "timeout") return null;
+			if (step.done) return concatChunks(chunks);
+			// A handler's stream may enqueue strings; Bun passes them through a clone.
+			const value: unknown = step.value;
+			const chunk =
+				typeof value === "string"
+					? textEncoder.encode(value)
+					: value instanceof Uint8Array
+						? value
+						: ArrayBuffer.isView(value)
+							? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+							: value instanceof ArrayBuffer
+								? new Uint8Array(value)
+								: null;
+			if (chunk === null) return null;
+			total += chunk.byteLength;
+			if (!bodyFitsCache(total)) return null;
+			chunks.push(chunk);
+		}
+	} catch {
+		return null;
+	} finally {
+		clearTimeout(timer);
+		// Stops the copy so the runtime no longer buffers it; the response the
+		// client reads is a separate branch and keeps going.
+		reader.cancel().catch(() => {});
+	}
 }
 
 /** Concatenate multiple Uint8Array chunks into one buffer. */

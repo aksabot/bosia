@@ -109,10 +109,11 @@ Invalidasi berbasis tag untuk endpoint API ada di roadmap.
 
 ## Env var
 
-| Variabel            | Default                                    | Tujuan                                                 |
-| ------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| `CACHE_KEYS`        | `session,sid,auth,token,jwt,Authorization` | Nama cookie/header yang ikut menghitung identity hash. |
-| `CACHE_MAX_ENTRIES` | `500`                                      | Kapasitas LRU. `0` mematikan cache sepenuhnya.         |
+| Variabel            | Default                                    | Tujuan                                                             |
+| ------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| `CACHE_KEYS`        | `session,sid,auth,token,jwt,Authorization` | Nama cookie/header yang ikut menghitung identity hash.             |
+| `CACHE_MAX_ENTRIES` | `500`                                      | Kapasitas LRU. `0` mematikan cache sepenuhnya.                     |
+| `CACHE_MAX_BYTES`   | `104857600` (100MB)                        | Memori semua entry (raw + gzip + brotli). `0` = jumlah entry saja. |
 
 Keduanya dibaca sekali saat startup. Tiap entry menyimpan byte raw plus salinan gzip + brotli — biasanya beberapa KB.
 
@@ -124,6 +125,6 @@ Keduanya dibaca sekali saat startup. Tiap entry menyimpan byte raw plus salinan 
 
 ## Trade-off
 
-- Memori tumbuh sebesar `CACHE_MAX_ENTRIES × (raw + gzip + brotli)`. Atur cap sesuai container.
+- Memori tumbuh sampai `CACHE_MAX_BYTES` (default 100MB) atau `CACHE_MAX_ENTRIES` entry, mana yang lebih dulu. Atur sesuai container.
 - Cache hidup in-process. Replika kedua punya cache sendiri; invalidasi pub/sub multi-replika ada di roadmap.
 - Tidak ada expiry berbasis TTL — entry hidup sampai LRU eviction atau `invalidate()` eksplisit. Write yang dilakukan author memicu eviction.

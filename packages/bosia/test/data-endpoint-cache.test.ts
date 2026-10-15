@@ -57,6 +57,48 @@ beforeAll(async () => {
 			`export function POST() {\n\treturn Response.json({ evicted: invalidate("app:hitung") });\n}\n`,
 	);
 
+	// A loader that marks its page private: SSR must not cache it either.
+	mkdirSync(join(routes, "pribadi"), { recursive: true });
+	writeFileSync(join(routes, "pribadi", "+page.svelte"), `<p>Pribadi</p>\n`);
+	writeFileSync(
+		join(routes, "pribadi", "+page.server.ts"),
+		counter("pribadi").replace(
+			"export function load({ depends }: any) {\n",
+			`export function load({ depends, setHeaders }: any) {\n\tsetHeaders({ "cache-control": "private" });\n`,
+		),
+	);
+
+	// API GETs: one too big for the cache, one small, one that never ends.
+	mkdirSync(join(routes, "api", "besar"), { recursive: true });
+	writeFileSync(
+		join(routes, "api", "besar", "+server.ts"),
+		`export function GET() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tg.__besar = (g.__besar ?? 0) + 1;\n` +
+			`\tconst chunk = new Uint8Array(1024 * 1024).fill(97);\n` +
+			`\tlet n = 0;\n` +
+			`\treturn new Response(new ReadableStream({ pull(c) { if (n++ < 3) c.enqueue(chunk); else c.close(); } }), {\n` +
+			`\t\theaders: { "content-type": "text/plain", "x-runs": String(g.__besar) },\n` +
+			`\t});\n}\n`,
+	);
+	mkdirSync(join(routes, "api", "kecil"), { recursive: true });
+	writeFileSync(
+		join(routes, "api", "kecil", "+server.ts"),
+		`export function GET() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tg.__kecil = (g.__kecil ?? 0) + 1;\n` +
+			`\treturn Response.json({ runs: g.__kecil });\n}\n`,
+	);
+	mkdirSync(join(routes, "api", "aliran"), { recursive: true });
+	writeFileSync(
+		join(routes, "api", "aliran", "+server.ts"),
+		`export function GET() {\n` +
+			`\tconst chunk = new Uint8Array(512 * 1024).fill(98);\n` +
+			`\treturn new Response(new ReadableStream({ pull(c) { c.enqueue(chunk); } }), {\n` +
+			`\t\theaders: { "content-type": "application/x-ndjson" },\n` +
+			`\t});\n}\n`,
+	);
+
 	const build = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "core", "build.ts")], {
 		cwd: tmpDir,
 		env: { ...process.env, NODE_ENV: "production", NODE_PATH: BOSIA_NODE_PATH },
@@ -168,6 +210,51 @@ describe("data endpoint response cache", () => {
 			body: "{}",
 		});
 		expect(post.res.headers.get("x-bosia-cache")).toBeNull();
+	});
+});
+
+describe("what the cache leaves alone", () => {
+	test("an SSR page whose loader set cache-control: private is not cached", async () => {
+		const first = await fetch(`${origin}/pribadi`);
+		const firstHtml = await first.text();
+		await settle();
+		const second = await fetch(`${origin}/pribadi`);
+		expect(second.headers.get("x-bosia-cache")).toBeNull();
+		expect(await second.text()).not.toBe(firstHtml);
+	});
+
+	test("a small API GET is still cached", async () => {
+		const first = await (await fetch(`${origin}/api/kecil`)).json();
+		await settle();
+		const second = await fetch(`${origin}/api/kecil`);
+		expect(second.headers.get("x-bosia-cache")).toBe("HIT");
+		expect((await second.json()).runs).toBe(first.runs);
+	});
+
+	test("an API GET over CACHE_MAX_BODY_BYTES goes out whole and is not cached", async () => {
+		const first = await fetch(`${origin}/api/besar`);
+		expect((await first.arrayBuffer()).byteLength).toBe(3 * 1024 * 1024);
+		await settle();
+		const second = await fetch(`${origin}/api/besar`);
+		expect(second.headers.get("x-bosia-cache")).toBeNull();
+		expect(Number(second.headers.get("x-runs"))).toBe(Number(first.headers.get("x-runs")) + 1);
+		expect((await second.arrayBuffer()).byteLength).toBe(3 * 1024 * 1024);
+	});
+
+	test("an endless API stream doesn't hold back the next request", async () => {
+		const ac = new AbortController();
+		const first = await fetch(`${origin}/api/aliran`, { signal: ac.signal });
+		const reader = first.body!.getReader();
+		await reader.read();
+		// The first response is still streaming; a second one must not wait on it.
+		const ac2 = new AbortController();
+		const timer = setTimeout(() => ac2.abort(), 3000);
+		const second = await fetch(`${origin}/api/aliran`, { signal: ac2.signal });
+		clearTimeout(timer);
+		expect(second.status).toBe(200);
+		ac.abort();
+		ac2.abort();
+		await reader.cancel().catch(() => {});
 	});
 });
 

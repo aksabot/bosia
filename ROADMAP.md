@@ -5,6 +5,31 @@
 
 ---
 
+## Unreleased (2026-10-15) — perf audit fixes
+
+> Load test (4 vCPU sandbox, autocannon 50 conns): cached SSR ~19k rps, prerendered ~23k, API hit ~20k vs raw `Bun.serve` ~41k. A 200MB file from a `+server.ts` GET grew RSS by ~300MB; a tap during a hover prefetch sent the data request twice.
+
+- [x] 🔴 API cache read the whole cloned body (`arrayBuffer()`) before its size check: a big file from a `+server.ts` GET sat in RAM per download, coalesced waiters waited the whole download, and an endless non-SSE stream held the miss gate forever. `readBodyForCache` stops at the cap, cancels the copy, gives up after 10s, and encodes string chunks.
+- [x] 🟠 SSR cached pages whose loader `setHeaders({ "cache-control": "private" | "no-store" | "no-cache" })`; the data endpoint and API already skipped them. One `isNoStoreCacheControl` for all three.
+- [x] 🟠 CORS replaced `Vary: Accept-Encoding` with `Vary: Origin`, so a CDN could send brotli to a client that didn't ask. `Origin` is merged in now.
+- [x] 🟠 Response cache had only an entry cap (500 × up to 2MB × raw+gzip+brotli). New `CACHE_MAX_BYTES` (100MB, `0` = count only) evicts oldest by bytes; bodies that can't fit skip compression.
+- [x] 🟠 A click while its hover/touch prefetch was in flight sent a second `/__bosia/data` request. The click now waits for the in-flight prefetch (fetching only if it fails); a navigation drops older in-flight prefetches. Prefetches aren't used when the nav is `fresh` (dirty keys/URLs too, not just a tick).
+- [ ] 🟡 No default `LOAD_TIMEOUT`; a hung loader holds the coalesce leader and every waiter, and `MAX_INFLIGHT` is unbounded by default. Default a timeout or warn at boot.
+- [ ] 🟡 Coalesce waiters stampede when the leader skips the write (error, cookie, too big): all rerun at once, no re-leadering.
+- [ ] 🟡 Viewport prefetch has no concurrency cap / idle scheduling / `saveData` check; nav clears results, and unobserved links never prefetch again.
+- [ ] 🟡 Superseded navigations keep their data fetch running (no `AbortController`).
+- [ ] 🟡 Template `hooks.server.ts` (demo/shop/store) `console.log` every request: ~30% of CPU on cached hits in a profile.
+- [ ] 🟡 Query strings fragment the cache (`?utm_*`, random `?x=`): every value is a new entry and a full render. Data endpoint `_invalidated` mask isn't validated (`/^[01]*$/`).
+- [ ] ⚪ Cache-write gzip + brotli q5 run sync on the main thread (up to 2MB bodies). Use async zlib in the deferred write.
+- [ ] ⚪ A 404 scans every route 3× (`??=` rescans the `null` match; `renderErrorPage` matches again).
+- [ ] ⚪ Data endpoint calls `computeCacheKey` twice (sort + sha256 each). SSR `?_invalidated` writes an entry no normal request reads.
+- [ ] ⚪ `app.html` segments re-interpolated per request; public env script and `safeJsonStringify` escape map rebuilt per call; plugin fragments awaited one by one in two passes.
+- [ ] ⚪ Permanent `MutationObserver` on `document.body` even with no viewport links; scroll/snapshot maps never trimmed; `use:enhance` double submit sends two POSTs; `loaderCache.layouts` keeps every layout visited.
+- [ ] ⚪ Files over `ASSET_CACHE_MAX_FILE_BYTES` retry `cache.fill()` (stat + promise) every request.
+- [ ] ⚪ `parseBytes` lives in both `cache.ts` and `assetCache.ts` (assetCache is Bun-only, cache.ts also runs on Workers).
+
+---
+
 ## bosia 1.2.4 (2026-10-14) — prerender `entries()` value fixes
 
 - [x] 🟡 Prerender `entries()` values: unreserved URL chars only (`A-Za-z0-9-_.~`, `/` in catch-alls); no `%`/space/control/non-ASCII, so URL, file and static-host lookup agree. A part ending in `.` fails (`..`, and Windows drops trailing dots).

@@ -46,7 +46,7 @@ import {
 import { dedup } from "./dedup.ts";
 import {
 	CACHE_ENABLED,
-	CACHE_MAX_BODY_BYTES,
+	bodyFitsCache,
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
@@ -54,6 +54,8 @@ import {
 	collectTags,
 	computeCacheKey,
 	deferCacheWrite,
+	isNoStoreCacheControl,
+	readBodyForCache,
 	serveCached,
 	warnUncoveredCookies,
 } from "./cache.ts";
@@ -503,14 +505,13 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const body = jsonEncoder.encode(JSON.stringify({ ...payload, metadata: result.metadata }));
 
 			// A loader that said not to store its response is taken at its word.
-			const loaderCc = (loaderHeaders["cache-control"] ?? "").toLowerCase();
-			const loaderOptOut = /no-store|no-cache|private/.test(loaderCc);
+			const loaderOptOut = isNoStoreCacheControl(loaderHeaders["cache-control"]);
 			let sent: Encoded | null | undefined;
 			if (
 				dataCacheable &&
 				!loaderOptOut &&
 				(cookies as CookieJar).outgoing.length === 0 &&
-				(CACHE_MAX_BODY_BYTES === 0 || body.length <= CACHE_MAX_BODY_BYTES)
+				bodyFitsCache(body.length)
 			) {
 				const tags = collectTags(result.data.layoutDeps ?? null, result.data.pageDeps ?? null);
 				const rel = releaseDataMiss;
@@ -690,11 +691,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 
 			// Respect handler opt-out via Cache-Control. Standard HTTP semantics:
 			// no-store / private / no-cache all signal "don't reuse this response".
-			const cacheControl = (response.headers.get("cache-control") ?? "").toLowerCase();
-			const noStore =
-				cacheControl.includes("no-store") ||
-				cacheControl.includes("private") ||
-				cacheControl.includes("no-cache");
+			const noStore = isNoStoreCacheControl(response.headers.get("cache-control"));
 
 			if (
 				apiCacheable &&
@@ -714,10 +711,10 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				releaseApiMiss = null;
 				deferCacheWrite(async () => {
 					try {
-						const buf = new Uint8Array(await cloned.arrayBuffer());
-						// Oversized bodies skip early so they never pay compression;
-						// cacheSet re-checks as the authoritative guard.
-						if (CACHE_MAX_BODY_BYTES > 0 && buf.length > CACHE_MAX_BODY_BYTES) return;
+						// Stops reading once the body can't fit, so an oversized body
+						// never sits in memory or pays compression; cacheSet re-checks.
+						const buf = await readBodyForCache(cloned);
+						if (buf === null) return;
 						const { gzip, brotli } = buildCompressedVariants(buf);
 						// API endpoints have no LoaderDeps in v0.6 — invalidation is
 						// URL/prefix only. See ROADMAP for deferred tag support.
@@ -1093,7 +1090,8 @@ function finalizeResponse(
 		applyCorsVary(headers);
 		const corsHeaders = getCorsHeaders(request, CORS_CONFIG);
 		if (corsHeaders) {
-			for (const [k, v] of Object.entries(corsHeaders)) headers.set(k, v);
+			// Vary: Origin is already merged in above; set() would drop Accept-Encoding.
+			for (const [k, v] of Object.entries(corsHeaders)) if (k !== "Vary") headers.set(k, v);
 		}
 	}
 	// Apply any Set-Cookie headers accumulated during the request

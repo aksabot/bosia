@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `CACHE_MAX_BYTES` caps the response cache's memory (default 100MB); the oldest entries go first.
+
+### Fixed
+
+- Downloading a big file from a `+server.ts` GET no longer copies the whole file into memory.
+- A `+server.ts` GET that streams forever no longer makes the next request to it wait forever.
+- A page whose loader sets `cache-control: private` (or `no-store`/`no-cache`) is no longer cached.
+- With CORS on, responses keep `Vary: Accept-Encoding`, so a CDN won't send brotli to a browser that can't read it.
+- Tapping a link while its data is still prefetching no longer loads that data twice.
+
 ## [1.2.4] - 2026-10-14
 
 ### Changed
