@@ -65,7 +65,7 @@ export const handle = sequence(authHandle, headersHandle);
 
 Handler dieksekusi dari kiri ke kanan. `resolve` milik setiap handler memanggil handler berikutnya dalam rantai.
 
-> **Access log:** jangan `console.log` setiap request dari hook. Saat stdout berupa pipe (`docker logs`, systemd) tiap baris adalah satu syscall, ~14µs CPU per request. Serahkan access log ke reverse proxy (nginx, Caddy), atau pasang plugin [`accessLog()`](/id/guides/plugins#bosiapluginsaccess-log) yang menulis secara batch.
+> **Access log:** jangan `console.log` setiap request dari hook. Saat stdout berupa pipe (`docker logs`, systemd) tiap baris adalah satu syscall, ~11–14µs CPU per request. Serahkan access log ke reverse proxy (nginx, Caddy), atau pasang plugin [`accessLog()`](/id/guides/plugins#bosiapluginsaccess-log) yang menulis secara batch.
 
 ## Menyetel Locals
 

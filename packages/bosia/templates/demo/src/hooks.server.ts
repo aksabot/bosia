@@ -1,4 +1,3 @@
-import { sequence } from "bosia";
 import type { Handle } from "bosia";
 
 // Sets locals that every loader and API handler can read
@@ -10,4 +9,4 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 // Need an access log? Let nginx/Caddy keep it, or add `accessLog()` from
 // "bosia/plugins/access-log" to bosia.config.ts.
-export const handle = sequence(authHandle);
+export const handle = authHandle;

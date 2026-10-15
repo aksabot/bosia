@@ -16,12 +16,12 @@ export interface AccessLogOptions {
 	filter?: (entry: AccessLogEntry) => boolean;
 	/** One line per request, without the trailing newline. */
 	format?: (entry: AccessLogEntry) => string;
-	/** Where lines go. Defaults to stdout on Bun, console.log on Workers. */
+	/** Where lines go. Defaults to console.log, one call per batch. */
 	write?: (chunk: string) => void;
 	/**
 	 * Lines are collected and written together at most this often (ms). One
 	 * write per request costs a syscall each: on a pipe (`docker logs`, systemd)
-	 * that was ~14µs of CPU per request, batched ~2µs. 0 writes every line at
+	 * that was ~11–14µs of CPU per request, batched ~3µs. 0 writes every line at
 	 * once. Defaults to 100 on Bun, 0 on Workers (no timers after a response).
 	 */
 	flushMs?: number;
@@ -29,33 +29,20 @@ export interface AccessLogOptions {
 
 /** Flush early once this much is waiting, so a burst never piles up here. */
 const MAX_BUFFER_CHARS = 64 * 1024;
-/** Stdout bytes still unsent past which new lines are dropped (a stalled pipe). */
-const MAX_PENDING_STDOUT = 1024 * 1024;
 
 function defaultFormat(e: AccessLogEntry): string {
 	return `[${e.method}] ${e.path} ${e.status} (${e.ms.toFixed(1)}ms)`;
 }
 
-function defaultWrite(): (chunk: string) => void {
-	// Bun only: on Workers, nodejs_compat's process.stdout isn't the log stream.
-	if (typeof Bun === "undefined" || typeof process.stdout?.write !== "function") {
-		return (chunk) => console.log(chunk.replace(/\n$/, ""));
-	}
-	const stdout = process.stdout;
-	let dropped = 0;
-	return (chunk) => {
-		// A consumer that stopped reading (backed-up log driver) would otherwise
-		// grow the stream's buffer without limit. Drop and say how many.
-		if ((stdout.writableLength ?? 0) > MAX_PENDING_STDOUT) {
-			for (let i = chunk.indexOf("\n"); i !== -1; i = chunk.indexOf("\n", i + 1)) dropped++;
-			return;
-		}
-		if (dropped > 0) {
-			chunk = `[access-log] ${dropped} line(s) dropped: stdout is not keeping up\n${chunk}`;
-			dropped = 0;
-		}
-		stdout.write(chunk);
-	};
+/**
+ * One console.log per batch. On Bun it blocks until the pipe takes every byte;
+ * `process.stdout.write` queued on a slow pipe and lost the queue at exit, and
+ * `fs.writeSync(1)` wrote part of a batch (non-blocking stdout) and dropped the
+ * rest — ~870 of 3000 lines in a test, both ways. Like any console.log, a log
+ * reader that stops reading slows the server.
+ */
+function defaultWrite(chunk: string): void {
+	console.log(chunk.endsWith("\n") ? chunk.slice(0, -1) : chunk);
 }
 
 /** Path of a request URL without allocating a URL object. */
@@ -68,6 +55,7 @@ function pathOf(url: string): string {
 
 // One process "exit" listener for every logger, added on the first buffered
 // line — so `bosia build` (which also loads the config) never registers one.
+// A logger is in the set only while it holds unwritten lines.
 const pendingFlushes = new Set<() => void>();
 let exitHooked = false;
 function flushOnExit(flush: () => void): void {
@@ -75,7 +63,7 @@ function flushOnExit(flush: () => void): void {
 	if (exitHooked || typeof process === "undefined" || typeof process.on !== "function") return;
 	exitHooked = true;
 	process.on("exit", () => {
-		for (const f of pendingFlushes) {
+		for (const f of [...pendingFlushes]) {
 			try {
 				f();
 			} catch {
@@ -95,7 +83,7 @@ function flushOnExit(flush: () => void): void {
  */
 export function accessLog(options: AccessLogOptions = {}): BosiaPlugin {
 	const format = options.format ?? defaultFormat;
-	const write = options.write ?? defaultWrite();
+	const write = options.write ?? defaultWrite;
 	const flushMs = options.flushMs ?? (typeof Bun === "undefined" ? 0 : 100);
 	const filter = options.filter;
 
@@ -106,6 +94,7 @@ export function accessLog(options: AccessLogOptions = {}): BosiaPlugin {
 			clearTimeout(timer);
 			timer = null;
 		}
+		pendingFlushes.delete(flush);
 		if (buffer === "") return;
 		const out = buffer;
 		buffer = "";

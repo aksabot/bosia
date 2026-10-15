@@ -1,6 +1,7 @@
 // ─── Bosia Backend App ────────────────────────────────────
 // A tiny Elysia-shaped HTTP app: chainable routes + onRequest / onAfterHandle /
-// onError hooks, one `fetch(request)` entry for Bun.serve and Workers alike.
+// onError / onResponse hooks, one `fetch(request)` entry for Bun.serve and
+// Workers alike.
 // Only the subset the framework and plugins use — not a general router.
 
 /** Outbound response bag — merged into whatever the handler returns. */
@@ -147,7 +148,19 @@ export class BosiaApp {
 	fetch = async (request: Request): Promise<Response> => {
 		if (this.responseHooks.length === 0) return this.respond(request);
 		const start = performance.now();
-		const response = await this.respond(request);
+		let response: Response;
+		try {
+			response = await this.respond(request);
+		} catch (error) {
+			// An error hook threw: the runtime answers 500, so observers see that.
+			this.observe(request, new Response(null, { status: 500 }), start);
+			throw error;
+		}
+		this.observe(request, response, start);
+		return response;
+	};
+
+	private observe(request: Request, response: Response, start: number): void {
 		for (const hook of this.responseHooks) {
 			try {
 				hook({ request, response, start });
@@ -155,8 +168,7 @@ export class BosiaApp {
 				// Observers must not change what the client gets.
 			}
 		}
-		return response;
-	};
+	}
 
 	private async respond(request: Request): Promise<Response> {
 		const set: ResponseSet = { headers: {} };

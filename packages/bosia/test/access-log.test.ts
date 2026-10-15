@@ -87,6 +87,20 @@ describe("accessLog plugin", () => {
 		expect(out[0]).toMatch(/^\[GET\] \/ 429 /);
 	});
 
+	test("a request whose error hook throws is still logged as 500", async () => {
+		const out: string[] = [];
+		let app = await appWith({ write: (c) => out.push(c), flushMs: 0 });
+		app = app
+			.onError(() => {
+				throw new Error("reporter down");
+			})
+			.get("/x", () => {
+				throw new Error("boom");
+			});
+		await expect(app.fetch(new Request("http://localhost/x"))).rejects.toThrow("reporter down");
+		expect(out[0]).toMatch(/^\[GET\] \/x 500 /);
+	});
+
 	test("a throwing format doesn't break the response", async () => {
 		const app = (
 			await appWith({

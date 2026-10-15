@@ -65,7 +65,7 @@ export const handle = sequence(authHandle, headersHandle);
 
 Handlers execute left-to-right. Each handler's `resolve` calls the next handler in the chain.
 
-> **Access logs:** don't `console.log` every request from a hook. When stdout is a pipe (`docker logs`, systemd) each line is a syscall, ~14µs of CPU per request. Let the reverse proxy (nginx, Caddy) keep the access log, or add the batched [`accessLog()`](/guides/plugins#bosiapluginsaccess-log) plugin.
+> **Access logs:** don't `console.log` every request from a hook. When stdout is a pipe (`docker logs`, systemd) each line is a syscall, ~11–14µs of CPU per request. Let the reverse proxy (nginx, Caddy) keep the access log, or add the batched [`accessLog()`](/guides/plugins#bosiapluginsaccess-log) plugin.
 
 ## Setting Locals
 

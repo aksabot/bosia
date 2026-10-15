@@ -36,7 +36,7 @@ serverTiming({ metric: "bosia" }); // override default metric name
 
 ### `bosia/plugins/access-log`
 
-Logs one line per request — `[GET] /blog 200 (1.2ms)` — from the final response, so the status is what the client got and each request is logged once, whatever other plugins do. Bosia doesn't log requests by default; add this when you want an access log and no reverse proxy keeps one. Lines are written in batches (every 100ms, or at 64KB) instead of one write per request: on a piped stdout (`docker logs`, systemd) that's ~2µs of CPU per request instead of ~14µs. Lines still waiting are written on shutdown. On Workers every line is written at once.
+Logs one line per request — `[GET] /blog 200 (1.2ms)` — from the final response, so the status is what the client got and each request is logged once, whatever other plugins do. Bosia doesn't log requests by default; add this when you want an access log and no reverse proxy keeps one. Lines are written in batches (every 100ms, or at 64KB) instead of one write per request: on a piped stdout (`docker logs`, systemd) that's ~3µs of CPU per request instead of ~11–14µs. Lines still waiting are written on shutdown. On Workers every line is written at once.
 
 ```ts
 import { accessLog } from "bosia/plugins/access-log";
