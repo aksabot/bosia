@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
 	buildCompressedVariants,
 	cacheClear,
@@ -758,7 +760,7 @@ describe("parseMs", () => {
 
 	test("the derived CACHE_WAIT_TIMEOUT stays a valid timer delay", async () => {
 		const script = `const { CACHE_WAIT_TIMEOUT } = await import(${JSON.stringify(
-			new URL("../src/core/cache.ts", import.meta.url).pathname,
+			pathToFileURL(join(import.meta.dir, "../src/core/cache.ts")).href,
 		)}); console.log(CACHE_WAIT_TIMEOUT);`;
 		const proc = Bun.spawn(["bun", "-e", script], {
 			env: { ...process.env, LOAD_TIMEOUT: "2147483647", CACHE_WAIT_TIMEOUT: "" },

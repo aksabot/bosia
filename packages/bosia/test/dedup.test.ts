@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { dedup, dedupKey } from "../src/core/dedup.ts";
 import { join } from "path";
+import { pathToFileURL } from "url";
 
 describe("dedupKey()", () => {
 	test("returns pathname when no query", () => {
@@ -98,8 +99,8 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 	// CACHE_WAIT_TIMEOUT is read at import, so this runs in its own process.
 	test("one waiter rebuilds, the rest share it, and none joins the stuck dedup() call", async () => {
 		const script = `
-			const { cacheSet, claimMiss, coalesceMiss } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/cache.ts"))});
-			const { dedup } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/dedup.ts"))});
+			const { cacheSet, claimMiss, coalesceMiss } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dir, "../src/core/cache.ts")).href)});
+			const { dedup } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dir, "../src/core/dedup.ts")).href)});
 			const leader = coalesceMiss("k");
 			dedup("k", () => new Promise(() => {}), 40);
 			// Same steps as the data endpoint: claim, dedup (replacing a stuck

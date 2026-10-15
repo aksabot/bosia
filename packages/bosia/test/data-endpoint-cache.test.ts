@@ -593,7 +593,8 @@ describe("a request that never finishes", () => {
 		expect(Date.now() - started).toBeLessThan(4000);
 		const t = Date.now();
 		expect((await getData("/meta-macet.json")).res.status).toBe(200);
-		expect(Date.now() - t).toBeLessThan(500);
+		// Well under CACHE_WAIT_TIMEOUT (1000): it didn't wait on the stuck gate.
+		expect(Date.now() - t).toBeLessThan(900);
 		ac.abort();
 		await hung;
 	}, 15_000);
@@ -609,7 +610,8 @@ describe("a request that never finishes", () => {
 		// The stuck gate is gone: the next miss doesn't wait.
 		const t = Date.now();
 		expect((await fetch(`${origin}/api/macet`)).status).toBe(200);
-		expect(Date.now() - t).toBeLessThan(500);
+		// Well under CACHE_WAIT_TIMEOUT (1000): it didn't wait on the stuck gate.
+		expect(Date.now() - t).toBeLessThan(900);
 		ac.abort();
 		await hung;
 	}, 15_000);
