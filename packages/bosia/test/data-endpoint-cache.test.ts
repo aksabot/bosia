@@ -87,7 +87,24 @@ beforeAll(async () => {
 		`export function GET() {\n` +
 			`\tconst g = globalThis as any;\n` +
 			`\tg.__kecil = (g.__kecil ?? 0) + 1;\n` +
-			`\treturn Response.json({ runs: g.__kecil }, { headers: { vary: "Cookie" } });\n}\n`,
+			`\treturn Response.json({ runs: g.__kecil }, { headers: { vary: "Origin" } });\n}\n`,
+	);
+	mkdirSync(join(routes, "api", "kuki"), { recursive: true });
+	writeFileSync(
+		join(routes, "api", "kuki", "+server.ts"),
+		`export function GET() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tg.__kuki = (g.__kuki ?? 0) + 1;\n` +
+			`\treturn Response.json({ runs: g.__kuki }, { headers: { vary: "Cookie" } });\n}\n`,
+	);
+	mkdirSync(join(routes, "api", "gzip"), { recursive: true });
+	writeFileSync(
+		join(routes, "api", "gzip", "+server.ts"),
+		`import { gzipSync } from "node:zlib";\n` +
+			`export function GET() {\n` +
+			`\treturn new Response(gzipSync(JSON.stringify({ ok: true })), {\n` +
+			`\t\theaders: { "content-type": "application/json", "content-encoding": "gzip" },\n` +
+			`\t});\n}\n`,
 	);
 	mkdirSync(join(routes, "api", "aliran"), { recursive: true });
 	writeFileSync(
@@ -229,8 +246,24 @@ describe("what the cache leaves alone", () => {
 		const second = await fetch(`${origin}/api/kecil`);
 		expect(second.headers.get("x-bosia-cache")).toBe("HIT");
 		// The handler's own Vary survives the hit, next to Accept-Encoding.
-		expect(second.headers.get("vary")).toBe("Cookie, Accept-Encoding");
+		expect(second.headers.get("vary")).toBe("Origin, Accept-Encoding");
 		expect((await second.json()).runs).toBe(first.runs);
+	});
+
+	test("an API GET with a Vary the cache key can't honor is not cached", async () => {
+		const first = await (await fetch(`${origin}/api/kuki`)).json();
+		await settle();
+		const second = await fetch(`${origin}/api/kuki`);
+		expect(second.headers.get("x-bosia-cache")).toBeNull();
+		expect((await second.json()).runs).toBe(first.runs + 1);
+	});
+
+	test("an API GET the handler already encoded is not cached as plain bytes", async () => {
+		await (await fetch(`${origin}/api/gzip`)).text();
+		await settle();
+		const second = await fetch(`${origin}/api/gzip`);
+		expect(second.headers.get("x-bosia-cache")).toBeNull();
+		expect(await second.json()).toEqual({ ok: true });
 	});
 
 	test("an API GET over CACHE_MAX_BODY_BYTES goes out whole and is not cached", async () => {

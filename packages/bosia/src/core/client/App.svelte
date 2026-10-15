@@ -363,9 +363,10 @@
 				// A response that arrived is read for what it says, not discarded.
 				.catch(() => null);
 		const dataFetch = cached
-			? // A prefetch still in flight: wait for it, and fetch only if it failed.
+			? // A prefetch still in flight: wait for it; fetch again if it failed or
+				// errored (a hover-time 500 shouldn't stand in for the click's answer).
 				cached instanceof Promise
-				? cached.then((data) => data ?? fetchData())
+				? cached.then((data) => (data && !data.error ? data : fetchData()))
 				: Promise.resolve(cached)
 			: match.route.hasServerData
 				? fetchData()

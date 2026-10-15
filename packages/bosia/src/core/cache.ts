@@ -232,6 +232,20 @@ export function isNoStoreCacheControl(cc: string | null | undefined): boolean {
 	return /no-store|no-cache|private/i.test(cc ?? "");
 }
 
+/**
+ * A `Vary` the cache key can't honor. The key covers the URL and CACHE_KEYS;
+ * Accept-Encoding is negotiated per hit and Origin is CORS's. Anything else
+ * (`Cookie`, `Accept-Language`, `*`) means one stored copy would be served to
+ * requests the response said differ.
+ */
+export function varyBlocksCache(vary: string | null | undefined): boolean {
+	if (!vary) return false;
+	return vary
+		.split(",")
+		.map((t) => t.trim().toLowerCase())
+		.some((t) => t !== "" && t !== "accept-encoding" && t !== "origin");
+}
+
 // ─── Public-ish: read / write ────────────────────────────
 
 export function cacheGet(key: string): CacheEntry | undefined {

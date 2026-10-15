@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A page whose loader sets `cache-control: private` (or `no-store`/`no-cache`) is no longer cached.
 - With CORS on, responses keep `Vary: Accept-Encoding`, so a CDN won't send brotli to a browser that can't read it.
 - Tapping a link while its data is still prefetching no longer loads that data twice.
+- A response with `Vary: Cookie` (or any `Vary` besides `Accept-Encoding`/`Origin`) is no longer cached.
+- A `+server.ts` GET that returns an already-gzipped body is no longer served broken from cache.
 
 ## [1.2.4] - 2026-10-14
 

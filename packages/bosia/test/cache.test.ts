@@ -14,6 +14,7 @@ import {
 	invalidateAll,
 	readBodyForCache,
 	serveCached,
+	varyBlocksCache,
 	type CacheEntry,
 } from "../src/core/cache.ts";
 import { CookieJar } from "../src/core/cookies.ts";
@@ -510,6 +511,16 @@ describe("precompressed responses opt out of runtime re-encoding", () => {
 });
 
 // ─── concatChunks ────────────────────────────────────────
+
+describe("varyBlocksCache", () => {
+	test("only Accept-Encoding and Origin are honored by the key", () => {
+		expect(varyBlocksCache(null)).toBe(false);
+		expect(varyBlocksCache("Accept-Encoding, origin")).toBe(false);
+		expect(varyBlocksCache("Cookie")).toBe(true);
+		expect(varyBlocksCache("accept-encoding, Accept-Language")).toBe(true);
+		expect(varyBlocksCache("*")).toBe(true);
+	});
+});
 
 describe("readBodyForCache", () => {
 	test("returns the whole body when it fits", async () => {

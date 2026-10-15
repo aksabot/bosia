@@ -18,6 +18,7 @@ import {
 	deferCacheWrite,
 	isNoStoreCacheControl,
 	serveCached,
+	varyBlocksCache,
 } from "./cache.ts";
 import type { CookieJar } from "./cookies.ts";
 import { HttpError, Redirect, isHttpError, isRedirect } from "./errors.ts";
@@ -971,7 +972,9 @@ export async function renderSSRStream(
 		// compression after this response is flushed, not ahead of it.
 		// A loader that said not to store its response is taken at its word, as
 		// on the data endpoint: a `private` page must not be replayed from cache.
-		const loaderOptOut = isNoStoreCacheControl(data.loaderHeaders?.["cache-control"]);
+		const loaderOptOut =
+			isNoStoreCacheControl(data.loaderHeaders?.["cache-control"]) ||
+			varyBlocksCache(data.loaderHeaders?.["vary"]);
 		if (cacheable && cacheKey && !loaderOptOut && (cookies as any).outgoing?.length === 0) {
 			// Oversized bodies skip early so they never pay compression; cacheSet
 			// re-checks as the authoritative guard.

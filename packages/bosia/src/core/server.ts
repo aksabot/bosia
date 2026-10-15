@@ -57,6 +57,7 @@ import {
 	isNoStoreCacheControl,
 	readBodyForCache,
 	serveCached,
+	varyBlocksCache,
 	warnUncoveredCookies,
 } from "./cache.ts";
 import { reportDevErrorFromCatch } from "./devErrorReport.ts";
@@ -506,7 +507,9 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const body = jsonEncoder.encode(JSON.stringify({ ...payload, metadata: result.metadata }));
 
 			// A loader that said not to store its response is taken at its word.
-			const loaderOptOut = isNoStoreCacheControl(loaderHeaders["cache-control"]);
+			const loaderOptOut =
+				isNoStoreCacheControl(loaderHeaders["cache-control"]) ||
+				varyBlocksCache(loaderHeaders["vary"]);
 			let sent: Encoded | null | undefined;
 			if (
 				dataCacheable &&
@@ -692,10 +695,12 @@ async function resolve(event: RequestEvent): Promise<Response> {
 
 			// Respect handler opt-out via Cache-Control. Standard HTTP semantics:
 			// no-store / private / no-cache all signal "don't reuse this response".
-			// `Vary: *` says no two requests share a response: nothing to reuse either.
+			// A Vary the key can't honor, or a body the handler already encoded
+			// (the entry would replay it without its Content-Encoding), isn't reused.
 			const noStore =
 				isNoStoreCacheControl(response.headers.get("cache-control")) ||
-				/(^|,)\s*\*\s*(,|$)/.test(response.headers.get("vary") ?? "");
+				varyBlocksCache(response.headers.get("vary")) ||
+				response.headers.has("content-encoding");
 
 			if (
 				apiCacheable &&
