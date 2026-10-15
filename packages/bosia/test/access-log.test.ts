@@ -40,10 +40,10 @@ describe("accessLog plugin", () => {
 
 	test("batches lines into one write per flush", async () => {
 		const out: string[] = [];
-		const app = (await appWith({ write: (c) => out.push(c), flushMs: 20 })).get("/", () => "ok");
-		for (let i = 0; i < 5; i++) await app.fetch(new Request("http://localhost/"));
+		const app = (await appWith({ write: (c) => out.push(c), flushMs: 300 })).get("/", () => "ok");
+		await Promise.all(Array.from({ length: 5 }, () => app.fetch(new Request("http://localhost/"))));
 		expect(out.length).toBe(0);
-		await Bun.sleep(50);
+		await Bun.sleep(400);
 		expect(out.length).toBe(1);
 		expect(out[0]!.split("\n").filter(Boolean).length).toBe(5);
 	});
@@ -66,6 +66,38 @@ describe("accessLog plugin", () => {
 		await app.fetch(new Request("http://localhost/ok"));
 		await app.fetch(new Request("http://localhost/bad"));
 		expect(out).toEqual(["400 /bad\n"]);
+	});
+
+	test("logs the final status once, even when a later hook replaces the response", async () => {
+		const out: string[] = [];
+		let app = await appWith({ write: (c) => out.push(c), flushMs: 0 });
+		app = app.onAfterHandle(() => new Response("gone", { status: 410 })).get("/x", () => "ok");
+		const res = await app.fetch(new Request("http://localhost/x"));
+		expect(res.status).toBe(410);
+		expect(out).toHaveLength(1);
+		expect(out[0]).toMatch(/^\[GET\] \/x 410 /);
+	});
+
+	test("a request an earlier onRequest answers is still logged", async () => {
+		const out: string[] = [];
+		const plugin = accessLog({ write: (c) => out.push(c), flushMs: 0 });
+		let app = new BosiaApp().onRequest(() => new Response("slow down", { status: 429 }));
+		app = (await plugin.backend!.before!(app)) ?? app;
+		await app.fetch(new Request("http://localhost/"));
+		expect(out[0]).toMatch(/^\[GET\] \/ 429 /);
+	});
+
+	test("a throwing format doesn't break the response", async () => {
+		const app = (
+			await appWith({
+				format: () => {
+					throw new Error("bad format");
+				},
+				flushMs: 0,
+			})
+		).get("/", () => "ok");
+		const res = await app.fetch(new Request("http://localhost/"));
+		expect(await res.text()).toBe("ok");
 	});
 
 	test("a throwing sink doesn't break the response", async () => {

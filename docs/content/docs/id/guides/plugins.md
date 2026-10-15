@@ -36,7 +36,7 @@ serverTiming({ metric: "bosia" }); // override default metric name
 
 ### `bosia/plugins/access-log`
 
-Mencatat satu baris per request — `[GET] /blog 200 (1.2ms)` — diukur seperti `serverTiming`. Bosia tidak mencatat request secara default; pasang plugin ini kalau butuh access log dan tidak ada reverse proxy yang mencatatnya. Baris ditulis secara batch (tiap 100ms, atau saat mencapai 64KB), bukan satu write per request: pada stdout berupa pipe (`docker logs`, systemd) biayanya ~2µs CPU per request, bukan ~14µs. Baris yang masih menunggu ditulis saat shutdown. Di Workers setiap baris langsung ditulis.
+Mencatat satu baris per request — `[GET] /blog 200 (1.2ms)` — dari response final, jadi status-nya sama dengan yang diterima klien dan tiap request tercatat sekali, apa pun yang dilakukan plugin lain. Bosia tidak mencatat request secara default; pasang plugin ini kalau butuh access log dan tidak ada reverse proxy yang mencatatnya. Baris ditulis secara batch (tiap 100ms, atau saat mencapai 64KB), bukan satu write per request: pada stdout berupa pipe (`docker logs`, systemd) biayanya ~2µs CPU per request, bukan ~14µs. Baris yang masih menunggu ditulis saat shutdown. Di Workers setiap baris langsung ditulis.
 
 ```ts
 import { accessLog } from "bosia/plugins/access-log";
@@ -125,6 +125,7 @@ Hook `dev.*` dan `client.*` dicadangkan untuk v0.5.0.
 | `onRequest(({ request, set }) => …)`                    | Jalan paling awal di setiap request. Kembalikan nilai untuk langsung jawab. |
 | `onAfterHandle(({ request, response, set }) => …)`      | Jalan setelah handler. Kembalikan nilai untuk mengganti response.           |
 | `onError(({ request, error, set }) => …)`               | Jalan berurutan. Kembalikan nilai untuk jawab; `undefined` diteruskan.      |
+| `onResponse(({ request, response, start }) => …)`       | Melihat response final sekali per request. Hanya mengamati.                 |
 
 Handler route menerima `{ request, body, query, set }`. `body` di-parse dari JSON atau form data. Kembalikan `Response`, string (teks biasa), atau objek (JSON). `set.status` dan `set.headers` digabung ke balasan.
 

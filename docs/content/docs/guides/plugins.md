@@ -36,7 +36,7 @@ serverTiming({ metric: "bosia" }); // override default metric name
 
 ### `bosia/plugins/access-log`
 
-Logs one line per request — `[GET] /blog 200 (1.2ms)` — measured like `serverTiming`. Bosia doesn't log requests by default; add this when you want an access log and no reverse proxy keeps one. Lines are written in batches (every 100ms, or at 64KB) instead of one write per request: on a piped stdout (`docker logs`, systemd) that's ~2µs of CPU per request instead of ~14µs. Lines still waiting are written on shutdown. On Workers every line is written at once.
+Logs one line per request — `[GET] /blog 200 (1.2ms)` — from the final response, so the status is what the client got and each request is logged once, whatever other plugins do. Bosia doesn't log requests by default; add this when you want an access log and no reverse proxy keeps one. Lines are written in batches (every 100ms, or at 64KB) instead of one write per request: on a piped stdout (`docker logs`, systemd) that's ~2µs of CPU per request instead of ~14µs. Lines still waiting are written on shutdown. On Workers every line is written at once.
 
 ```ts
 import { accessLog } from "bosia/plugins/access-log";
@@ -125,6 +125,7 @@ The `app` passed to `backend.before` / `backend.after` is a `BosiaApp` (type exp
 | `onRequest(({ request, set }) => …)`                    | Runs first on every request. Return a value to answer right away.  |
 | `onAfterHandle(({ request, response, set }) => …)`      | Runs after the handler. Return a value to replace the response.    |
 | `onError(({ request, error, set }) => …)`               | Runs in order. Return a value to answer; `undefined` passes it on. |
+| `onResponse(({ request, response, start }) => …)`       | Sees the final response once per request. Observe only.            |
 
 Route handlers get `{ request, body, query, set }`. `body` is parsed from JSON or form data. Return a `Response`, a string (plain text), or an object (JSON). `set.status` and `set.headers` are merged into the reply.
 

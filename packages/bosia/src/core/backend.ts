@@ -34,6 +34,14 @@ export type AfterHandleHook = (ctx: {
 
 export type ErrorHook = (ctx: { request: Request; error: unknown; set: ResponseSet }) => unknown;
 
+/**
+ * Sees the final Response — after onRequest short-circuits, after-handle
+ * replacements, error hooks and the HEAD body drop — exactly once per request.
+ * `start`: `performance.now()` when the request entered `fetch`. Observe only:
+ * the return value is ignored and a throw is swallowed.
+ */
+export type ResponseHook = (ctx: { request: Request; response: Response; start: number }) => void;
+
 export interface ServeOptions {
 	maxRequestBodySize?: number;
 	idleTimeout?: number;
@@ -55,6 +63,7 @@ export class BosiaApp {
 	private requestHooks: RequestHook[] = [];
 	private afterHooks: AfterHandleHook[] = [];
 	private errorHooks: ErrorHook[] = [];
+	private responseHooks: ResponseHook[] = [];
 	private server: ReturnType<typeof Bun.serve> | null = null;
 
 	constructor(private config: { serve?: ServeOptions } = {}) {}
@@ -100,6 +109,12 @@ export class BosiaApp {
 		return this;
 	}
 
+	/** Observes the final response of every request (see ResponseHook). */
+	onResponse(hook: ResponseHook): this {
+		this.responseHooks.push(hook);
+		return this;
+	}
+
 	// Paths match exactly, or "*" matches everything. Enough for plugin endpoints
 	// like /__bosia/locate; add `:param` matching here when a plugin needs it.
 	private route(method: Method, path: string, handler: Handler): this {
@@ -130,6 +145,20 @@ export class BosiaApp {
 	}
 
 	fetch = async (request: Request): Promise<Response> => {
+		if (this.responseHooks.length === 0) return this.respond(request);
+		const start = performance.now();
+		const response = await this.respond(request);
+		for (const hook of this.responseHooks) {
+			try {
+				hook({ request, response, start });
+			} catch {
+				// Observers must not change what the client gets.
+			}
+		}
+		return response;
+	};
+
+	private async respond(request: Request): Promise<Response> {
 		const set: ResponseSet = { headers: {} };
 		const isHead = request.method === "HEAD";
 		const method = isHead ? "GET" : request.method.toUpperCase();
@@ -143,7 +172,7 @@ export class BosiaApp {
 			}
 			return new Response("Internal Server Error", { status: 500 });
 		}
-	};
+	}
 
 	private async dispatch(request: Request, method: string, set: ResponseSet): Promise<Response> {
 		for (const hook of this.requestHooks) {
