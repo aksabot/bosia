@@ -106,9 +106,9 @@ Saat form action menjalankan `invalidate("app:user")`, kedua cache menghapus ent
 Link dari iklan, newsletter dan media sosial membawa parameter klik (`?utm_source=…`, `?fbclid=…`, `?gclid=…`) yang tidak pernah mengubah halaman. Tiap nilai akan jadi entry cache sendiri — render penuh per klik, dan halaman yang ramai terdorong keluar dari LRU — jadi halaman mencari request seperti itu dengan URL **tanpa** parameter tersebut: `/blog?utm_source=x&page=2` dilayani dari cache `/blog?page=2`. Loader tetap melihat URL lengkap.
 
 - Daftarnya `CACHE_IGNORE_PARAMS` (default `utm_*,fbclid,gclid,gbraid,wbraid,dclid,msclkid,twclid,ttclid,li_fat_id,igshid,yclid,mc_cid,mc_eid,_ga,_gl`). `nama*` cocok sebagai prefix; mengisinya mengganti daftar; `none` mematikannya.
-- Request yang membawanya membaca cache tapi tidak pernah menulis: komponen atau `metadata()` bisa merender `page.url` (link canonical, field `gclid` tersembunyi), jadi HTML-nya bisa berisi nilai milik pengunjung itu.
-- Halaman yang `load()`-nya membaca salah satunya (`url.searchParams.get("utm_source")`) atau seluruh query (`url.search`, `url.href`, iterasi `url.searchParams`) tidak dilayani dari cache untuk request seperti itu — dirender dengan nilai aslinya.
-- Tidak terlacak: komponen atau `metadata()` yang menampilkan parameternya. Salinan cache (dirender tanpa parameter) yang dilayani; set `CACHE_IGNORE_PARAMS=none`, atau baca parameternya di `load()`.
+- Kalau halaman bersihnya belum ada di cache, request di-cache dengan URL lengkapnya sendiri, seperti sebelumnya. Request ini tidak pernah mengisi entry halaman bersih: komponen bisa merender `page.url` (link canonical, field `gclid` tersembunyi), jadi HTML-nya bisa berisi nilai milik pengunjung itu.
+- Halaman yang `load()` atau `metadata()`-nya membaca salah satunya (`url.searchParams.get("utm_source")`) atau seluruh query (`url.search`, `url.href`, iterasi `url.searchParams`) tidak dilayani salinan bersih untuk request seperti itu — di-cache per URL lengkap, dengan nilai aslinya.
+- Tidak terlacak: komponen, atau hook `handle`, yang memakai parameternya. Salinan bersih (dirender tanpa parameter) yang dilayani; set `CACHE_IGNORE_PARAMS=none`, atau baca parameternya di `load()`.
 - Hanya halaman dan request data router klien. Route API tetap memakai URL lengkap.
 
 ## Endpoint API
@@ -130,7 +130,7 @@ Invalidasi berbasis tag untuk endpoint API ada di roadmap.
 | `CACHE_MAX_ENTRIES`   | `500`                                      | Kapasitas LRU. `0` mematikan cache sepenuhnya.                                                                                     |
 | `CACHE_MAX_BYTES`     | `104857600` (100MB)                        | Memori semua entry (raw + gzip + brotli). `0` = jumlah entry saja.                                                                 |
 | `CACHE_IGNORE_PARAMS` | `utm_*,fbclid,gclid,…`                     | Parameter query yang tidak masuk key cache halaman. Lihat [Parameter tracking](#parameter-tracking). `none` = mati.                |
-| `CACHE_WAIT_TIMEOUT`  | `5000`                                     | Ms sebuah miss menunggu request lain yang sedang membangun entry yang sama sebelum membangun sendiri. `0` = tunggu sampai selesai. |
+| `CACHE_WAIT_TIMEOUT`  | `60000`                                    | Ms sebuah miss menunggu request lain yang sedang membangun entry yang sama sebelum membangun sendiri. `0` = tunggu sampai selesai. |
 
 Semuanya dibaca sekali saat startup. Tiap entry menyimpan byte raw plus salinan gzip + brotli — biasanya beberapa KB.
 

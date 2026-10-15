@@ -8,7 +8,7 @@
 // different users never share a loader result. Custom session cookie names
 // must be listed in CACHE_KEYS. See docs/guides/request-deduplication.md.
 
-const inflight = new Map<string, Promise<unknown>>();
+const inflight = new Map<string, { promise: Promise<unknown>; start: number }>();
 
 /** Build a stable dedup key from a URL: normalized path + sorted query. */
 export function dedupKey(url: URL): string {
@@ -19,11 +19,22 @@ export function dedupKey(url: URL): string {
 	return search ? `${path}?${search}` : path;
 }
 
-/** Coalesce concurrent calls under `key`. `fn` runs at most once per inflight window. */
-export function dedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
+/**
+ * Coalesce concurrent calls under `key`. `fn` runs at most once per inflight
+ * window. A call older than `maxAgeMs` (> 0) isn't joined: one that never
+ * settles (a hung loader with LOAD_TIMEOUT=0) would otherwise take every
+ * later request for the key down with it.
+ */
+export function dedup<T>(key: string, fn: () => Promise<T>, maxAgeMs = 0): Promise<T> {
 	const existing = inflight.get(key);
-	if (existing) return existing as Promise<T>;
-	const promise = fn().finally(() => inflight.delete(key));
-	inflight.set(key, promise);
-	return promise as Promise<T>;
+	if (existing && (maxAgeMs <= 0 || Date.now() - existing.start < maxAgeMs)) {
+		return existing.promise as Promise<T>;
+	}
+	const entry = { promise: null as unknown as Promise<T>, start: Date.now() };
+	entry.promise = fn().finally(() => {
+		// Never drops a newer call that replaced a stale one.
+		if (inflight.get(key) === entry) inflight.delete(key);
+	});
+	inflight.set(key, entry);
+	return entry.promise;
 }

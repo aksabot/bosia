@@ -143,6 +143,15 @@ beforeAll(async () => {
 			`\treturn { q: JSON.stringify(Object.fromEntries(url.searchParams)) };\n}\n`,
 	);
 
+	mkdirSync(join(routes, "meta"), { recursive: true });
+	writeFileSync(join(routes, "meta", "+page.svelte"), `<p>Meta</p>\n`);
+	writeFileSync(
+		join(routes, "meta", "+page.server.ts"),
+		`export function metadata({ url }: any) {\n` +
+			`\treturn { title: "Meta", data: { gclid: url.searchParams.get("gclid") } };\n}\n` +
+			`export function load({ metadata }: any) {\n\treturn { gclid: metadata?.gclid ?? null };\n}\n`,
+	);
+
 	// The first call never settles; later ones answer.
 	mkdirSync(join(routes, "macet"), { recursive: true });
 	writeFileSync(join(routes, "macet", "+page.svelte"), `<p>Macet</p>\n`);
@@ -184,8 +193,7 @@ beforeAll(async () => {
 			NODE_ENV: "production",
 			PORT: String(port),
 			NODE_PATH: BOSIA_NODE_PATH,
-			// LOAD_TIMEOUT stays unset: the default must bound a hung loader.
-			LOAD_TIMEOUT: "",
+			LOAD_TIMEOUT: "2000",
 			CACHE_WAIT_TIMEOUT: "1000",
 		},
 		stdout: "ignore",
@@ -413,10 +421,13 @@ describe("tracking params (CACHE_IGNORE_PARAMS)", () => {
 		expect(ad.body.pageData.runs).toBe(first.body.pageData.runs);
 	});
 
-	test("a request with tracking params never writes an entry", async () => {
+	test("without a plain entry, a tracked URL is cached under its own URL", async () => {
 		const ad = await getData("/iklan.json?_invalidated=1&utm_source=x");
 		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
 		await settle();
+		const again = await getData("/iklan.json?_invalidated=1&utm_source=x");
+		expect(again.res.headers.get("x-bosia-cache")).toBe("HIT");
+		// It never fills the plain URL's entry.
 		const plain = await getData("/iklan.json?_invalidated=1");
 		expect(plain.res.headers.get("x-bosia-cache")).toBeNull();
 		expect(plain.body.pageData.runs).toBe(ad.body.pageData.runs + 1);
@@ -430,8 +441,22 @@ describe("tracking params (CACHE_IGNORE_PARAMS)", () => {
 		const ad = await fetch(`${origin}/sumber?utm_source=newsletter`);
 		expect(ad.headers.get("x-bosia-cache")).toBeNull();
 		expect(await ad.text()).toContain("dari newsletter");
+		await settle();
+		// Its own URL is still cached, with its own value.
+		const again = await fetch(`${origin}/sumber?utm_source=newsletter`);
+		expect(again.headers.get("x-bosia-cache")).toBe("HIT");
+		expect(await again.text()).toContain("dari newsletter");
 		const data = await getData("/sumber.json?utm_source=newsletter");
 		expect(data.body.pageData.from).toBe("newsletter");
+	});
+
+	test("so is a page whose metadata() reads the param", async () => {
+		await getData("/meta.json");
+		await settle();
+		expect((await getData("/meta.json")).res.headers.get("x-bosia-cache")).toBe("HIT");
+		const ad = await getData("/meta.json?gclid=g1");
+		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
+		expect(ad.body.pageData.gclid).toBe("g1");
 	});
 
 	test("so is a page whose loader iterates the whole query", async () => {
@@ -445,7 +470,7 @@ describe("tracking params (CACHE_IGNORE_PARAMS)", () => {
 });
 
 describe("a request that never finishes", () => {
-	test("a hung loader times out by default and the URL recovers", async () => {
+	test("a hung loader times out and the URL recovers", async () => {
 		const first = await fetch(`${origin}/macet`);
 		expect(first.status).toBe(500);
 		await first.text();

@@ -45,13 +45,20 @@ function parseMaxBodyBytes(raw: string | undefined): number {
 	return parseBytes(raw, 2_097_152); // 2MB; 0 = unlimited
 }
 
-/** Unset or invalid → fallback; `0` or `Infinity` → no limit (0). */
-function parseWaitMs(raw: string | undefined, fallback: number): number {
+/**
+ * A duration env var in whole milliseconds. Unset or blank → `fallback`;
+ * `0` or `Infinity` → 0 (no limit). Anything else (`5s`, `1e4`, `-1`) warns
+ * and uses `fallback` — parseInt read `10s` as 10ms.
+ */
+export function parseMs(raw: string | undefined, fallback: number, name: string): number {
 	const value = raw?.trim();
 	if (!value) return fallback;
-	if (value === "Infinity") return 0;
-	const n = parseInt(value, 10);
-	return Number.isFinite(n) && n >= 0 ? n : fallback;
+	if (value.toLowerCase() === "infinity") return 0;
+	if (/^\d+$/.test(value)) return Number(value);
+	if (typeof console !== "undefined") {
+		console.warn(`⚠️  ${name}="${raw}" is not a number of milliseconds; using ${fallback}`);
+	}
+	return fallback;
 }
 
 /** Ad and social click parameters: they never change what a page shows. */
@@ -94,9 +101,11 @@ export const CACHE_ENABLED = CACHE_MAX_ENTRIES > 0;
 /**
  * How long a cache miss waits for another request already building the same
  * key before building itself (ms). Bounds a leader that never finishes (an
- * API handler that hangs: loaders have LOAD_TIMEOUT). 0 = wait for the leader.
+ * API handler that hangs, or LOAD_TIMEOUT=0). Longer than a healthy slow
+ * leader (metadata 10s + load 30s, an API body read 10s): when it fires every
+ * waiter builds at once. 0 = wait for the leader.
  */
-export const CACHE_WAIT_TIMEOUT = parseWaitMs(env.CACHE_WAIT_TIMEOUT, 5000);
+export const CACHE_WAIT_TIMEOUT = parseMs(env.CACHE_WAIT_TIMEOUT, 60_000, "CACHE_WAIT_TIMEOUT");
 const IGNORE_PARAMS = parseIgnoreParams(env.CACHE_IGNORE_PARAMS);
 /** Largest body worth reading or compressing for the cache: the per-body cap,
  *  and at most a quarter of the budget (raw + two compressed copies still fit,
@@ -248,11 +257,12 @@ export function computeCacheKey(url: URL, req: Request, cookies: Pick<CookieJar,
 // pushed hot pages out of the LRU. Pages (SSR and data endpoint) look such a
 // request up under the URL without those params; API routes keep the full URL.
 //
-// A request that carried them is served the plain URL's entry, but never
-// writes one: a component or metadata() may render `page.url` (a canonical
-// link, a hidden gclid field), so its HTML can hold this visitor's values.
-// An entry whose loaders read an ignored param (or the whole query) is marked
-// `queryAware` and isn't served to such requests either.
+// A request that carried them is served the plain URL's entry when there is
+// one; otherwise it caches under its full URL, as before. It never writes the
+// plain entry: a component may render `page.url` (a canonical link, a hidden
+// gclid field), so its HTML can hold this visitor's values. An entry whose
+// loaders or metadata() read an ignored param (or the whole query) is marked
+// `queryAware` and isn't served to such requests.
 
 export function isIgnoredParam(name: string): boolean {
 	if (IGNORE_PARAMS.names.has(name)) return true;
@@ -264,18 +274,17 @@ export function isIgnoredParam(name: string): boolean {
 export function stripIgnoredParams(url: URL): URL {
 	if (url.search === "") return url;
 	if (IGNORE_PARAMS.names.size === 0 && IGNORE_PARAMS.prefixes.length === 0) return url;
-	let found = false;
-	for (const name of url.searchParams.keys()) {
+	let kept: [string, string][] | null = null;
+	let i = 0;
+	for (const [name, value] of url.searchParams) {
 		if (isIgnoredParam(name)) {
-			found = true;
-			break;
-		}
+			kept ??= [...url.searchParams].slice(0, i);
+		} else if (kept) kept.push([name, value]);
+		i++;
 	}
-	if (!found) return url;
+	if (!kept) return url;
 	const out = new URL(url.href);
-	for (const name of [...out.searchParams.keys()]) {
-		if (isIgnoredParam(name)) out.searchParams.delete(name);
-	}
+	out.search = new URLSearchParams(kept).toString();
 	return out;
 }
 

@@ -16,6 +16,7 @@ import {
 	collectTags,
 	depsReadIgnoredParams,
 	markWholeQueryRead,
+	parseMs,
 	stripIgnoredParams,
 	computeCacheKey,
 	deferCacheWrite,
@@ -142,22 +143,12 @@ class LoadTimeoutError extends Error {
 	}
 }
 
-/**
- * Unset (or invalid) means the default; `0` or `Infinity` turns the timeout off.
- * A hung loader with no timeout held its URL's cache gate forever (later
- * requests waited on it and the loader never ran again), and the client only
- * saw Bun reset the connection at IDLE_TIMEOUT. The defaults sit below
- * IDLE_TIMEOUT (10s) so the client gets a 500 instead.
- */
-function parseTimeout(raw: string | undefined, fallback: number): number {
-	if (raw === undefined || raw.trim() === "") return fallback;
-	if (raw.trim() === "Infinity") return 0;
-	const n = parseInt(raw, 10);
-	return Number.isFinite(n) && n >= 0 ? n : fallback;
-}
-
-const LOAD_TIMEOUT = parseTimeout(process.env.LOAD_TIMEOUT, 5000);
-const METADATA_TIMEOUT = parseTimeout(process.env.METADATA_TIMEOUT, 3000);
+// Unset means the default; `0` or `Infinity` turns the timeout off. Unset
+// used to mean no timeout: a hung loader held its URL's cache gate (and dedup
+// slot) until restart. 30s/10s leave room for slow-but-healthy loaders; a
+// page's timer also covers its `await parent()`.
+const LOAD_TIMEOUT = parseMs(process.env.LOAD_TIMEOUT, 30_000, "LOAD_TIMEOUT");
+const METADATA_TIMEOUT = parseMs(process.env.METADATA_TIMEOUT, 10_000, "METADATA_TIMEOUT");
 
 // A plain-function load() hands back a value, not a promise; wrap it first.
 function withTimeout<T>(value: T | Promise<T>, ms: number, label: string): Promise<T> {
@@ -267,7 +258,7 @@ function stampErrorContext(
 // cache uses these records to skip re-runs on subsequent navigations
 // when none of the tracked inputs changed.
 
-function emptyDeps(): LoaderDeps {
+export function emptyDeps(): LoaderDeps {
 	return {
 		keys: [],
 		urls: [],
@@ -641,6 +632,8 @@ export async function loadMetadata(
 	locals: Record<string, any>,
 	cookies: Cookies,
 	req: Request,
+	/** Records which query params metadata() read, for the response cache. */
+	deps?: LoaderDeps,
 ): Promise<Metadata | null> {
 	if (!route.pageServer) return null;
 	try {
@@ -652,7 +645,7 @@ export async function loadMetadata(
 					mod.metadata({
 						params,
 						route: { id: route.id },
-						url,
+						url: deps ? trackedUrl(url, deps) : url,
 						locals,
 						cookies,
 						fetch,
@@ -719,18 +712,21 @@ export async function renderSSRStream(
 		!warmingUp &&
 		routeCacheable &&
 		(req.method === "GET" || req.method === "HEAD");
-	// A request with tracking params (CACHE_IGNORE_PARAMS) reads the plain
-	// URL's entry but never writes or leads one — see cache.ts.
-	const keyUrl = stripIgnoredParams(url);
-	const tracked = keyUrl !== url;
-	const cacheable = cacheRead && req.method === "GET" && !tracked;
+	const cacheable = cacheRead && req.method === "GET";
 	let cacheKey: string | null = null;
 	let releaseMiss: (() => void) | null = null;
 	if (cacheRead) {
-		cacheKey = computeCacheKey(keyUrl, req, cookies as CookieJar);
+		cacheKey = computeCacheKey(url, req, cookies as CookieJar);
 		if (!cacheBypass) {
+			// Tracking params (CACHE_IGNORE_PARAMS): the plain URL's entry first,
+			// then this URL's own, as before — see cache.ts.
+			const plainUrl = stripIgnoredParams(url);
+			if (plainUrl !== url) {
+				const plain = cacheGet(computeCacheKey(plainUrl, req, cookies as CookieJar));
+				if (plain && !plain.queryAware) return serveCached(plain, req);
+			}
 			const hit = cacheGet(cacheKey);
-			if (hit && !(tracked && hit.queryAware)) return serveCached(hit, req);
+			if (hit) return serveCached(hit, req);
 		}
 		if (cacheable && !cacheBypass) {
 			// Miss coalescing: the first miss leads the build; concurrent misses
@@ -756,7 +752,8 @@ export async function renderSSRStream(
 		// fragments all start together, and all settle before committing to a 200,
 		// so a Redirect/HttpError from any of them still gets a proper response.
 		// The page load() alone waits for metadata.data (see loadRouteData).
-		const metadataP = loadMetadata(route, params, url, locals, cookies, req).then(
+		const metaDeps = emptyDeps();
+		const metadataP = loadMetadata(route, params, url, locals, cookies, req, metaDeps).then(
 			(value) => ({ ok: true as const, value }),
 			(err: unknown) => ({ ok: false as const, err }),
 		);
@@ -1001,7 +998,10 @@ export async function renderSSRStream(
 			// re-checks as the authoritative guard.
 			if (bodyFitsCache(fullBody.length)) {
 				const tags = collectTags(data.layoutDeps ?? null, data.pageDeps ?? null);
-				const queryAware = depsReadIgnoredParams(data.layoutDeps ?? null, data.pageDeps ?? null);
+				const queryAware = depsReadIgnoredParams(
+					[...(data.layoutDeps ?? []), metaDeps],
+					data.pageDeps ?? null,
+				);
 				const keyForWrite = cacheKey;
 				// Hand the gate release to the deferred write: waiters resume only
 				// after cacheSet ran, so their re-check hits.

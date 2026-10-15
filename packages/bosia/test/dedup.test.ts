@@ -72,4 +72,23 @@ describe("dedup()", () => {
 		await expect(dedup("k3", fn)).rejects.toThrow("boom");
 		expect(calls).toBe(2);
 	});
+
+	test("a call older than maxAgeMs isn't joined, and its late finish keeps the new one", async () => {
+		let release!: () => void;
+		const stuck = dedup("k4", () => new Promise<string>((r) => (release = () => r("old"))), 20);
+		await Bun.sleep(30);
+		let runs = 0;
+		const fresh = () => {
+			runs++;
+			return new Promise<string>((r) => setTimeout(() => r("new"), 20));
+		};
+		const a = dedup("k4", fresh, 20);
+		release();
+		await stuck;
+		// The old call settled; the new one is still in flight and still joined.
+		const b = dedup("k4", fresh, 20);
+		expect(await a).toBe("new");
+		expect(await b).toBe("new");
+		expect(runs).toBe(1);
+	});
 });

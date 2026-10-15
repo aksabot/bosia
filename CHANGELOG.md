@@ -12,12 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `CACHE_MAX_BYTES` caps the response cache's memory (default 100MB); the oldest entries go first.
 - `bosia/plugins/access-log`: an opt-in access log, one line per request, written in batches.
-- `CACHE_IGNORE_PARAMS`: links with `?utm_source=…`, `?fbclid=…`, `?gclid=…` and other click params get the cached page instead of a new render per click. Pages whose `load()` reads such a param still render with it.
-- `CACHE_WAIT_TIMEOUT` (default 5s): how long a request waits for another one building the same cached response.
+- `CACHE_IGNORE_PARAMS`: links with `?utm_source=…`, `?fbclid=…`, `?gclid=…` and other click params get the cached page instead of a new render per click. Pages whose `load()` or `metadata()` reads such a param still render with it.
+- `CACHE_WAIT_TIMEOUT` (default 60s): how long a request waits for another one building the same cached response.
 
 ### Changed
 
-- `LOAD_TIMEOUT` and `METADATA_TIMEOUT` now default to 5000 and 3000 ms, as the docs said; unset meant no timeout. A loader that runs longer than 5s now fails with a 500. Set `LOAD_TIMEOUT=0` (or a higher value) to keep the old behavior.
+- `LOAD_TIMEOUT` and `METADATA_TIMEOUT` now default to 30000 and 10000 ms; unset meant no timeout (the docs said 5000/3000). A loader that runs longer than 30s (a page's time includes `await parent()`) now fails with a 500. Set `LOAD_TIMEOUT=0` to keep the old behavior.
+- Env durations (`LOAD_TIMEOUT`, `METADATA_TIMEOUT`, `CACHE_WAIT_TIMEOUT`) must be whole milliseconds; `10s` used to mean 10ms, now it warns and uses the default. `infinity` works in any case.
 - New apps no longer log every request from `hooks.server.ts`. Use your proxy's log or add `accessLog()` to `bosia.config.ts`. That template hook also set the `X-Response-Time` header and, in shop/store, `locals.requestTime` / layout `data.requestTime`; those are gone too.
 
 ### Fixed

@@ -165,5 +165,5 @@ Loader memiliki timeout yang dapat dikonfigurasi untuk mencegah response yang te
 
 | Variabel Env       | Default | Deskripsi                                                       |
 | ------------------ | ------- | --------------------------------------------------------------- |
-| `LOAD_TIMEOUT`     | `5000`  | Timeout untuk `load()` dalam ms. `0` atau `Infinity` = mati     |
-| `METADATA_TIMEOUT` | `3000`  | Timeout untuk `metadata()` dalam ms. `0` atau `Infinity` = mati |
+| `LOAD_TIMEOUT`     | `30000` | Timeout untuk `load()` dalam ms. `0` atau `Infinity` = mati     |
+| `METADATA_TIMEOUT` | `10000` | Timeout untuk `metadata()` dalam ms. `0` atau `Infinity` = mati |

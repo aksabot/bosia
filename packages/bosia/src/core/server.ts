@@ -46,6 +46,7 @@ import {
 import { dedup } from "./dedup.ts";
 import {
 	CACHE_ENABLED,
+	CACHE_WAIT_TIMEOUT,
 	bodyFitsCache,
 	buildCompressedVariants,
 	cacheGet,
@@ -65,6 +66,7 @@ import {
 import { reportDevErrorFromCatch } from "./devErrorReport.ts";
 import {
 	loadRouteData,
+	emptyDeps,
 	loadMetadata,
 	renderSSRStream,
 	renderErrorPage,
@@ -412,6 +414,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const runLoad = async () => {
 				// metadata() runs alongside the loaders; the page load() gets its
 				// `data`, as on SSR. A failure stays non-fatal here.
+				const metaDeps = emptyDeps();
 				const metaP = pageMatch
 					? loadMetadata(
 							pageMatch.route,
@@ -420,6 +423,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 							locals,
 							cookies,
 							request,
+							metaDeps,
 						).catch(() => null)
 					: Promise.resolve(null);
 				const data = await loadRouteData(
@@ -444,7 +448,12 @@ async function resolve(event: RequestEvent): Promise<Response> {
 						}
 					: null;
 
-				return { data, metadata, cookiesAccessed: (cookies as CookieJar).accessed };
+				return {
+					data,
+					metadata,
+					metaDeps,
+					cookiesAccessed: (cookies as CookieJar).accessed,
+				};
 			};
 
 			// ── Response cache for client-navigation data ──
@@ -452,26 +461,27 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			// (different masks return different slots), tag/path invalidation, and
 			// no CSP. Only GETs use it (the client router only sends GETs); a
 			// `_fresh` fetch after invalidate() skips the read only.
-			// Tracking params (CACHE_IGNORE_PARAMS) read the plain URL's entry but
-			// never write or lead one — see cache.ts.
-			const keyUrl = stripIgnoredParams(routeUrl);
-			const tracked = keyUrl !== routeUrl;
-			const cacheKey =
-				computeCacheKey(keyUrl, request, cookies as CookieJar) +
-				`|data${invalidatedBits ? `|m=${invalidatedBits}` : ""}`;
-			const dataCacheRead =
+			const keySuffix = `|data${invalidatedBits ? `|m=${invalidatedBits}` : ""}`;
+			const cacheKey = computeCacheKey(routeUrl, request, cookies as CookieJar) + keySuffix;
+			const dataCacheable =
 				CACHE_ENABLED &&
 				!CSP_ENABLED &&
 				!warmingUp &&
 				method === "GET" &&
 				pageMatch !== null &&
 				(await pageRouteCacheable(pageMatch.route));
-			const dataCacheable = dataCacheRead && !tracked;
-			if (dataCacheRead && !fresh) {
-				const hit = cacheGet(cacheKey);
-				if (hit && !(tracked && hit.queryAware)) return serveCached(hit, request);
-			}
 			if (dataCacheable && !fresh) {
+				// Tracking params (CACHE_IGNORE_PARAMS): the plain URL's entry
+				// first, then this URL's own, as before — see cache.ts.
+				const plainUrl = stripIgnoredParams(routeUrl);
+				if (plainUrl !== routeUrl) {
+					const plain = cacheGet(
+						computeCacheKey(plainUrl, request, cookies as CookieJar) + keySuffix,
+					);
+					if (plain && !plain.queryAware) return serveCached(plain, request);
+				}
+				const hit = cacheGet(cacheKey);
+				if (hit) return serveCached(hit, request);
 				const gate = coalesceMiss(cacheKey);
 				if (gate.wait) {
 					await gate.wait;
@@ -490,7 +500,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const dedupK =
 				computeCacheKey(routeUrl, request, cookies as CookieJar) +
 				(invalidatedBits ? `|m=${invalidatedBits}` : "");
-			const result = await dedup(dedupK, runLoad);
+			const result = await dedup(dedupK, runLoad, CACHE_WAIT_TIMEOUT);
 			// Identity only covers CACHE_KEYS — warn if a loader read a session
 			// cookie outside that list (dedup could then mix users' results).
 			warnUncoveredCookies(cookies);
@@ -528,7 +538,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			) {
 				const tags = collectTags(result.data.layoutDeps ?? null, result.data.pageDeps ?? null);
 				const queryAware = depsReadIgnoredParams(
-					result.data.layoutDeps ?? null,
+					[...(result.data.layoutDeps ?? []), result.metaDeps],
 					result.data.pageDeps ?? null,
 				);
 				const rel = releaseDataMiss;

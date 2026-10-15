@@ -16,6 +16,7 @@ import {
 	isIgnoredParam,
 	markWholeQueryRead,
 	parseIgnoreParams,
+	parseMs,
 	readBodyForCache,
 	serveCached,
 	stripIgnoredParams,
@@ -740,5 +741,28 @@ describe("CACHE_IGNORE_PARAMS", () => {
 		const whole = emptyDeps();
 		markWholeQueryRead(whole);
 		expect(depsReadIgnoredParams([whole], null)).toBe(true);
+	});
+});
+
+describe("parseMs", () => {
+	test("unset or blank is the fallback; 0 and Infinity mean no limit", () => {
+		expect(parseMs(undefined, 30_000, "X")).toBe(30_000);
+		expect(parseMs(" ", 30_000, "X")).toBe(30_000);
+		expect(parseMs("0", 30_000, "X")).toBe(0);
+		expect(parseMs("Infinity", 30_000, "X")).toBe(0);
+		expect(parseMs("infinity", 30_000, "X")).toBe(0);
+		expect(parseMs(" 2500 ", 30_000, "X")).toBe(2500);
+	});
+
+	test("a value that isn't whole milliseconds warns and uses the fallback", () => {
+		const warn = console.warn;
+		const seen: string[] = [];
+		console.warn = (msg: string) => seen.push(msg);
+		try {
+			for (const v of ["10s", "1e4", "-1", "2.5"]) expect(parseMs(v, 7, "X")).toBe(7);
+		} finally {
+			console.warn = warn;
+		}
+		expect(seen.length).toBe(4);
 	});
 });

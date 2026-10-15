@@ -224,5 +224,5 @@ Loaders have configurable timeouts to prevent hung responses:
 
 | Env Variable       | Default | Description                                             |
 | ------------------ | ------- | ------------------------------------------------------- |
-| `LOAD_TIMEOUT`     | `5000`  | Timeout for `load()` in ms. `0` or `Infinity` = off     |
-| `METADATA_TIMEOUT` | `3000`  | Timeout for `metadata()` in ms. `0` or `Infinity` = off |
+| `LOAD_TIMEOUT`     | `30000` | Timeout for `load()` in ms. `0` or `Infinity` = off     |
+| `METADATA_TIMEOUT` | `10000` | Timeout for `metadata()` in ms. `0` or `Infinity` = off |
