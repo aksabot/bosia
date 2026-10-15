@@ -10,10 +10,11 @@ export const prerender = true;
 
 export function entries(): Record<string, string>[] {
 	const contentDir = join(process.cwd(), "content", "docs");
-	// A locale with its own landing route (src/routes/id) serves `/<locale>` itself.
+	// A locale with its own landing page (src/routes/id/+page.svelte) serves `/<locale>` itself;
+	// a folder holding only sub-routes doesn't.
 	const hasLanding = (slug: string) =>
 		(LOCALES as readonly string[]).includes(slug) &&
-		existsSync(join(process.cwd(), "src", "routes", slug));
+		existsSync(join(process.cwd(), "src", "routes", slug, "+page.svelte"));
 	const slugs: Record<string, string>[] = [];
 
 	function scan(dir: string, prefix: string) {

@@ -29,6 +29,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `MAX_INFLIGHT` in `.env` no longer makes prerender fail with random `answered 503` errors.
 - When a page fails prerender, its slow data request is stopped instead of waited for.
 - A prerender error with no message shows its type, like `TypeError`, instead of `{}`.
+- A failed prerender ends about 10s sooner: the build server is stopped instead of drained.
+- `IDLE_TIMEOUT` and `LOAD_TIMEOUT` in `.env` no longer cut slow loaders during prerender.
+- `PRERENDER_TIMEOUT` now also sets the loader time limit while prerendering.
+- A data request that times out says `data timed out`, so you know which request was slow.
+- A server that's slow to start says "not ready within 10s" instead of looking like a crash.
 
 ## [1.2.4] - 2026-10-14
 

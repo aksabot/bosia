@@ -187,6 +187,8 @@ export function prerenderDataProblem(body: string): string | null {
 	if (!data || typeof data !== "object") return "answered a body that isn't a data payload";
 	const { redirect, status, error } = data as Record<string, any>;
 	if (redirect != null) return `answered redirect ${status ?? "?"} → ${redirect}`;
+	// The server sends a data error with its own status, which prerenderReplyProblem rejects
+	// first; this catches a hook that answers a data request with its own 200 `{ error }`.
 	if (error != null) return `answered error ${error?.status ?? "?"}`;
 	return null;
 }
@@ -222,8 +224,23 @@ export function describeError(err: unknown, depth = 0): string {
 	return out;
 }
 
-/** A prerender reply that can't be saved; its message is prerenderReplyProblem's. */
+/** A prerender fetch that can't be saved; its message says why (a reply, a timeout, a reset). */
 class ReplyProblem extends Error {}
+
+/** Why a prerender fetch threw: a timeout names the env var that raises it. */
+function fetchFailure(err: unknown): string {
+	if (err instanceof DOMException && err.name === "TimeoutError")
+		return `timed out after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`;
+	return `failed: ${describeError(err)}`;
+}
+
+/**
+ * Cancels a reply's unread body so its socket is freed. cancel() rejects once the stream has
+ * errored (a timeout fired), and that must not replace the real problem.
+ */
+async function dropBody(res: Response): Promise<void> {
+	await res.body?.cancel().catch(() => {});
+}
 
 /** A dynamic prerender route whose entries() can't be used. build.ts prints `message` and exits. */
 export class PrerenderEntriesError extends Error {
@@ -430,10 +447,13 @@ export async function prerenderStaticRoutes(
 			...env,
 			NODE_ENV: "production",
 			PORT: String(port),
-			// MAX_INFLIGHT sheds live traffic with a 503; the build's own requests (a page and
-			// its data, PRERENDER_CONCURRENCY at once) would fail the build. Set, not removed:
-			// Bun would load it back from .env.
+			// Live-traffic limits from .env, set rather than removed (Bun would load them back).
+			// MAX_INFLIGHT would 503 the build's own requests (a page and its data,
+			// PRERENDER_CONCURRENCY at once); IDLE_TIMEOUT (Bun's max is 255s) and LOAD_TIMEOUT
+			// would cut a loader that PRERENDER_TIMEOUT allows, so that one limit rules the build.
 			MAX_INFLIGHT: "infinity",
+			IDLE_TIMEOUT: "255",
+			LOAD_TIMEOUT: String(PRERENDER_TIMEOUT),
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
 		stdout: "ignore",
@@ -463,7 +483,7 @@ export async function prerenderStaticRoutes(
 		const deadline = Date.now() + 10_000;
 		while (Date.now() < deadline && !exited) {
 			try {
-				const res = await fetch(`${base}/_health`);
+				const res = await fetch(`${base}${HEALTH_PATH}`);
 				if (res.ok) {
 					ready = true;
 					break;
@@ -475,7 +495,10 @@ export async function prerenderStaticRoutes(
 		}
 
 		if (!ready || exited) {
-			const why = child.signalCode ?? `exit code ${child.exitCode ?? "none"}`;
+			// Alive but never healthy (slow hooks init, a bad BASE_PATH) is not a crash.
+			const why = exited
+				? (child.signalCode ?? `exit code ${child.exitCode}`)
+				: "not ready within 10s";
 			// Returning here would ship a build with every prerendered page missing.
 			throw new PrerenderEntriesError(
 				`❌ Prerender server failed to start (${why})` +
@@ -499,18 +522,22 @@ export async function prerenderStaticRoutes(
 			// `stop` ends a page's data fetch once the page itself has failed.
 			const stop = new AbortController();
 			const fail = (why: string) => failures.push(`❌ Prerender: ${targetLabel(t)} ${why}`);
-			// Fetches `url` and reads its body, or throws a ReplyProblem. A bad reply's unread body
-			// is cancelled so its socket is freed; cancel() rejects once the stream has errored (a
-			// timeout fired), and that must not replace the real problem.
+			// Fetches `url` and reads its body. Any failure (a bad reply, a timeout, a reset) is
+			// thrown as a ReplyProblem carrying `label`, so a data fetch's says "data".
 			const fetchText = async (url: string, as: "page" | "api", label = "") => {
-				const res = await fetch(url, {
-					redirect: "manual",
-					signal: AbortSignal.any([AbortSignal.timeout(PRERENDER_TIMEOUT), stop.signal]),
-				});
-				const problem = prerenderReplyProblem(as, res);
-				if (!problem) return res.text();
-				await res.body?.cancel().catch(() => {});
-				throw new ReplyProblem(label + problem);
+				try {
+					const res = await fetch(url, {
+						redirect: "manual",
+						signal: AbortSignal.any([AbortSignal.timeout(PRERENDER_TIMEOUT), stop.signal]),
+					});
+					const problem = prerenderReplyProblem(as, res);
+					if (!problem) return await res.text();
+					await dropBody(res);
+					throw new ReplyProblem(label + problem);
+				} catch (err) {
+					if (err instanceof ReplyProblem) throw err;
+					throw new ReplyProblem(label + fetchFailure(err));
+				}
 			};
 			try {
 				if (kind === "api") {
@@ -557,15 +584,7 @@ export async function prerenderStaticRoutes(
 				writeFileSync(dataOutPath, dataJson);
 				console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
 			} catch (err) {
-				if (err instanceof ReplyProblem) {
-					fail(err.message);
-				} else if (err instanceof DOMException && err.name === "TimeoutError") {
-					fail(
-						`timed out after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`,
-					);
-				} else {
-					fail(`failed: ${describeError(err)}`);
-				}
+				fail(err instanceof ReplyProblem ? err.message : fetchFailure(err));
 			}
 		};
 
@@ -598,7 +617,7 @@ export async function prerenderStaticRoutes(
 				// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
 				const problem = prerenderReplyProblem("page", res, 404);
 				if (problem) {
-					await res.body?.cancel();
+					await dropBody(res);
 					throw new Error(`an unknown URL ${problem}`);
 				}
 				mkdirSync(`${OUT_DIR}/static`, { recursive: true });
@@ -622,7 +641,11 @@ export async function prerenderStaticRoutes(
 		if (targets.length) console.log("✅ Prerendering complete");
 	} finally {
 		for (const sig of signals) process.off(sig, onSignal);
+		// SIGTERM drains in-flight requests for up to 10s (server.bun.ts), and an aborted fetch
+		// doesn't stop its loader. Nothing here needs that drain: give it 1s, then SIGKILL.
 		child.kill();
+		const stopped = await Promise.race([child.exited.then(() => true), Bun.sleep(1000)]);
+		if (!stopped) child.kill("SIGKILL");
 		await child.exited;
 		if (receivedSignal) {
 			// Re-raise so parent exit code is 128+signum (standard Unix convention)

@@ -25,6 +25,9 @@
 - [x] 🟡 Review 3: the prerender child inherited `MAX_INFLIGHT` (.env), so with the page+data fetch pair its own requests got 503s and the build failed at random. Child now sets it to `infinity` (Bun reloads .env if removed).
 - [x] ⚪ Review 3: a failed page aborts its data fetch (shared `AbortController`); cancel() errors are ignored so they can't replace the real ❌; one `fetchText` helper; describeError shows an Error's name and number codes.
 - [x] ⚪ Review 3: one server-start throw; parallel test allows 1s; docs skip a locale slug only if `src/routes/<locale>` exists.
+- [x] ⚪ Review 4: prerender child SIGKILLed 1s after SIGTERM (its drain waited 10s for aborted loaders); `IDLE_TIMEOUT=255` and `LOAD_TIMEOUT=PRERENDER_TIMEOUT` in the child (Bun's idle timer is coarse, ~4-5s at 1).
+- [x] ⚪ Review 4: data fetch errors carry `data` (timeouts too); 404 probe drops its body via `dropBody`; ready poll uses `HEALTH_PATH`, says "not ready within 10s"; docs check `<locale>/+page.svelte`.
+- [ ] ⚪ The 10s prerender server ready deadline is fixed; make it an env var if a slow hooks `init()` hits it. `METADATA_TIMEOUT` (3s) still applies at build.
 - [ ] ⚪ `findMisownedTargets` copies `matchRoutes`' API-first order; move it into a pure helper both call, so a routing change can't skip the check.
 - [ ] ⚪ The owner check ignores an API's `x.json` alias (`/api/x.json` served by `/api/[slug]`); a narrow case, add it if anyone hits it.
 - [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.

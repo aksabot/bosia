@@ -258,18 +258,23 @@ describe("a build whose prerendered routes answer badly", () => {
 			// turns that into a 200 JSON `{ redirect }`, which must not be saved as its data.
 			"src/routes/guarded/+page.svelte": "<h1>Guarded</h1>\n",
 			"src/routes/guarded/+page.server.ts": prerendered(),
+			// The page answers at once, but its data request hangs past PRERENDER_TIMEOUT.
+			"src/routes/hang/+page.svelte": "<h1>Hang</h1>\n",
+			"src/routes/hang/+page.server.ts": prerendered(),
 			"src/hooks.server.ts":
 				`export const handle = async ({ event, resolve }: any) => {\n` +
 				`\tif (event.isDataRequest && event.url.pathname === "/nodata")\n` +
 				`\t\treturn new Response("nope", { status: 500 });\n` +
 				`\tif (event.isDataRequest && event.url.pathname === "/guarded")\n` +
 				`\t\treturn new Response(null, { status: 307, headers: { location: "/login" } });\n` +
+				`\tif (event.isDataRequest && event.url.pathname === "/hang")\n` +
+				`\t\tawait Bun.sleep(10_000);\n` +
 				`\treturn resolve(event);\n};\n`,
 			// `/[slug]` answers the 404 probe with a page, and wrangler needs 404.html: that
 			// failure is listed with the pages, not thrown before them.
 			"wrangler.toml": `not_found_handling = "404-page"\n`,
 		});
-		result = await build(dir);
+		result = await build(dir, { PRERENDER_TIMEOUT: "3000" });
 	}, 180_000);
 
 	afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -288,6 +293,7 @@ describe("a build whose prerendered routes answer badly", () => {
 			"a page whose data request redirects",
 			"❌ Prerender: /guarded data answered redirect 307 → /login",
 		],
+		["a page whose data request hangs", "❌ Prerender: /hang data timed out after 3s"],
 		["the 404 page wrangler needs", "❌ 404.html could not be built (an unknown URL answered 200)"],
 	];
 	for (const [why, line] of EXPECT)
@@ -297,7 +303,14 @@ describe("a build whose prerendered routes answer badly", () => {
 		});
 
 	test("saves none of them", () => {
-		for (const file of ["boom.html", "gone.html", "private.html", "nodata.html", "guarded.html"])
+		for (const file of [
+			"boom.html",
+			"gone.html",
+			"private.html",
+			"nodata.html",
+			"guarded.html",
+			"hang.html",
+		])
 			expect(existsSync(join(dir, "dist/prerendered", file))).toBe(false);
 	});
 });
@@ -328,9 +341,9 @@ test("a prerender server that crashes on boot fails the build", async () => {
 // (one after the other, the second would start 1.2s later; under 1s leaves room for a slow CI).
 test("a slow loader's page and data are fetched side by side, within the timeout", async () => {
 	const dir = fixture("slow", {
-		// MAX_INFLIGHT is for live traffic; the prerender server must not shed its own two
-		// requests with a 503.
-		".env": "MAX_INFLIGHT=1\n",
+		// Live-traffic limits: MAX_INFLIGHT must not shed the build's own two requests with a
+		// 503, and LOAD_TIMEOUT must not cut a loader PRERENDER_TIMEOUT allows.
+		".env": "MAX_INFLIGHT=1\nLOAD_TIMEOUT=500\n",
 		"src/routes/slow/+page.svelte": "<h1>Slow</h1>\n",
 		"src/routes/slow/+page.server.ts": prerendered(
 			`import { appendFileSync } from "fs";\n` +
@@ -353,10 +366,30 @@ test("a slow loader's page and data are fetched side by side, within the timeout
 	}
 }, 180_000);
 
+// Bun's idle timer is coarse: IDLE_TIMEOUT=1 closes a silent request after ~4-5s, so the
+// loader sleeps 6s (the side-by-side test above is too fast to reach it).
+test("IDLE_TIMEOUT from .env doesn't cut a loader PRERENDER_TIMEOUT allows", async () => {
+	const dir = fixture("idle", {
+		".env": "IDLE_TIMEOUT=1\n",
+		"src/routes/idle/+page.svelte": "<h1>Idle</h1>\n",
+		"src/routes/idle/+page.server.ts": prerendered(
+			`export async function load() {\n\tawait Bun.sleep(6000);\n\treturn {};\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, { PRERENDER_TIMEOUT: "10000" });
+		expect(out).not.toContain("❌");
+		expect(code).toBe(0);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
 // ─── A failed page stops its data fetch ──────────────────
 
 // A hook fails the page at once, but its data request runs a 20s loader. The build reports the
-// page without waiting for that loader (PRERENDER_TIMEOUT is 60s, so only the stop ends it).
+// page without waiting for that loader (PRERENDER_TIMEOUT is 60s, so only the stop ends it),
+// and stops the server without draining it.
 test("a page that fails fast doesn't wait for its slow data", async () => {
 	const dir = fixture("stopdata", {
 		"src/routes/half/+page.svelte": "<h1>Half</h1>\n",
@@ -375,7 +408,8 @@ test("a page that fails fast doesn't wait for its slow data", async () => {
 		const lines = out.split("\n").filter((l) => l.startsWith("❌ Prerender: /half"));
 		expect(lines).toEqual(["❌ Prerender: /half answered 500"]);
 		expect(code).toBe(1);
-		expect(Date.now() - started).toBeLessThan(15_000);
+		// The build itself takes ~1s; the server must not drain the 20s loader for 10s.
+		expect(Date.now() - started).toBeLessThan(6_000);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
