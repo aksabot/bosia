@@ -31,6 +31,13 @@
 - [x] 🟡 Review 6: per-fetch limit on the ready check (a stuck hook hung it); PRERENDER_TIMEOUT/CONCURRENCY must be whole 1..2^31-1 (0.5 = no workers, >2^31 fires setTimeout at once). Probe errors use `fetchFailure`.
 - [x] 🟡 Review 7: a page or API reply may be any 2xx again (exact 200 broke a 203 API that `main` saved).
 - [x] 🟡 Review 8: a 204/205 reply fails prerender (any-2xx saved it as an empty page).
+- [x] 🟡 Review 13: a server that exits with every page saved no longer fails the build (the 404 probe says it stopped). The exit is checked after a broken or timed-out page, Workers too; a probe timeout keeps its hint.
+- [x] ⚪ Review 12: crash line says `e.g. /p/x` (with several in flight, the first to fail isn't the culprit); a test pins hex/binary/octal as accepted, as in 1.2.4.
+- [x] 🟡 Review 12: a server that dies with no broken page (its pages timed out, or during the 404 probe) is still reported. The child's LOAD/METADATA_TIMEOUT are off (`Infinity`): equal to PRERENDER_TIMEOUT they raced it.
+- [x] 🟡 Review 11: a timeout keeps its own line when the server later dies; only broken connections fold into the crash line. All-fail test: 150 pages, under 10s.
+- [x] 🟡 Review 10: crash is checked once after all pages (1s grace), not a 100ms race per fetch, so a slow-reaped crash is still one line. Settings use Number() again (`1e3`, `5000.0` worked in 1.2.4).
+- [x] ⚪ Review 9: `fetchFailure` gets the checked timeout; roadmap says finish order, not worker-pool.
+- [x] 🟡 Review 9: a stopped data fetch no longer holds its slot for a 100ms crash check (every-page-fails build at 1 slot: 8.9s → 0.5s).
 - [x] ⚪ Review 8: a crashed prerender server is one ❌ with its exit code; request slots are the only limit (no worker pool); reply check takes `expect: "ok" | 404`; text `{error}` shown; 1.2.5 changelog lists only changes from 1.2.4.
 - [x] ⚪ Review 7: 404 probe follows only its own slash form (`/login` is named); DOMException number codes dropped; parallel-start test allows 1.2s. A failed data fetch still waits for its page (kept: stopping it made the ❌ line random).
 - [ ] ⚪ Each prerendered page runs its loaders twice (HTML, then data JSON): double API calls, and the two can disagree. Render once and take the JSON from the SSR payload.
@@ -41,7 +48,18 @@
 - [ ] ⚪ The owner check ignores an API's `x.json` alias (`/api/x.json` served by `/api/[slug]`); a narrow case, add it if anyone hits it.
 - [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.
 - [ ] ⚪ `PrerenderEntriesError` now also carries reply/timeout/server-start failures; rename to `PrerenderError` (exported name).
-- [ ] ⚪ The ❌ reply lines print in worker-pool order, not route order; sort them if it confuses anyone.
+- [ ] ⚪ When the prerender server died, page timeout lines still say "increase PRERENDER_TIMEOUT"; drop the hint when the crash is the cause.
+- [ ] ⚪ A 404 probe that times out because a hook blocked and then crashed the server shows the timeout hint, not the exit code; check the exit after a probe timeout too.
+- [ ] ⚪ The prerender child turns LOAD/METADATA_TIMEOUT off with the exact string `Infinity` (renderer's parseTimeout); `0` or `infinity` means 5000. Share one documented "off" value.
+- [ ] ⚪ The "no load or metadata limit" test checks env strings only; test the effect (a 300ms loader with `.env` LOAD_TIMEOUT=100 is still saved).
+- [ ] ⚪ A stopped data fetch's AbortError is classed as a broken connection; harmless now (the page's error wins), but check `stop.signal.aborted` first.
+- [ ] ⚪ A timed-out prerender fetch frees its slot while its loader keeps running, so a hung API call can exceed PRERENDER_CONCURRENCY; note it in the docs or wait for the loader.
+- [ ] ⚪ The "dies after its pages time out" test comment says the exit lands during the 404 probe; it's now caught by the check after the pages.
+- [ ] ⚪ The ❌ reply lines print in the order fetches finish (broken-connection lines last), not route order; sort them if it confuses anyone.
+- [ ] ⚪ Any non-timeout fetch error (a bad gzip body too) counts as a broken connection, so it folds into the crash line if the server also dies; match reset/refused codes only.
+- [ ] ⚪ The prerender server gets SIGKILL 1s after SIGTERM even on success, cutting an app's own slow `process.on("SIGTERM")` handler; only force it when the build failed.
+- [ ] ⚪ "Did the child exit within N ms" is written out in dev.ts twice, beside prerender's local `exitsWithin`; share one helper.
+- [ ] ⚪ Env integers are parsed by hand in 4 places (prerender, renderer, cache, assetCache) with different rules; share one `parseIntEnv(name, {min, max, fallback})`.
 
 ## bosia 1.2.4 (2026-10-14) — prerender `entries()` value fixes
 

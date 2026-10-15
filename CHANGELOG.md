@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prerender fails the build when a page answers an error, a redirect or a non-HTML file.
 - A prerendered page or API may answer any 2xx, but not 204 or 205 (an empty file).
 - Prerender fails when another route serves a slug's URL, like `/blog/[slug]` giving `new`.
-- `PRERENDER_TIMEOUT` also limits `load()` and `metadata()` while prerendering.
+- `PRERENDER_TIMEOUT` is the only time limit while prerendering; the server's own are off.
 - `PRERENDER_CONCURRENCY` counts requests: a page and its data are two, each running `load()`.
 
 ### Fixed

@@ -52,12 +52,13 @@ export function needsStatic404(cwd = process.cwd()): boolean {
 	return false;
 }
 
-// Up to 2^31-1: the child's LOAD_TIMEOUT is a setTimeout, which fires at once above that.
+// Up to 2^31-1 (about 24 days), the longest delay a timer takes as written.
 const SETTING_MAX = 2_147_483_647;
 
 /** A whole number from 1 to SETTING_MAX, `fallback` when unset, null when anything else. */
 export function prerenderSetting(raw: string | undefined, fallback: number): number | null {
 	if (raw === undefined || raw.trim() === "") return fallback;
+	// Number(), as in 1.2.4: `1e3` and `5000.0` keep working.
 	const n = Number(raw);
 	return Number.isInteger(n) && n >= 1 && n <= SETTING_MAX ? n : null;
 }
@@ -243,10 +244,12 @@ export function describeError(err: unknown, depth = 0): string {
 /** A prerender fetch that can't be saved; its message says why (a reply, a timeout, a reset). */
 class ReplyProblem extends Error {}
 
+const isTimeout = (err: unknown) => err instanceof DOMException && err.name === "TimeoutError";
+
 /** Why a prerender fetch threw: a timeout names the env var that raises it. */
-function fetchFailure(err: unknown): string {
-	if (err instanceof DOMException && err.name === "TimeoutError")
-		return `timed out after ${PRERENDER_TIMEOUT! / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`;
+function fetchFailure(err: unknown, timeout: number): string {
+	if (isTimeout(err))
+		return `timed out after ${timeout / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`;
 	return `failed: ${describeError(err)}`;
 }
 
@@ -439,7 +442,7 @@ export async function prerenderStaticRoutes(
 	manifest: RouteManifest,
 	target: RuntimeTarget = "bun",
 ): Promise<void> {
-	// A bad value would build zero workers (every page silently skipped) or make every fetch throw.
+	// A bad value would leave every page waiting for a request slot, or make every fetch throw.
 	const bad = (
 		[
 			["PRERENDER_TIMEOUT", PRERENDER_TIMEOUT],
@@ -485,11 +488,12 @@ export async function prerenderStaticRoutes(
 			// MAX_INFLIGHT would 503 the build's own requests (a page and its data,
 			// PRERENDER_CONCURRENCY at once); IDLE_TIMEOUT (0 = off) and LOAD_TIMEOUT would cut a
 			// loader that PRERENDER_TIMEOUT allows, and METADATA_TIMEOUT would save the page without
-			// its metadata (a timeout there is swallowed), so that one limit rules the build.
+			// its metadata (a timeout there is swallowed). All off, so PRERENDER_TIMEOUT alone rules
+			// the build: an equal server limit would race it, and its 500 would hide the hint.
 			MAX_INFLIGHT: "infinity",
 			IDLE_TIMEOUT: "0",
-			LOAD_TIMEOUT: String(timeout),
-			METADATA_TIMEOUT: String(timeout),
+			LOAD_TIMEOUT: "Infinity",
+			METADATA_TIMEOUT: "Infinity",
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
 		stdout: "ignore",
@@ -500,6 +504,9 @@ export async function prerenderStaticRoutes(
 	// watch `exited` instead.
 	let exited = false;
 	child.exited.then(() => (exited = true));
+	const exitsWithin = (ms: number) =>
+		Promise.race([child.exited.then(() => true), Bun.sleep(ms).then(() => false)]);
+	const stopReason = () => child.signalCode ?? `exit code ${child.exitCode}`;
 
 	const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 	let receivedSignal: NodeJS.Signals | null = null;
@@ -535,9 +542,7 @@ export async function prerenderStaticRoutes(
 
 		if (!ready || exited) {
 			// Alive but never healthy (slow hooks init, a bad BASE_PATH) is not a crash.
-			const why = exited
-				? (child.signalCode ?? `exit code ${child.exitCode}`)
-				: "not ready within 10s";
+			const why = exited ? stopReason() : "not ready within 10s";
 			// Returning here would ship a build with every prerendered page missing.
 			throw new PrerenderEntriesError(
 				`❌ Prerender server failed to start (${why})` +
@@ -552,12 +557,16 @@ export async function prerenderStaticRoutes(
 
 		// Every target that can't be saved; the build fails with all of them once the pool drains.
 		const failures: string[] = [];
-		// Pages whose fetch failed because the server had died (a loader that exits or runs out
-		// of memory): one line names the exit, instead of a connection error for each.
-		const lost: string[] = [];
-		class ServerGone extends Error {}
-		const serverGone = () =>
-			Promise.race([child.exited.then(() => true), Bun.sleep(100).then(() => false)]);
+		// Pages whose connection broke (a reset, a refused connect), with their ❌ line. If the
+		// server turns out to have died (a loader that exits or runs out of memory), one line
+		// names the exit instead. A timeout isn't one: a dead server resets its connections, it
+		// doesn't leave them hanging, so a timeout keeps its own line and hint.
+		const connLost: { route: string; line: string }[] = [];
+		class ConnLost extends ReplyProblem {}
+		// A timeout can mean a loader stuck the server, which may die next: counted, so the
+		// check after the pages waits for that too.
+		class TimedOut extends ReplyProblem {}
+		let timedOut = 0;
 		// PRERENDER_CONCURRENCY counts requests, not pages: a page's HTML and data each run its
 		// loaders, so N slots keep N loader runs at once (a cap users set for rate-limited APIs).
 		let free = concurrency;
@@ -579,7 +588,8 @@ export async function prerenderStaticRoutes(
 			// loader runs) one PRERENDER_TIMEOUT between them.
 			// `stop` ends a page's data fetch once the page itself has failed.
 			const stop = new AbortController();
-			const fail = (why: string) => failures.push(`❌ Prerender: ${targetLabel(t)} ${why}`);
+			const line = (why: string) => `❌ Prerender: ${targetLabel(t)} ${why}`;
+			const fail = (why: string) => failures.push(line(why));
 			// Fetches `url` and reads its body. Any failure (a bad reply, a timeout, a reset) is
 			// thrown as a ReplyProblem carrying `label`, so a data fetch's says "data".
 			// The timeout starts once a slot is free, so time spent queued isn't counted.
@@ -597,8 +607,8 @@ export async function prerenderStaticRoutes(
 					throw new ReplyProblem(label + problem);
 				} catch (err) {
 					if (err instanceof ReplyProblem) throw err;
-					if (await serverGone()) throw new ServerGone();
-					throw new ReplyProblem(label + fetchFailure(err));
+					const why = label + fetchFailure(err, timeout);
+					throw isTimeout(err) ? new TimedOut(why) : new ConnLost(why);
 				} finally {
 					release();
 				}
@@ -648,19 +658,27 @@ export async function prerenderStaticRoutes(
 				writeFileSync(dataOutPath, dataJson);
 				console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
 			} catch (err) {
-				if (err instanceof ServerGone) lost.push(routePath);
-				else fail(err instanceof ReplyProblem ? err.message : fetchFailure(err));
+				const why = err instanceof ReplyProblem ? err.message : fetchFailure(err, timeout);
+				if (err instanceof TimedOut) timedOut++;
+				if (err instanceof ConnLost) connLost.push({ route: routePath, line: line(why) });
+				else fail(why);
 			}
 		};
 
 		// Every page starts at once; the request slots above are the only limit, and they're
 		// handed out in target order (a page's HTML, then its data).
 		await Promise.all(targets.map(prerenderOne));
-		if (lost.length)
-			failures.push(
-				`❌ The prerender server stopped (${child.signalCode ?? `exit code ${child.exitCode}`}); ` +
-					`${lost.length} page(s) not built, first ${lost[0]}`,
-			);
+		// Checked once, after the pages, and only when a page broke or timed out: the exit can
+		// land well after the errors it causes, so a dead server gets up to 1s to show it. A
+		// server that dies with every page saved lost nothing; the 404 probe says so if it hits it.
+		const died = connLost.length + timedOut > 0 && (await exitsWithin(1000));
+		if (died) {
+			// An example, not the culprit: a crash breaks every page in flight at once.
+			const pages = connLost.length
+				? `; ${connLost.length} page(s) not built, e.g. ${connLost[0]!.route}`
+				: "";
+			failures.push(`❌ The prerender server stopped (${stopReason()})${pages}`);
+		} else failures.push(...connLost.map((f) => f.line));
 
 		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
 		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
@@ -670,7 +688,7 @@ export async function prerenderStaticRoutes(
 		// would only add that soft 404. A public/404.html overwrites it.
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
 		// A server that died is already reported, and the probe would only fail too.
-		if (target !== "workers" && !lost.length)
+		if (target !== "workers" && !died)
 			try {
 				// Follows only its own slash form, unlike the pages: a catch-all `always` page 308s
 				// the probe to `/__bosia-404-probe/`, and its 404 there is the page a static host
@@ -695,9 +713,15 @@ export async function prerenderStaticRoutes(
 				writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
 				console.log(`   ✅ 404 page → ${OUT_DIR}/static/404.html`);
 			} catch (err) {
+				// A broken connection (not a timeout, as with pages) may mean the server died.
+				const gone = !(err instanceof ReplyProblem) && !isTimeout(err) && (await exitsWithin(1000));
+				const reason = gone
+					? `the prerender server stopped (${stopReason()})`
+					: err instanceof ReplyProblem
+						? err.message
+						: fetchFailure(err, timeout);
 				// Only a deploy that serves 404.html needs it; elsewhere (an app whose
 				// hooks redirect every request) a missing one is fine, so just warn.
-				const reason = err instanceof ReplyProblem ? err.message : fetchFailure(err);
 				// Listed with the page failures, so one build shows every problem.
 				if (require404)
 					failures.push(
@@ -715,7 +739,7 @@ export async function prerenderStaticRoutes(
 		// SIGTERM drains in-flight requests for up to 10s (server.bun.ts), and an aborted fetch
 		// doesn't stop its loader. Nothing here needs that drain: give it 1s, then SIGKILL.
 		child.kill();
-		const stopped = await Promise.race([child.exited.then(() => true), Bun.sleep(1000)]);
+		const stopped = await exitsWithin(1000);
 		if (!stopped) child.kill("SIGKILL");
 		await child.exited;
 		if (receivedSignal) {

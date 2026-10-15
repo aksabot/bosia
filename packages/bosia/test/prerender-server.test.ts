@@ -147,6 +147,21 @@ describe("prerenderSetting()", () => {
 		for (const raw of ["0", "-1", "0.5", "1.5", "Infinity", "abc", "2147483648", "1e12"])
 			expect(prerenderSetting(raw, 6)).toBeNull();
 	});
+	// 1.2.4 read these with Number(), so an existing .env keeps working.
+	test("other ways of writing a whole number are kept", () => {
+		expect(prerenderSetting("1e3", 6)).toBe(1000);
+		expect(prerenderSetting("5000.0", 6)).toBe(5000);
+		expect(prerenderSetting("+5", 6)).toBe(5);
+	});
+	// Also as in 1.2.4, and kept on purpose: hex, binary and octal are whole numbers to Number().
+	test("hex, binary and octal are read as numbers", () => {
+		expect(prerenderSetting("0x10", 6)).toBe(16);
+		expect(prerenderSetting("0b101", 6)).toBe(5);
+		expect(prerenderSetting("0o7", 6)).toBe(7);
+	});
+	test("spaces around the digits are fine", () => {
+		expect(prerenderSetting(" 30 ", 6)).toBe(30);
+	});
 });
 
 describe("describeError()", () => {
@@ -505,6 +520,33 @@ test("a page that fails fast doesn't wait for its slow data", async () => {
 	}
 }, 180_000);
 
+// Every page fails, so every data fetch is stopped. A stopped fetch must give its slot back at
+// once: a 100ms wait each (an old check for a dead server) would add 15s over 150 pages at 1 slot.
+test("stopped data fetches don't hold up a build where every page fails", async () => {
+	const many = Array.from({ length: 150 }, (_, i) => `s${i}`);
+	const dir = fixture("allfail", {
+		"src/routes/p/[slug]/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/p/[slug]/+page.server.ts": prerendered(slugs(...many)),
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (!event.isDataRequest && event.url.pathname.startsWith("/p/"))\n` +
+			`\t\treturn new Response("down", { status: 500 });\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const started = Date.now();
+		const { code, out } = await build(dir, { PRERENDER_CONCURRENCY: "1" });
+		const lines = out.split("\n").filter((l) => l.startsWith("❌ Prerender:"));
+		expect(lines.length).toBe(150);
+		expect(lines.every((l) => l.endsWith(" answered 500"))).toBe(true);
+		expect(code).toBe(1);
+		// The build itself takes about a second; a 100ms wait per page alone would add 15s.
+		expect(Date.now() - started).toBeLessThan(10_000);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
 // ─── The 404 probe follows the server's 308 ──────────────
 
 // A catch-all `always` page 308s the probe to its slash form, where its 404 is the page a
@@ -642,6 +684,112 @@ test("the 404 probe names a redirect to another page", async () => {
 	}
 }, 180_000);
 
+// A timeout from before the crash is its own problem: a dead server resets its connections,
+// it doesn't leave them hanging. Its line stays, and the crash line counts only broken pages.
+test("a timeout before the server dies keeps its own line", async () => {
+	const dir = fixture("crashslow", {
+		"src/routes/p/[slug]/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/p/[slug]/+page.server.ts": prerendered(
+			slugs("slow", "crash", "c") +
+				`export async function load({ params }: any) {\n` +
+				`\tif (params.slug === "slow") await Bun.sleep(3000);\n` +
+				`\tif (params.slug === "crash") process.exit(3);\n` +
+				`\treturn {};\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, {
+			PRERENDER_CONCURRENCY: "1",
+			PRERENDER_TIMEOUT: "500",
+		});
+		const lines = out.split("\n").filter((l) => l.includes("❌"));
+		expect(lines).toEqual([
+			"❌ Prerender: /p/slow (from /p/[slug]) timed out after 0.5s — increase PRERENDER_TIMEOUT to raise the limit",
+			"❌ The prerender server stopped (exit code 3); 2 page(s) not built, e.g. /p/crash",
+		]);
+		expect(code).toBe(1);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// A loader that blocks the server and then kills it: its page times out (the server is alive
+// but stuck), and the exit lands later, during the 404 probe. The exit is still reported.
+test("a server that dies after its pages time out is reported", async () => {
+	const dir = fixture("crashblock", {
+		"src/routes/p/[slug]/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/p/[slug]/+page.server.ts": prerendered(
+			slugs("block") +
+				`export async function load() {\n` +
+				`\tconst end = Date.now() + 1500;\n` +
+				`\twhile (Date.now() < end) {}\n` +
+				`\tprocess.exit(3);\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, {
+			PRERENDER_CONCURRENCY: "1",
+			PRERENDER_TIMEOUT: "1000",
+		});
+		const lines = out.split("\n").filter((l) => l.includes("❌") || l.includes("404.html"));
+		expect(lines).toEqual([
+			"❌ Prerender: /p/block (from /p/[slug]) timed out after 1s — increase PRERENDER_TIMEOUT to raise the limit",
+			"❌ The prerender server stopped (exit code 3)",
+		]);
+		expect(code).toBe(1);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// Every page is saved, then the server exits while the 404 probe waits. Nothing built was
+// lost, so the build passes; only the 404 page is skipped, and it says why.
+test("a server that exits after every page is saved doesn't fail the build", async () => {
+	const dir = fixture("lateexit", {
+		"src/routes/page/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/page/+page.server.ts": prerendered(
+			`export async function load() {\n` +
+				`\tsetTimeout(() => process.exit(3), 300);\n` +
+				`\treturn {};\n}\n`,
+		),
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (event.url.pathname.startsWith("/__bosia-404-probe")) await Bun.sleep(2000);\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const { code, out } = await build(dir);
+		expect(out).not.toContain("❌");
+		expect(out).toContain("404.html skipped: the prerender server stopped (exit code 3)");
+		expect(existsSync(join(dir, "dist/prerendered/page.html"))).toBe(true);
+		expect(code).toBe(0);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// The server's own load and metadata limits are off, so only PRERENDER_TIMEOUT ends a slow
+// loader: equal limits on both sides would race, and the server's 500 would hide the hint.
+test("the prerender server has no load or metadata limit of its own", async () => {
+	const dir = fixture("nolimit", {
+		"src/routes/page/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/page/+page.server.ts": prerendered(
+			`import { writeFileSync } from "fs";\n` +
+				`export async function load() {\n` +
+				`\twriteFileSync("limits.txt", process.env.LOAD_TIMEOUT + " " + process.env.METADATA_TIMEOUT);\n` +
+				`\treturn {};\n}\n`,
+		),
+		".env": "LOAD_TIMEOUT=100\nMETADATA_TIMEOUT=100\n",
+	});
+	try {
+		const { code } = await build(dir);
+		expect(code).toBe(0);
+		expect(readFileSync(join(dir, "limits.txt"), "utf-8")).toBe("Infinity Infinity");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
 // A loader that kills the server: one line names the exit, instead of a connection error for
 // every page after it.
 test("a prerender server that dies mid-build is reported once", async () => {
@@ -658,7 +806,7 @@ test("a prerender server that dies mid-build is reported once", async () => {
 		const { code, out } = await build(dir, { PRERENDER_CONCURRENCY: "1" });
 		const lines = out.split("\n").filter((l) => l.includes("❌"));
 		expect(lines).toEqual([
-			"❌ The prerender server stopped (exit code 3); 4 page(s) not built, first /p/crash",
+			"❌ The prerender server stopped (exit code 3); 4 page(s) not built, e.g. /p/crash",
 		]);
 		expect(code).toBe(1);
 	} finally {
