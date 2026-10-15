@@ -109,7 +109,7 @@ function errorMessage(res: Response): string {
 	return res.statusText || "Internal Server Error";
 }
 
-export const prefetchCache = new Map<string, { data: any; ts: number }>();
+const prefetchCache = new Map<string, { data: any; ts: number }>();
 const MAX_PREFETCH_ENTRIES = 50;
 
 // In-flight prefetches. A click that lands while its prefetch is still loading
@@ -195,7 +195,8 @@ export async function prefetchPath(path: string): Promise<void> {
 	// Consumed by a click, or dropped by a navigation, while in flight.
 	if (pending.get(path) !== run) return;
 	pending.delete(path);
-	if (data === null || !storable || data.error) return;
+	// A guard's redirect is the session's answer now, not in 30s.
+	if (data === null || !storable || data.error || data.redirect) return;
 	if (prefetchCache.size >= MAX_PREFETCH_ENTRIES) {
 		const oldest = prefetchCache.keys().next().value;
 		if (oldest !== undefined) prefetchCache.delete(oldest);

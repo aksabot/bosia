@@ -692,7 +692,10 @@ async function resolve(event: RequestEvent): Promise<Response> {
 
 			// Respect handler opt-out via Cache-Control. Standard HTTP semantics:
 			// no-store / private / no-cache all signal "don't reuse this response".
-			const noStore = isNoStoreCacheControl(response.headers.get("cache-control"));
+			// `Vary: *` says no two requests share a response: nothing to reuse either.
+			const noStore =
+				isNoStoreCacheControl(response.headers.get("cache-control")) ||
+				/(^|,)\s*\*\s*(,|$)/.test(response.headers.get("vary") ?? "");
 
 			if (
 				apiCacheable &&
