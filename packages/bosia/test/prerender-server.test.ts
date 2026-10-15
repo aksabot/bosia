@@ -91,9 +91,14 @@ describe("prerenderReplyProblem()", () => {
 		expect(prerenderReplyProblem("api", res(203))).toBeNull();
 		expect(prerenderReplyProblem("page", res(203, HTML))).toBeNull();
 	});
+	test("a 204 or 205 has no body, so it would be saved as an empty file", () => {
+		expect(prerenderReplyProblem("page", res(204, HTML))).toBe("answered 204, no content");
+		expect(prerenderReplyProblem("api", res(205))).toBe("answered 205, no content");
+	});
 	test("the 404 probe wants a 404 HTML page", () => {
 		expect(prerenderReplyProblem("page", res(404, HTML), 404)).toBeNull();
 		expect(prerenderReplyProblem("page", res(200, HTML), 404)).toBe("answered 200");
+		expect(prerenderReplyProblem("page", res(204, HTML), 404)).toBe("answered 204");
 		expect(prerenderReplyProblem("page", res(404, { "content-type": "text/plain" }), 404)).toBe(
 			"answered text/plain, not an HTML page",
 		);
@@ -115,6 +120,11 @@ describe("prerenderDataProblem()", () => {
 		expect(prerenderDataProblem(`{"error":{"status":403,"message":"no"}}`)).toBe(
 			"answered error 403",
 		);
+	});
+	test("an error given as text keeps it", () => {
+		expect(prerenderDataProblem(`{"error":"Forbidden"}`)).toBe("answered error Forbidden");
+		expect(prerenderDataProblem(`{"error":{"message":"no"}}`)).toBe("answered error no");
+		expect(prerenderDataProblem(`{"error":{}}`)).toBe("answered error ?");
 	});
 	test("a body that isn't JSON fails", () => {
 		expect(prerenderDataProblem("<h1>hi</h1>")).toBe("answered a body that isn't JSON");
@@ -627,6 +637,30 @@ test("the 404 probe names a redirect to another page", async () => {
 	try {
 		const { out } = await build(dir);
 		expect(out).toContain("404.html skipped: an unknown URL answered 302 → /login");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// A loader that kills the server: one line names the exit, instead of a connection error for
+// every page after it.
+test("a prerender server that dies mid-build is reported once", async () => {
+	const dir = fixture("crash", {
+		"src/routes/p/[slug]/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/p/[slug]/+page.server.ts": prerendered(
+			slugs("a", "b", "crash", "c", "d", "e") +
+				`export async function load({ params }: any) {\n` +
+				`\tif (params.slug === "crash") process.exit(3);\n` +
+				`\treturn {};\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, { PRERENDER_CONCURRENCY: "1" });
+		const lines = out.split("\n").filter((l) => l.includes("❌"));
+		expect(lines).toEqual([
+			"❌ The prerender server stopped (exit code 3); 4 page(s) not built, first /p/crash",
+		]);
+		expect(code).toBe(1);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

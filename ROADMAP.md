@@ -7,7 +7,7 @@
 
 ## bosia 1.2.5 (2026-10-15) — prerender checks the server's reply
 
-- [x] 🟡 `prerenderOne` saved any reply and logged ✅. Now `redirect: "manual"`; a page needs 200 HTML, an API 200 (`prerenderReplyProblem`). Bad replies and timeouts fail the build, one ❌ each.
+- [x] 🟡 `prerenderOne` saved any reply and logged ✅. Now `redirect: "manual"`; a page needs 2xx HTML, an API 2xx, not 204/205 (`prerenderReplyProblem`). Bad replies and timeouts fail the build, one ❌ each.
 - [x] 🟡 A slug can't freeze a live route: each target is matched like `matchRoutes` (an API wins); `/blog/[slug]` ← `new` with `src/routes/blog/new` fails as "served by". Replaces the clash ❌ for that case.
 - [x] ⚪ The trailing-slash 308 runs before the prerendered lookup: `/always/one` 308s to `/always/one/`, `/about/` (never) to `/about`.
 - [x] ⚪ Kept the `isStaticPath` page rule in every slash mode (review 2): the reply check catches `.png` too, but later and less clearly, and `always` never fetches `/logo.png`.
@@ -30,6 +30,8 @@
 - [x] 🟡 Review 5: `PRERENDER_CONCURRENCY` caps requests (shared slots), so side-by-side page+data no longer doubles loader runs. 404 probe follows one same-origin redirect only. stopdata test allows 9s.
 - [x] 🟡 Review 6: per-fetch limit on the ready check (a stuck hook hung it); PRERENDER_TIMEOUT/CONCURRENCY must be whole 1..2^31-1 (0.5 = no workers, >2^31 fires setTimeout at once). Probe errors use `fetchFailure`.
 - [x] 🟡 Review 7: a page or API reply may be any 2xx again (exact 200 broke a 203 API that `main` saved).
+- [x] 🟡 Review 8: a 204/205 reply fails prerender (any-2xx saved it as an empty page).
+- [x] ⚪ Review 8: a crashed prerender server is one ❌ with its exit code; request slots are the only limit (no worker pool); reply check takes `expect: "ok" | 404`; text `{error}` shown; 1.2.5 changelog lists only changes from 1.2.4.
 - [x] ⚪ Review 7: 404 probe follows only its own slash form (`/login` is named); DOMException number codes dropped; parallel-start test allows 1.2s. A failed data fetch still waits for its page (kept: stopping it made the ❌ line random).
 - [ ] ⚪ Each prerendered page runs its loaders twice (HTML, then data JSON): double API calls, and the two can disagree. Render once and take the JSON from the SSR payload.
 - [ ] ⚪ Prerender child overrides live-traffic env one by one (MAX_INFLIGHT, IDLE/LOAD/METADATA_TIMEOUT); a new server limit must be added here too. One `BOSIA_PRERENDER=1` flag the server reads would cover all.

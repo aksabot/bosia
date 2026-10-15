@@ -163,19 +163,20 @@ export function prerenderApiOutPath(routePath: string): string {
 
 /**
  * Why the server's reply to a prerender fetch can't be saved, or null when it can. A page must
- * answer 2xx HTML; an API any 2xx. Anything else (a loader's error(), a redirect to /login, the
- * static 404) would be saved and served as the route. The 404 probe passes 404 (exactly).
+ * answer 2xx HTML; an API any 2xx but 204/205 (no body, saved as an empty file). Anything else (a
+ * loader's error(), a redirect to /login, the static 404) would be saved and served as the route.
+ * The 404 probe expects exactly 404.
  */
 export function prerenderReplyProblem(
 	kind: "page" | "api",
 	res: Response,
-	status = 200,
+	expect: "ok" | 404 = "ok",
 ): string | null {
 	if (res.status >= 300 && res.status < 400)
 		return `answered ${res.status} → ${res.headers.get("location") ?? "(no Location)"}`;
-	// Any 2xx when a page is expected, as before this check; the 404 probe wants exactly 404.
-	const ok = status === 200 ? res.status >= 200 && res.status < 300 : res.status === status;
+	const ok = expect === "ok" ? res.status >= 200 && res.status < 300 : res.status === expect;
 	if (!ok) return `answered ${res.status}`;
+	if (res.status === 204 || res.status === 205) return `answered ${res.status}, no content`;
 	const type = res.headers.get("content-type") ?? "";
 	if (kind === "page" && !type.includes("text/html"))
 		return `answered ${type || "no content-type"}, not an HTML page`;
@@ -200,7 +201,10 @@ export function prerenderDataProblem(body: string): string | null {
 	if (redirect != null) return `answered redirect ${status ?? "?"} → ${redirect}`;
 	// The server sends a data error with its own status, which prerenderReplyProblem rejects
 	// first; this catches a hook that answers a data request with its own 200 `{ error }`.
-	if (error != null) return `answered error ${error?.status ?? "?"}`;
+	if (error != null) {
+		const why = typeof error === "string" ? error : (error.status ?? error.message);
+		return `answered error ${why ?? "?"}`;
+	}
 	return null;
 }
 
@@ -548,6 +552,12 @@ export async function prerenderStaticRoutes(
 
 		// Every target that can't be saved; the build fails with all of them once the pool drains.
 		const failures: string[] = [];
+		// Pages whose fetch failed because the server had died (a loader that exits or runs out
+		// of memory): one line names the exit, instead of a connection error for each.
+		const lost: string[] = [];
+		class ServerGone extends Error {}
+		const serverGone = () =>
+			Promise.race([child.exited.then(() => true), Bun.sleep(100).then(() => false)]);
 		// PRERENDER_CONCURRENCY counts requests, not pages: a page's HTML and data each run its
 		// loaders, so N slots keep N loader runs at once (a cap users set for rate-limited APIs).
 		let free = concurrency;
@@ -587,6 +597,7 @@ export async function prerenderStaticRoutes(
 					throw new ReplyProblem(label + problem);
 				} catch (err) {
 					if (err instanceof ReplyProblem) throw err;
+					if (await serverGone()) throw new ServerGone();
 					throw new ReplyProblem(label + fetchFailure(err));
 				} finally {
 					release();
@@ -637,19 +648,19 @@ export async function prerenderStaticRoutes(
 				writeFileSync(dataOutPath, dataJson);
 				console.log(`   ✅ ${routePath} → ${outPath} (+ data)`);
 			} catch (err) {
-				fail(err instanceof ReplyProblem ? err.message : fetchFailure(err));
+				if (err instanceof ServerGone) lost.push(routePath);
+				else fail(err instanceof ReplyProblem ? err.message : fetchFailure(err));
 			}
 		};
 
-		// Bounded worker pool: N workers pull from a shared index until targets drain.
-		let next = 0;
-		const worker = async () => {
-			while (next < targets.length) {
-				const target = targets[next++];
-				if (target) await prerenderOne(target);
-			}
-		};
-		await Promise.all(Array.from({ length: Math.min(concurrency, targets.length) }, worker));
+		// Every page starts at once; the request slots above are the only limit, and they're
+		// handed out in target order (a page's HTML, then its data).
+		await Promise.all(targets.map(prerenderOne));
+		if (lost.length)
+			failures.push(
+				`❌ The prerender server stopped (${child.signalCode ?? `exit code ${child.exitCode}`}); ` +
+					`${lost.length} page(s) not built, first ${lost[0]}`,
+			);
 
 		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
 		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
@@ -658,7 +669,8 @@ export async function prerenderStaticRoutes(
 		// Skipped on Workers: the worker answers unknown paths, and an uploaded file
 		// would only add that soft 404. A public/404.html overwrites it.
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
-		if (target !== "workers")
+		// A server that died is already reported, and the probe would only fail too.
+		if (target !== "workers" && !lost.length)
 			try {
 				// Follows only its own slash form, unlike the pages: a catch-all `always` page 308s
 				// the probe to `/__bosia-404-probe/`, and its 404 there is the page a static host

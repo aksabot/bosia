@@ -11,37 +11,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Prerender fails the build when a page answers an error, a redirect or a non-HTML file.
+- A prerendered page or API may answer any 2xx, but not 204 or 205 (an empty file).
 - Prerender fails when another route serves a slug's URL, like `/blog/[slug]` giving `new`.
+- `PRERENDER_TIMEOUT` also limits `load()` and `metadata()` while prerendering.
+- `PRERENDER_CONCURRENCY` counts requests: a page and its data are two, each running `load()`.
 
 ### Fixed
 
 - Prerendered pages now 308 to the right trailing slash, like `/about/` to `/about`.
 - A prerender timeout or network error fails the build instead of only logging.
 - The build fails when the prerender server can't start, instead of shipping with pages missing.
-- A prerendered page is saved only with its data file, so client navigation works on static hosts.
-- A missing 404.html is listed with the other prerender errors, so one build shows them all.
-- Prerender errors keep their cause, like `ECONNRESET`, so the real problem is visible.
-- Each prerender request gets its own time limit; a slow page no longer times out with its data.
-- A page whose data request redirects (like to `/login`) fails prerender instead of saving it.
-- Prerender fetches a page and its data at once, so slow pages build up to twice as fast.
-- Prerender errors show a cause's code and message instead of `[object Object]`.
-- A failed 404.html says what the unknown URL answered, like `answered 200`.
-- `MAX_INFLIGHT` in `.env` no longer makes prerender fail with random `answered 503` errors.
-- When a page fails prerender, its slow data request is stopped instead of waited for.
-- A prerender error with no message shows its type, like `TypeError`, instead of `{}`.
-- A failed prerender ends about 10s sooner: the build server is stopped instead of drained.
-- `IDLE_TIMEOUT` and `LOAD_TIMEOUT` in `.env` no longer cut slow loaders during prerender.
-- `METADATA_TIMEOUT` in `.env` no longer saves prerendered pages without their title.
-- `PRERENDER_CONCURRENCY` again caps loaders running at once (a page and its data count as two).
-- The 404 page check no longer follows a redirect to another site during the build.
+- A server that's slow to start says "not ready within 10s" instead of "exit code none".
 - A stuck hook no longer hangs the build; it fails after 10s waiting for the prerender server.
-- A 404 page check that times out now says to raise `PRERENDER_TIMEOUT`, like page errors do.
-- Prerender saves any 2xx reply again, not only 200 (a 203 API no longer fails the build).
-- A redirect of unknown URLs (like to `/login`) is now named when 404.html can't be built.
-- A bad `PRERENDER_TIMEOUT` or `PRERENDER_CONCURRENCY` fails the build instead of skipping pages.
-- `PRERENDER_TIMEOUT` now also sets the loader time limit while prerendering.
+- A prerendered page is saved only with its data file, so client navigation works on static hosts.
+- A page whose data request redirects (like to `/login`) fails prerender instead of saving it.
 - A data request that times out says `data timed out`, so you know which request was slow.
-- A server that's slow to start says "not ready within 10s" instead of looking like a crash.
+- Prerender errors name their cause, like `ECONNRESET`, in one line per page.
+- A prerender server that crashes mid-build is reported once, with its exit code.
+- A missing 404.html is listed with the other prerender errors, so one build shows them all.
+- The 404 page check names a redirect (like to `/login`) and never fetches another site.
+- `MAX_INFLIGHT` in `.env` no longer makes prerender fail with random `answered 503` errors.
+- `IDLE_TIMEOUT`, `LOAD_TIMEOUT` and `METADATA_TIMEOUT` in `.env` no longer cut prerendering.
+- A failed prerender ends about 10s sooner: the build server is stopped instead of drained.
+- A bad `PRERENDER_TIMEOUT` or `PRERENDER_CONCURRENCY` fails the build instead of skipping pages.
 
 ## [1.2.4] - 2026-10-14
 
