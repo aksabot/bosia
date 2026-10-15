@@ -31,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A prerender error with no message shows its type, like `TypeError`, instead of `{}`.
 - A failed prerender ends about 10s sooner: the build server is stopped instead of drained.
 - `IDLE_TIMEOUT` and `LOAD_TIMEOUT` in `.env` no longer cut slow loaders during prerender.
+- `METADATA_TIMEOUT` in `.env` no longer saves prerendered pages without their title.
+- `PRERENDER_CONCURRENCY` again caps loaders running at once (a page and its data count as two).
+- The 404 page check no longer follows a redirect to another site during the build.
 - `PRERENDER_TIMEOUT` now also sets the loader time limit while prerendering.
 - A data request that times out says `data timed out`, so you know which request was slow.
 - A server that's slow to start says "not ready within 10s" instead of looking like a crash.

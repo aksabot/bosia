@@ -26,8 +26,10 @@
 - [x] ⚪ Review 3: a failed page aborts its data fetch (shared `AbortController`); cancel() errors are ignored so they can't replace the real ❌; one `fetchText` helper; describeError shows an Error's name and number codes.
 - [x] ⚪ Review 3: one server-start throw; parallel test allows 1s; docs skip a locale slug only if `src/routes/<locale>` exists.
 - [x] ⚪ Review 4: prerender child SIGKILLed 1s after SIGTERM (its drain waited 10s for aborted loaders); `IDLE_TIMEOUT=255` and `LOAD_TIMEOUT=PRERENDER_TIMEOUT` in the child (Bun's idle timer is coarse, ~4-5s at 1).
+- [x] 🟡 Review 5: prerender child gets `IDLE_TIMEOUT=0` (off, not 255) and `METADATA_TIMEOUT=PRERENDER_TIMEOUT`; a timed-out metadata() was swallowed and the page saved without its title.
+- [x] 🟡 Review 5: `PRERENDER_CONCURRENCY` caps requests (shared slots), so side-by-side page+data no longer doubles loader runs. 404 probe follows one same-origin redirect only. stopdata test allows 9s.
 - [x] ⚪ Review 4: data fetch errors carry `data` (timeouts too); 404 probe drops its body via `dropBody`; ready poll uses `HEALTH_PATH`, says "not ready within 10s"; docs check `<locale>/+page.svelte`.
-- [ ] ⚪ The 10s prerender server ready deadline is fixed; make it an env var if a slow hooks `init()` hits it. `METADATA_TIMEOUT` (3s) still applies at build.
+- [ ] ⚪ The 10s prerender server ready deadline is fixed; make it an env var if a slow hooks `init()` hits it.
 - [ ] ⚪ `findMisownedTargets` copies `matchRoutes`' API-first order; move it into a pure helper both call, so a routing change can't skip the check.
 - [ ] ⚪ The owner check ignores an API's `x.json` alias (`/api/x.json` served by `/api/[slug]`); a narrow case, add it if anyone hits it.
 - [ ] 🟡 A slug differing from a live static route only by case (`New` vs `blog/new`) passes the owner check; on a case-insensitive host it freezes that route.

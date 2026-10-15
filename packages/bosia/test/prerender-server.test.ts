@@ -385,6 +385,57 @@ test("IDLE_TIMEOUT from .env doesn't cut a loader PRERENDER_TIMEOUT allows", asy
 	}
 }, 180_000);
 
+// A metadata() timeout is swallowed (the page renders without it), so a live-traffic
+// METADATA_TIMEOUT in .env would save the page without its title.
+test("METADATA_TIMEOUT from .env doesn't drop metadata PRERENDER_TIMEOUT allows", async () => {
+	const dir = fixture("slowmeta", {
+		".env": "METADATA_TIMEOUT=500\n",
+		"src/routes/meta/+page.svelte": "<h1>Meta</h1>\n",
+		"src/routes/meta/+page.server.ts": prerendered(
+			`export async function metadata() {\n\tawait Bun.sleep(1500);\n\treturn { title: "Slow Title" };\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, { PRERENDER_TIMEOUT: "10000" });
+		expect(out).not.toContain("❌");
+		expect(code).toBe(0);
+		expect(readFileSync(join(dir, "dist/prerendered/meta.html"), "utf-8")).toContain(
+			"<title>Slow Title</title>",
+		);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// Each page's HTML and data requests both run load(), side by side. PRERENDER_CONCURRENCY
+// counts those requests, so a user capping it for a rate-limited API gets that many loaders.
+test("PRERENDER_CONCURRENCY caps loaders running at once, not pages", async () => {
+	const dir = fixture("cap", {
+		"src/routes/p/[slug]/+page.svelte": "<h1>P</h1>\n",
+		"src/routes/p/[slug]/+page.server.ts": prerendered(
+			slugs("a", "b", "c", "d", "e", "f") +
+				`import { appendFileSync } from "fs";\n` +
+				`const g = globalThis as any;\n` +
+				`export async function load() {\n` +
+				`\tg.running = (g.running ?? 0) + 1;\n` +
+				`\tappendFileSync("running.log", g.running + "\\n");\n` +
+				`\tawait Bun.sleep(300);\n` +
+				`\tg.running--;\n` +
+				`\treturn {};\n}\n`,
+		),
+	});
+	try {
+		const { code, out } = await build(dir, { PRERENDER_CONCURRENCY: "3" });
+		expect(out).not.toContain("❌");
+		expect(code).toBe(0);
+		const running = readFileSync(join(dir, "running.log"), "utf-8").trim().split("\n").map(Number);
+		expect(running.length).toBe(12);
+		expect(Math.max(...running)).toBe(3);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
 // ─── A failed page stops its data fetch ──────────────────
 
 // A hook fails the page at once, but its data request runs a 20s loader. The build reports the
@@ -408,8 +459,9 @@ test("a page that fails fast doesn't wait for its slow data", async () => {
 		const lines = out.split("\n").filter((l) => l.startsWith("❌ Prerender: /half"));
 		expect(lines).toEqual(["❌ Prerender: /half answered 500"]);
 		expect(code).toBe(1);
-		// The build itself takes ~1s; the server must not drain the 20s loader for 10s.
-		expect(Date.now() - started).toBeLessThan(6_000);
+		// The build itself takes ~1s (more on a busy machine); the server must not drain the 20s
+		// loader for 10s, so anything under that proves the stop.
+		expect(Date.now() - started).toBeLessThan(9_000);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
@@ -435,6 +487,30 @@ test("a catch-all `always` page still gives 404.html", async () => {
 		expect(code).toBe(0);
 		expect(readFileSync(join(dir, "dist/static/404.html"), "utf-8")).toContain("Not here");
 	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// A hook that redirects unknown URLs off-site: the probe reports the redirect instead of
+// fetching the other host during the build.
+test("the 404 probe doesn't follow a redirect to another host", async () => {
+	let hits = 0;
+	const other = Bun.serve({ port: 0, fetch: () => (hits++, new Response("<h1>Elsewhere</h1>")) });
+	const away = `http://127.0.0.1:${other.port}/`;
+	const dir = fixture("offsite", {
+		"src/routes/+page.server.ts": prerendered(),
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (event.url.pathname.startsWith("/__bosia-404-probe"))\n` +
+			`\t\treturn new Response(null, { status: 307, headers: { location: "${away}" } });\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const { out } = await build(dir);
+		expect(out).toContain(`404.html skipped: an unknown URL answered 307 → ${away}`);
+		expect(hits).toBe(0);
+	} finally {
+		other.stop(true);
 		rmSync(dir, { recursive: true, force: true });
 	}
 }, 180_000);

@@ -80,8 +80,8 @@ These are reserved by Bosia and live outside `$env` (so is every `BOSIA_*` name)
 | `MAX_INFLIGHT`               | `Infinity` | Soft concurrency cap → fast `503` over the line                                                      |
 | `LOAD_TIMEOUT`               | —          | `load()` timeout in ms                                                                               |
 | `METADATA_TIMEOUT`           | —          | `metadata()` timeout                                                                                 |
-| `PRERENDER_TIMEOUT`          | —          | Prerender fetch timeout (5000); at build also the loader limit; MAX_INFLIGHT/IDLE_TIMEOUT off        |
-| `PRERENDER_CONCURRENCY`      | `6`        | Pages prerendered at once                                                                            |
+| `PRERENDER_TIMEOUT`          | —          | Prerender fetch timeout (5000); at build also LOAD/METADATA_TIMEOUT; MAX_INFLIGHT/IDLE_TIMEOUT off   |
+| `PRERENDER_CONCURRENCY`      | `6`        | Prerender requests at once (page + data = 2 loader runs)                                             |
 | `ASSET_CACHE_MAX_BYTES`      | `52428800` | Memory for static files + prerendered pages after first hit. `0` = always disk                       |
 | `ASSET_CACHE_MAX_FILE_BYTES` | `1048576`  | Largest file kept in that memory cache                                                               |
 | `CSRF_ALLOWED_ORIGINS`       | —          | Extra origins allowed on POST/PUT/PATCH/DELETE                                                       |

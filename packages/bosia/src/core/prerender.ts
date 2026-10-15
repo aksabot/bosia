@@ -449,11 +449,13 @@ export async function prerenderStaticRoutes(
 			PORT: String(port),
 			// Live-traffic limits from .env, set rather than removed (Bun would load them back).
 			// MAX_INFLIGHT would 503 the build's own requests (a page and its data,
-			// PRERENDER_CONCURRENCY at once); IDLE_TIMEOUT (Bun's max is 255s) and LOAD_TIMEOUT
-			// would cut a loader that PRERENDER_TIMEOUT allows, so that one limit rules the build.
+			// PRERENDER_CONCURRENCY at once); IDLE_TIMEOUT (0 = off) and LOAD_TIMEOUT would cut a
+			// loader that PRERENDER_TIMEOUT allows, and METADATA_TIMEOUT would save the page without
+			// its metadata (a timeout there is swallowed), so that one limit rules the build.
 			MAX_INFLIGHT: "infinity",
-			IDLE_TIMEOUT: "255",
+			IDLE_TIMEOUT: "0",
 			LOAD_TIMEOUT: String(PRERENDER_TIMEOUT),
+			METADATA_TIMEOUT: String(PRERENDER_TIMEOUT),
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
 		stdout: "ignore",
@@ -513,6 +515,19 @@ export async function prerenderStaticRoutes(
 
 		// Every target that can't be saved; the build fails with all of them once the pool drains.
 		const failures: string[] = [];
+		// PRERENDER_CONCURRENCY counts requests, not pages: a page's HTML and data each run its
+		// loaders, so N slots keep N loader runs at once (a cap users set for rate-limited APIs).
+		let free = PRERENDER_CONCURRENCY;
+		const waiting: (() => void)[] = [];
+		const acquire = async () => {
+			if (free > 0) free--;
+			else await new Promise<void>((resolve) => waiting.push(resolve));
+		};
+		const release = () => {
+			const nextInLine = waiting.shift();
+			if (nextInLine) nextInLine();
+			else free++;
+		};
 
 		const prerenderOne = async (t: PrerenderTarget): Promise<void> => {
 			const { path: routePath, kind, trailingSlash: ts } = t;
@@ -524,8 +539,11 @@ export async function prerenderStaticRoutes(
 			const fail = (why: string) => failures.push(`❌ Prerender: ${targetLabel(t)} ${why}`);
 			// Fetches `url` and reads its body. Any failure (a bad reply, a timeout, a reset) is
 			// thrown as a ReplyProblem carrying `label`, so a data fetch's says "data".
+			// The timeout starts once a slot is free, so time spent queued isn't counted.
 			const fetchText = async (url: string, as: "page" | "api", label = "") => {
+				await acquire();
 				try {
+					stop.signal.throwIfAborted();
 					const res = await fetch(url, {
 						redirect: "manual",
 						signal: AbortSignal.any([AbortSignal.timeout(PRERENDER_TIMEOUT), stop.signal]),
@@ -537,6 +555,8 @@ export async function prerenderStaticRoutes(
 				} catch (err) {
 					if (err instanceof ReplyProblem) throw err;
 					throw new ReplyProblem(label + fetchFailure(err));
+				} finally {
+					release();
 				}
 			};
 			try {
@@ -609,11 +629,20 @@ export async function prerenderStaticRoutes(
 		// One probe, one locale: add per-locale probe paths (e.g. /id/404.html) when asked.
 		if (target !== "workers")
 			try {
-				// Follows redirects, unlike the pages: a catch-all `always` page 308s the probe to
-				// `/__bosia-404-probe/`, and its 404 there is the page a static host should show.
-				const res = await fetch(`${base}/__bosia-404-probe`, {
-					signal: AbortSignal.timeout(PRERENDER_TIMEOUT),
-				});
+				// Follows one same-origin redirect, unlike the pages: a catch-all `always` page 308s
+				// the probe to `/__bosia-404-probe/`, and its 404 there is the page a static host
+				// should show. A redirect off the build server is reported, not fetched.
+				const probe = (url: string) =>
+					fetch(url, { redirect: "manual", signal: AbortSignal.timeout(PRERENDER_TIMEOUT) });
+				let res = await probe(`${base}/__bosia-404-probe`);
+				const location = res.status >= 300 && res.status < 400 && res.headers.get("location");
+				if (location) {
+					const to = new URL(location, base);
+					if (to.origin === new URL(base).origin) {
+						await dropBody(res);
+						res = await probe(to.href);
+					}
+				}
 				// No +error.svelte (or it crashed) → plain-text "Not Found", not a page.
 				const problem = prerenderReplyProblem("page", res, 404);
 				if (problem) {
