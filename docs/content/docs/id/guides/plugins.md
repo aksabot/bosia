@@ -36,7 +36,7 @@ serverTiming({ metric: "bosia" }); // override default metric name
 
 ### `bosia/plugins/access-log`
 
-Mencatat satu baris per request — `[GET] /blog 200 (1.2ms)` — dari response final, jadi status-nya sama dengan yang diterima klien dan tiap request tercatat sekali, apa pun yang dilakukan plugin lain. Bosia tidak mencatat request secara default; pasang plugin ini kalau butuh access log dan tidak ada reverse proxy yang mencatatnya. Baris ditulis secara batch (tiap 100ms, atau saat mencapai 64KB), bukan satu write per request: pada stdout berupa pipe (`docker logs`, systemd) biayanya ~3µs CPU per request, bukan ~11–14µs. Baris yang masih menunggu ditulis saat shutdown. Di Workers setiap baris langsung ditulis.
+Mencatat satu baris per request — `[GET] /blog 200 (1.2ms)` — dari response final, jadi status-nya sama dengan yang diterima klien dan tiap request tercatat sekali, apa pun yang dilakukan plugin lain. Bosia tidak mencatat request secara default; pasang plugin ini kalau butuh access log dan tidak ada reverse proxy yang mencatatnya. Baris ditulis secara batch (tiap 100ms, atau saat mencapai 64KB), bukan satu write per request: pada stdout berupa pipe (`docker logs`, systemd) biayanya ~3µs CPU per request, bukan ~11–14µs. Baris yang masih menunggu ditulis saat shutdown. Di Workers setiap baris langsung ditulis. Path-nya adalah yang diminta, termasuk prefix `BASE_PATH`, seperti yang dicatat proxy.
 
 ```ts
 import { accessLog } from "bosia/plugins/access-log";

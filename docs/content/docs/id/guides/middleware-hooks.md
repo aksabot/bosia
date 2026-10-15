@@ -54,13 +54,12 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-const headersHandle: Handle = async ({ event, resolve }) => {
-	const res = await resolve(event);
-	res.headers.set("X-Robots-Tag", "noindex");
-	return res;
+const langHandle: Handle = async ({ event, resolve }) => {
+	event.locals.lang = event.request.headers.get("accept-language")?.split(",")[0] ?? "en";
+	return resolve(event);
 };
 
-export const handle = sequence(authHandle, headersHandle);
+export const handle = sequence(authHandle, langHandle);
 ```
 
 Handler dieksekusi dari kiri ke kanan. `resolve` milik setiap handler memanggil handler berikutnya dalam rantai.

@@ -38,14 +38,65 @@ describe("accessLog plugin", () => {
 		expect(out.join("")).toMatch(/^\[GET\] \/boom 500 /);
 	});
 
-	test("batches lines into one write per flush", async () => {
+	test("batches lines until the buffer passes 64KB, then writes them together", async () => {
 		const out: string[] = [];
-		const app = (await appWith({ write: (c) => out.push(c), flushMs: 300 })).get("/", () => "ok");
-		await Promise.all(Array.from({ length: 5 }, () => app.fetch(new Request("http://localhost/"))));
+		const app = (
+			await appWith({
+				write: (c) => out.push(c),
+				flushMs: 60_000,
+				// 20KB a line: the fourth line takes the buffer past 64KB.
+				format: (e) => e.path + "x".repeat(20_000),
+			})
+		).get("/", () => "ok");
+		for (let i = 0; i < 3; i++) await app.fetch(new Request("http://localhost/"));
 		expect(out.length).toBe(0);
-		await Bun.sleep(400);
+		await app.fetch(new Request("http://localhost/"));
 		expect(out.length).toBe(1);
-		expect(out[0]!.split("\n").filter(Boolean).length).toBe(5);
+		expect(out[0]!.split("\n").filter(Boolean).length).toBe(4);
+	});
+
+	test("an async sink that rejects is contained", async () => {
+		const unhandled: unknown[] = [];
+		const onUnhandled = (e: unknown) => unhandled.push(e);
+		process.on("unhandledRejection", onUnhandled);
+		try {
+			const app = (
+				await appWith({ write: () => Promise.reject(new Error("shipper down")), flushMs: 0 })
+			).get("/", () => "ok");
+			const res = await app.fetch(new Request("http://localhost/"));
+			expect(await res.text()).toBe("ok");
+			await Bun.sleep(10);
+			expect(unhandled).toEqual([]);
+		} finally {
+			process.off("unhandledRejection", onUnhandled);
+		}
+	});
+
+	test("an async onResponse observer that rejects is contained", async () => {
+		const unhandled: unknown[] = [];
+		const onUnhandled = (e: unknown) => unhandled.push(e);
+		process.on("unhandledRejection", onUnhandled);
+		try {
+			const app = new BosiaApp()
+				.onResponse(async () => {
+					throw new Error("metrics down");
+				})
+				.get("/", () => "ok");
+			const res = await app.fetch(new Request("http://localhost/"));
+			expect(await res.text()).toBe("ok");
+			await Bun.sleep(10);
+			expect(unhandled).toEqual([]);
+		} finally {
+			process.off("unhandledRejection", onUnhandled);
+		}
+	});
+
+	test("fetchUnobserved answers without running observers", async () => {
+		const out: string[] = [];
+		const app = (await appWith({ write: (c) => out.push(c), flushMs: 0 })).get("/", () => "ok");
+		const res = await app.fetchUnobserved(new Request("http://localhost/"));
+		expect(await res.text()).toBe("ok");
+		expect(out).toEqual([]);
 	});
 
 	test("filter and format are honored", async () => {

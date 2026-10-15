@@ -41,7 +41,11 @@ export type ErrorHook = (ctx: { request: Request; error: unknown; set: ResponseS
  * `start`: `performance.now()` when the request entered `fetch`. Observe only:
  * the return value is ignored and a throw is swallowed.
  */
-export type ResponseHook = (ctx: { request: Request; response: Response; start: number }) => void;
+export type ResponseHook = (ctx: {
+	request: Request;
+	response: Response;
+	start: number;
+}) => void | Promise<unknown>;
 
 export interface ServeOptions {
 	maxRequestBodySize?: number;
@@ -163,11 +167,19 @@ export class BosiaApp {
 	private observe(request: Request, response: Response, start: number): void {
 		for (const hook of this.responseHooks) {
 			try {
-				hook({ request, response, start });
+				const out = hook({ request, response, start });
+				// An async observer's rejection would be unhandled — fatal in prod.
+				if (out instanceof Promise) out.catch(() => {});
 			} catch {
 				// Observers must not change what the client gets.
 			}
 		}
+	}
+
+	/** Answers without running onResponse observers — for the Workers warm-up
+	 *  render, which no client made and no access log should count. */
+	fetchUnobserved(request: Request): Promise<Response> {
+		return this.respond(request);
 	}
 
 	private async respond(request: Request): Promise<Response> {

@@ -16,8 +16,9 @@ export interface AccessLogOptions {
 	filter?: (entry: AccessLogEntry) => boolean;
 	/** One line per request, without the trailing newline. */
 	format?: (entry: AccessLogEntry) => string;
-	/** Where lines go. Defaults to console.log, one call per batch. */
-	write?: (chunk: string) => void;
+	/** Where lines go. Defaults to console.log, one call per batch. May be async;
+	 *  a failed write loses that batch, never the request or the process. */
+	write?: (chunk: string) => void | Promise<unknown>;
 	/**
 	 * Lines are collected and written together at most this often (ms). One
 	 * write per request costs a syscall each: on a pipe (`docker logs`, systemd)
@@ -53,26 +54,6 @@ function pathOf(url: string): string {
 	return q === -1 ? url.slice(start) : url.slice(start, q);
 }
 
-// One process "exit" listener for every logger, added on the first buffered
-// line — so `bosia build` (which also loads the config) never registers one.
-// A logger is in the set only while it holds unwritten lines.
-const pendingFlushes = new Set<() => void>();
-let exitHooked = false;
-function flushOnExit(flush: () => void): void {
-	pendingFlushes.add(flush);
-	if (exitHooked || typeof process === "undefined" || typeof process.on !== "function") return;
-	exitHooked = true;
-	process.on("exit", () => {
-		for (const f of [...pendingFlushes]) {
-			try {
-				f();
-			} catch {
-				// Keep flushing the other loggers.
-			}
-		}
-	});
-}
-
 /**
  * Logs one line per request: method, path, status, duration. Opt-in — the
  * app templates no longer log every request from `hooks.server.ts`; a reverse
@@ -84,7 +65,8 @@ function flushOnExit(flush: () => void): void {
 export function accessLog(options: AccessLogOptions = {}): BosiaPlugin {
 	const format = options.format ?? defaultFormat;
 	const write = options.write ?? defaultWrite;
-	const flushMs = options.flushMs ?? (typeof Bun === "undefined" ? 0 : 100);
+	// Workers drops timers once the response is sent: a batch would never flush.
+	const flushMs = typeof Bun === "undefined" ? 0 : (options.flushMs ?? 100);
 	const filter = options.filter;
 
 	let buffer = "";
@@ -94,26 +76,31 @@ export function accessLog(options: AccessLogOptions = {}): BosiaPlugin {
 			clearTimeout(timer);
 			timer = null;
 		}
-		pendingFlushes.delete(flush);
 		if (buffer === "") return;
 		const out = buffer;
 		buffer = "";
-		write(out);
+		try {
+			const done = write(out);
+			if (done instanceof Promise) done.catch(() => {});
+		} catch {
+			// A broken sink loses this batch, not the request or the process.
+		}
 	};
+	let exitHooked = false;
 
 	const log = (entry: AccessLogEntry) => {
 		if (filter && !filter(entry)) return;
 		buffer += format(entry) + "\n";
 		if (flushMs <= 0 || buffer.length >= MAX_BUFFER_CHARS) flush();
 		else if (!timer) {
-			flushOnExit(flush);
-			timer = setTimeout(() => {
-				try {
-					flush();
-				} catch {
-					// A broken sink loses this batch, not the process.
-				}
-			}, flushMs);
+			// Lines still waiting when the server drains and exits. Added on the
+			// first buffered line, so `bosia build` (which loads the config too)
+			// never registers one.
+			if (!exitHooked && typeof process !== "undefined" && typeof process.once === "function") {
+				exitHooked = true;
+				process.once("exit", flush);
+			}
+			timer = setTimeout(flush, flushMs);
 			(timer as { unref?: () => void }).unref?.();
 		}
 	};
