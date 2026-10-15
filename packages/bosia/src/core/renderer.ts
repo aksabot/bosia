@@ -669,8 +669,10 @@ export async function loadMetadata(
 	} catch (err) {
 		// Control flow thrown from metadata() is intent, not failure — swallowing it
 		// here made every caller's Redirect/HttpError branch dead code.
-		if (isRedirect(err) || isHttpError(err)) throw err;
+		// Also marked for control flow: the data endpoint swallows it and must
+		// not cache the 200 it sends instead.
 		if (deps) failedMetadata.add(deps);
+		if (isRedirect(err) || isHttpError(err)) throw err;
 		if (isDev) console.error("Metadata load error:", err);
 		else console.error("Metadata load error:", (err as Error).message ?? err);
 		if (isDev) reportDevErrorFromCatch(err);

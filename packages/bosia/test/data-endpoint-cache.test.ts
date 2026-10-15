@@ -220,6 +220,16 @@ beforeAll(async () => {
 			`export function load() {\n\treturn { ok: true };\n}\n`,
 	);
 
+	mkdirSync(join(routes, "meta-gagal-ssr"), { recursive: true });
+	writeFileSync(join(routes, "meta-gagal-ssr", "+page.svelte"), `<p>Meta gagal SSR</p>\n`);
+	writeFileSync(
+		join(routes, "meta-gagal-ssr", "+page.server.ts"),
+		`export function metadata() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tif (!g.__metaGagalSsr) { g.__metaGagalSsr = 1; throw new Error("cms down"); }\n` +
+			`\treturn { title: "Judul SSR" };\n}\n`,
+	);
+
 	// The first call never settles; later ones answer.
 	mkdirSync(join(routes, "macet"), { recursive: true });
 	writeFileSync(join(routes, "macet", "+page.svelte"), `<p>Macet</p>\n`);
@@ -614,6 +624,15 @@ describe("metadata() failures", () => {
 		const next = await getData("/meta-gagal.json");
 		expect(next.res.headers.get("x-bosia-cache")).toBeNull();
 		expect(next.body.metadata.title).toBe("Judul");
+	});
+
+	test("the same for page HTML", async () => {
+		const failed = await fetch(`${origin}/meta-gagal-ssr`);
+		expect(await failed.text()).not.toContain("Judul SSR");
+		await settle();
+		const next = await fetch(`${origin}/meta-gagal-ssr`);
+		expect(next.headers.get("x-bosia-cache")).toBeNull();
+		expect(await next.text()).toContain("<title>Judul SSR</title>");
 	});
 });
 
