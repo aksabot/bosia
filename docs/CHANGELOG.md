@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The Indonesian landing page `/id` is prerendered on purpose, no longer by a docs slug.
 - Routing and Cloudflare skills: a prerendered page that errors or redirects fails the build.
 - Docs skip a language's index page only when that language has its own landing page.
-- Env vars guide and skill: `PRERENDER_TIMEOUT` also sets the load and metadata limits at build time.
+- Env vars guide and skill: `PRERENDER_TIMEOUT` also sets the load and metadata limits at build.
 - Env vars guide and skill: `PRERENDER_CONCURRENCY` counts requests; a page and its data are two.
 
 ## [0.8.27] - 2026-10-14

@@ -7,6 +7,7 @@ import {
 	getEphemeralPort,
 	prerenderDataProblem,
 	prerenderReplyProblem,
+	prerenderSetting,
 } from "../src/core/prerender.ts";
 import { BOSIA_NODE_PATH } from "../src/core/paths.ts";
 
@@ -113,6 +114,24 @@ describe("prerenderDataProblem()", () => {
 	});
 	test("a body that isn't JSON fails", () => {
 		expect(prerenderDataProblem("<h1>hi</h1>")).toBe("answered a body that isn't JSON");
+	});
+});
+
+// PRERENDER_TIMEOUT and PRERENDER_CONCURRENCY: a bad value would build zero workers (every page
+// silently skipped) or make every fetch throw, so it fails the build instead.
+describe("prerenderSetting()", () => {
+	test("unset or blank gives the default", () => {
+		expect(prerenderSetting(undefined, 6)).toBe(6);
+		expect(prerenderSetting(" ", 6)).toBe(6);
+	});
+	test("a whole number from 1 up is kept", () => {
+		expect(prerenderSetting("1", 6)).toBe(1);
+		expect(prerenderSetting("30000", 5000)).toBe(30000);
+		expect(prerenderSetting("2147483647", 5000)).toBe(2147483647);
+	});
+	test("anything else is null", () => {
+		for (const raw of ["0", "-1", "0.5", "1.5", "Infinity", "abc", "2147483648", "1e12"])
+			expect(prerenderSetting(raw, 6)).toBeNull();
 	});
 });
 
@@ -511,6 +530,59 @@ test("the 404 probe doesn't follow a redirect to another host", async () => {
 		expect(hits).toBe(0);
 	} finally {
 		other.stop(true);
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// The probe's failures read like a page's: a timeout names PRERENDER_TIMEOUT.
+test("a 404 probe that times out says how to raise the limit", async () => {
+	const dir = fixture("slowprobe", {
+		"src/routes/+page.server.ts": prerendered(),
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (event.url.pathname.startsWith("/__bosia-404-probe")) await Bun.sleep(5000);\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const { out } = await build(dir, { PRERENDER_TIMEOUT: "1000" });
+		expect(out).toContain(
+			"404.html skipped: timed out after 1s — increase PRERENDER_TIMEOUT to raise the limit",
+		);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 180_000);
+
+// /_health is answered after the hooks, so a hook stuck on a database the build can't reach
+// would hang the ready check. Each check has its own time limit inside the 10s deadline.
+test("a hook that never answers /_health fails the build after 10s", async () => {
+	const dir = fixture("stuckhealth", {
+		"src/routes/+page.server.ts": prerendered(),
+		"src/hooks.server.ts":
+			`export const handle = async ({ event, resolve }: any) => {\n` +
+			`\tif (event.url.pathname === "/_health") await new Promise(() => {});\n` +
+			`\treturn resolve(event);\n};\n`,
+	});
+	try {
+		const started = Date.now();
+		const { code, out } = await build(dir);
+		expect(out).toContain("not ready within 10s");
+		expect(code).toBe(1);
+		expect(Date.now() - started).toBeLessThan(20_000);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}, 60_000);
+
+test("a bad PRERENDER_CONCURRENCY fails the build instead of skipping every page", async () => {
+	const dir = fixture("badconc", { "src/routes/+page.server.ts": prerendered() });
+	try {
+		const { code, out } = await build(dir, { PRERENDER_CONCURRENCY: "0.5" });
+		expect(out).toContain(
+			`PRERENDER_CONCURRENCY must be a whole number from 1 to 2147483647 (got "0.5")`,
+		);
+		expect(code).toBe(1);
+	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
 }, 180_000);

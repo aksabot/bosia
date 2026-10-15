@@ -52,8 +52,18 @@ export function needsStatic404(cwd = process.cwd()): boolean {
 	return false;
 }
 
-const PRERENDER_TIMEOUT = Number(process.env.PRERENDER_TIMEOUT) || 5_000; // 5s default
-const PRERENDER_CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 6;
+// Up to 2^31-1: the child's LOAD_TIMEOUT is a setTimeout, which fires at once above that.
+const SETTING_MAX = 2_147_483_647;
+
+/** A whole number from 1 to SETTING_MAX, `fallback` when unset, null when anything else. */
+export function prerenderSetting(raw: string | undefined, fallback: number): number | null {
+	if (raw === undefined || raw.trim() === "") return fallback;
+	const n = Number(raw);
+	return Number.isInteger(n) && n >= 1 && n <= SETTING_MAX ? n : null;
+}
+
+const PRERENDER_TIMEOUT = prerenderSetting(process.env.PRERENDER_TIMEOUT, 5_000); // 5s default
+const PRERENDER_CONCURRENCY = prerenderSetting(process.env.PRERENDER_CONCURRENCY, 6);
 
 // ─── Prerendering ─────────────────────────────────────────
 
@@ -230,7 +240,7 @@ class ReplyProblem extends Error {}
 /** Why a prerender fetch threw: a timeout names the env var that raises it. */
 function fetchFailure(err: unknown): string {
 	if (err instanceof DOMException && err.name === "TimeoutError")
-		return `timed out after ${PRERENDER_TIMEOUT / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`;
+		return `timed out after ${PRERENDER_TIMEOUT! / 1000}s — increase PRERENDER_TIMEOUT to raise the limit`;
 	return `failed: ${describeError(err)}`;
 }
 
@@ -423,6 +433,24 @@ export async function prerenderStaticRoutes(
 	manifest: RouteManifest,
 	target: RuntimeTarget = "bun",
 ): Promise<void> {
+	// A bad value would build zero workers (every page silently skipped) or make every fetch throw.
+	const bad = (
+		[
+			["PRERENDER_TIMEOUT", PRERENDER_TIMEOUT],
+			["PRERENDER_CONCURRENCY", PRERENDER_CONCURRENCY],
+		] as const
+	).filter(([, value]) => value === null);
+	if (bad.length)
+		throw new PrerenderEntriesError(
+			bad
+				.map(
+					([name]) =>
+						`❌ ${name} must be a whole number from 1 to ${SETTING_MAX} (got "${process.env[name]}")`,
+				)
+				.join("\n"),
+		);
+	const timeout = PRERENDER_TIMEOUT!;
+	const concurrency = PRERENDER_CONCURRENCY!;
 	const targets = await detectPrerenderRoutes(manifest);
 	// On Workers the worker answers unknown paths, so 404.html is never required.
 	const require404 = target !== "workers" && needsStatic404();
@@ -454,8 +482,8 @@ export async function prerenderStaticRoutes(
 			// its metadata (a timeout there is swallowed), so that one limit rules the build.
 			MAX_INFLIGHT: "infinity",
 			IDLE_TIMEOUT: "0",
-			LOAD_TIMEOUT: String(PRERENDER_TIMEOUT),
-			METADATA_TIMEOUT: String(PRERENDER_TIMEOUT),
+			LOAD_TIMEOUT: String(timeout),
+			METADATA_TIMEOUT: String(timeout),
 			NODE_PATH: BOSIA_NODE_PATH,
 		},
 		stdout: "ignore",
@@ -485,7 +513,10 @@ export async function prerenderStaticRoutes(
 		const deadline = Date.now() + 10_000;
 		while (Date.now() < deadline && !exited) {
 			try {
-				const res = await fetch(`${base}${HEALTH_PATH}`);
+				// Answered after the hooks, so a stuck hook would hang here past the deadline.
+				const res = await fetch(`${base}${HEALTH_PATH}`, {
+					signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+				});
 				if (res.ok) {
 					ready = true;
 					break;
@@ -517,7 +548,7 @@ export async function prerenderStaticRoutes(
 		const failures: string[] = [];
 		// PRERENDER_CONCURRENCY counts requests, not pages: a page's HTML and data each run its
 		// loaders, so N slots keep N loader runs at once (a cap users set for rate-limited APIs).
-		let free = PRERENDER_CONCURRENCY;
+		let free = concurrency;
 		const waiting: (() => void)[] = [];
 		const acquire = async () => {
 			if (free > 0) free--;
@@ -546,7 +577,7 @@ export async function prerenderStaticRoutes(
 					stop.signal.throwIfAborted();
 					const res = await fetch(url, {
 						redirect: "manual",
-						signal: AbortSignal.any([AbortSignal.timeout(PRERENDER_TIMEOUT), stop.signal]),
+						signal: AbortSignal.any([AbortSignal.timeout(timeout), stop.signal]),
 					});
 					const problem = prerenderReplyProblem(as, res);
 					if (!problem) return await res.text();
@@ -616,9 +647,7 @@ export async function prerenderStaticRoutes(
 				if (target) await prerenderOne(target);
 			}
 		};
-		await Promise.all(
-			Array.from({ length: Math.min(PRERENDER_CONCURRENCY, targets.length) }, worker),
-		);
+		await Promise.all(Array.from({ length: Math.min(concurrency, targets.length) }, worker));
 
 		// Static hosts (Cloudflare assets) serve index.html with a 200 for unknown
 		// paths unless a 404.html exists. Save the server's own 404 page while it's up.
@@ -633,7 +662,7 @@ export async function prerenderStaticRoutes(
 				// the probe to `/__bosia-404-probe/`, and its 404 there is the page a static host
 				// should show. A redirect off the build server is reported, not fetched.
 				const probe = (url: string) =>
-					fetch(url, { redirect: "manual", signal: AbortSignal.timeout(PRERENDER_TIMEOUT) });
+					fetch(url, { redirect: "manual", signal: AbortSignal.timeout(timeout) });
 				let res = await probe(`${base}/__bosia-404-probe`);
 				const location = res.status >= 300 && res.status < 400 && res.headers.get("location");
 				if (location) {
@@ -647,7 +676,7 @@ export async function prerenderStaticRoutes(
 				const problem = prerenderReplyProblem("page", res, 404);
 				if (problem) {
 					await dropBody(res);
-					throw new Error(`an unknown URL ${problem}`);
+					throw new ReplyProblem(`an unknown URL ${problem}`);
 				}
 				mkdirSync(`${OUT_DIR}/static`, { recursive: true });
 				writeFileSync(`${OUT_DIR}/static/404.html`, await res.text());
@@ -655,7 +684,7 @@ export async function prerenderStaticRoutes(
 			} catch (err) {
 				// Only a deploy that serves 404.html needs it; elsewhere (an app whose
 				// hooks redirect every request) a missing one is fine, so just warn.
-				const reason = (err as Error).message;
+				const reason = err instanceof ReplyProblem ? err.message : fetchFailure(err);
 				// Listed with the page failures, so one build shows every problem.
 				if (require404)
 					failures.push(

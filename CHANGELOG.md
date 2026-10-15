@@ -34,6 +34,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `METADATA_TIMEOUT` in `.env` no longer saves prerendered pages without their title.
 - `PRERENDER_CONCURRENCY` again caps loaders running at once (a page and its data count as two).
 - The 404 page check no longer follows a redirect to another site during the build.
+- A stuck hook no longer hangs the build; it fails after 10s waiting for the prerender server.
+- A 404 page check that times out now says to raise `PRERENDER_TIMEOUT`, like page errors do.
+- A bad `PRERENDER_TIMEOUT` or `PRERENDER_CONCURRENCY` fails the build instead of skipping pages.
 - `PRERENDER_TIMEOUT` now also sets the loader time limit while prerendering.
 - A data request that times out says `data timed out`, so you know which request was slow.
 - A server that's slow to start says "not ready within 10s" instead of looking like a crash.
