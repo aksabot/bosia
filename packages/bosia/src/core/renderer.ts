@@ -12,7 +12,7 @@ import {
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
-	coalesceMiss,
+	claimMiss,
 	collectTags,
 	depsReadIgnoredParams,
 	markWholeQueryRead,
@@ -735,14 +735,11 @@ export async function renderSSRStream(
 			// Miss coalescing: the first miss leads the build; concurrent misses
 			// wait, then re-check the cache. A waiter that still misses (leader
 			// skipped the write) builds independently — no re-leadering.
-			const gate = coalesceMiss(cacheKey);
-			if (gate.wait) {
-				await gate.wait;
-				const rehit = cacheGet(cacheKey);
-				if (rehit) return serveCached(rehit, req);
-			} else {
-				releaseMiss = gate.release;
-				ownsMiss = gate.current;
+			const claim = await claimMiss(cacheKey);
+			if (claim.hit) return serveCached(claim.hit, req);
+			if (claim.lead) {
+				releaseMiss = claim.lead.release;
+				ownsMiss = claim.lead.current;
 			}
 		}
 	}

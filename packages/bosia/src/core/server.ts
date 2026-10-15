@@ -51,7 +51,7 @@ import {
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
-	coalesceMiss,
+	claimMiss,
 	collectTags,
 	depsReadIgnoredParams,
 	stripIgnoredParams,
@@ -462,7 +462,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			// (different masks return different slots), tag/path invalidation, and
 			// no CSP. Only GETs use it (the client router only sends GETs); a
 			// `_fresh` fetch after invalidate() skips the read only.
-			// Set when the gate says the previous build is stuck: don't join its
+			// Set when this request replaced a stuck leader: don't join its
 			// dedup() call either, start a new one.
 			let freshDedup = false;
 			const keySuffix = `|data${invalidatedBits ? `|m=${invalidatedBits}` : ""}`;
@@ -486,16 +486,14 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				}
 				const hit = cacheGet(cacheKey);
 				if (hit) return serveCached(hit, request);
-				const gate = coalesceMiss(cacheKey);
-				if (gate.wait) {
-					// false: the leader is stuck past CACHE_WAIT_TIMEOUT.
-					if (!(await gate.wait)) freshDedup = true;
-					const rehit = cacheGet(cacheKey);
-					if (rehit) return serveCached(rehit, request);
-				} else {
-					releaseDataMiss = gate.release;
-					ownsDataMiss = gate.current;
-					if (gate.stale) freshDedup = true;
+				const claim = await claimMiss(cacheKey);
+				if (claim.hit) return serveCached(claim.hit, request);
+				if (claim.lead) {
+					releaseDataMiss = claim.lead.release;
+					ownsDataMiss = claim.lead.current;
+					// It replaced a stuck leader: start a new loader run, which
+					// later requests join, instead of joining the stuck one.
+					freshDedup = claim.lead.stale;
 				}
 			}
 
@@ -689,14 +687,11 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				if (apiCacheable && !url.searchParams.has("_invalidated")) {
 					// Miss coalescing: first miss runs the handler; concurrent misses
 					// wait, re-check the cache, and on a still-miss run independently.
-					const gate = coalesceMiss(apiCacheKey);
-					if (gate.wait) {
-						await gate.wait;
-						const rehit = cacheGet(apiCacheKey);
-						if (rehit) return serveCached(rehit, request);
-					} else {
-						releaseApiMiss = gate.release;
-						ownsApiMiss = gate.current;
+					const claim = await claimMiss(apiCacheKey);
+					if (claim.hit) return serveCached(claim.hit, request);
+					if (claim.lead) {
+						releaseApiMiss = claim.lead.release;
+						ownsApiMiss = claim.lead.current;
 					}
 				}
 			}

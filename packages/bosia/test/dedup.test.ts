@@ -96,23 +96,31 @@ describe("dedup()", () => {
 
 describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 	// CACHE_WAIT_TIMEOUT is read at import, so this runs in its own process.
-	test("waiters and the next leader don't join its dedup() call", async () => {
+	test("one waiter rebuilds, the rest share it, and none joins the stuck dedup() call", async () => {
 		const script = `
-			const { coalesceMiss } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/cache.ts"))});
+			const { cacheSet, claimMiss, coalesceMiss } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/cache.ts"))});
 			const { dedup } = await import(${JSON.stringify(join(import.meta.dir, "../src/core/dedup.ts"))});
 			const leader = coalesceMiss("k");
 			dedup("k", () => new Promise(() => {}), 40);
-			// Same order as the data endpoint: gate first, then dedup.
+			// Same steps as the data endpoint: claim, dedup (replacing a stuck
+			// call when leading in its place), write, release.
+			let builds = 0;
+			const build = () => (builds++, Bun.sleep(20).then(() => "ok"));
+			const entry = () => ({ raw: new TextEncoder().encode("ok"), gzip: null, brotli: null,
+				contentType: "text/plain", status: 200, extraHeaders: {}, tags: [] });
 			const run = async () => {
-				const gate = coalesceMiss("k");
-				let fresh = false;
-				if (gate.wait) fresh = !(await gate.wait);
-				else fresh = gate.stale;
-				return dedup("k", async () => "ok", 40, fresh);
+				const claim = await claimMiss("k");
+				if (claim.hit) return "ok";
+				const out = await dedup("k", build, 40, claim.lead?.stale ?? false);
+				if (claim.lead) {
+					if (claim.lead.current()) cacheSet("k", entry());
+					claim.lead.release();
+				}
+				return out;
 			};
 			const timeout = new Promise((r) => setTimeout(() => r("hung"), 1000));
 			const waiters = await Promise.race([Promise.all(Array.from({ length: 20 }, run)), timeout]);
-			await Bun.sleep(50);
+			const waiterBuilds = builds;
 			const next = await Promise.race([run(), timeout]);
 			// The stuck leader's gate was replaced: it must not write.
 			const owned = leader.current();
@@ -123,7 +131,7 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 				Promise.all(Array.from({ length: 5 }, () => dedup("j", () => (runs++, Bun.sleep(20).then(() => "ok")), 40))),
 				timeout,
 			]);
-			console.log(JSON.stringify({ waiters, next, owned, joiners, runs }));
+			console.log(JSON.stringify({ waiters, next, owned, waiterBuilds, joiners, runs }));
 		`;
 		const proc = Bun.spawn(["bun", "-e", script], {
 			env: { ...process.env, CACHE_WAIT_TIMEOUT: "40" },
@@ -136,6 +144,8 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 		const result = JSON.parse(line);
 		expect(result.waiters).toEqual(Array(20).fill("ok"));
 		expect(result.next).toBe("ok");
+		// One new build when the gate expired, not one per waiter.
+		expect(result.waiterBuilds).toBe(1);
 		expect(result.owned).toBe(false);
 		expect(result.joiners).toEqual(Array(5).fill("ok"));
 		expect(result.runs).toBe(1);

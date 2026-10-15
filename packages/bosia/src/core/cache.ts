@@ -109,9 +109,8 @@ export const LOAD_TIMEOUT = parseMs(env.LOAD_TIMEOUT, 30_000, "LOAD_TIMEOUT");
 export const METADATA_TIMEOUT = parseMs(env.METADATA_TIMEOUT, 10_000, "METADATA_TIMEOUT");
 
 /** The longest a healthy page build can take (metadata, then load, plus
- *  render); 0 when either timeout is off. */
-const LOADER_BUDGET =
-	LOAD_TIMEOUT > 0 && METADATA_TIMEOUT > 0 ? METADATA_TIMEOUT + LOAD_TIMEOUT + 10_000 : 0;
+ *  render); 0 when LOAD_TIMEOUT is off. */
+const LOADER_BUDGET = LOAD_TIMEOUT > 0 ? METADATA_TIMEOUT + LOAD_TIMEOUT + 10_000 : 0;
 
 /**
  * How long a cache miss waits for another request already building the same
@@ -677,6 +676,29 @@ export function coalesceMiss(
 		// overwrite it.
 		current: () => missGates.get(key) === gate,
 	};
+}
+
+export type MissLead = { release: () => void; stale: boolean; current: () => boolean };
+
+/**
+ * Claim a cache miss: a hit some other request wrote while this one waited,
+ * the lead (`lead.release()` exactly once, after the write or its skip), or
+ * `lead: null` — the leader finished without writing, build without leading.
+ * A waiter whose gate expired re-claims: the first becomes the new (`stale`)
+ * leader, the rest wait on it, so a stuck leader never sets every waiter
+ * building at once.
+ */
+export async function claimMiss(
+	key: string,
+): Promise<{ hit: CacheEntry; lead?: undefined } | { lead: MissLead | null; hit?: undefined }> {
+	for (;;) {
+		const gate = coalesceMiss(key);
+		if (!gate.wait) return { lead: gate };
+		const finished = await gate.wait;
+		const hit = cacheGet(key);
+		if (hit) return { hit };
+		if (finished) return { lead: null };
+	}
 }
 
 /** One timer per gate, shared by all its waiters: true when the leader
