@@ -45,6 +45,38 @@ function parseMaxBodyBytes(raw: string | undefined): number {
 	return parseBytes(raw, 2_097_152); // 2MB; 0 = unlimited
 }
 
+/** Unset or invalid → fallback; `0` or `Infinity` → no limit (0). */
+function parseWaitMs(raw: string | undefined, fallback: number): number {
+	const value = raw?.trim();
+	if (!value) return fallback;
+	if (value === "Infinity") return 0;
+	const n = parseInt(value, 10);
+	return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/** Ad and social click parameters: they never change what a page shows. */
+const DEFAULT_IGNORE_PARAMS =
+	"utm_*,fbclid,gclid,gbraid,wbraid,dclid,msclkid,twclid,ttclid,li_fat_id,igshid,yclid,mc_cid,mc_eid,_ga,_gl";
+
+/** Comma-separated names; `name*` matches a prefix. `none` (or `-`) = ignore nothing. */
+export function parseIgnoreParams(raw: string | undefined): {
+	names: Set<string>;
+	prefixes: string[];
+} {
+	let value = raw?.trim();
+	if (value === undefined || value === "") value = DEFAULT_IGNORE_PARAMS;
+	const names = new Set<string>();
+	const prefixes: string[] = [];
+	if (value === "none" || value === "-") return { names, prefixes };
+	for (const part of value.split(",")) {
+		const p = part.trim();
+		if (!p || p === "*") continue;
+		if (p.endsWith("*")) prefixes.push(p.slice(0, -1));
+		else names.add(p);
+	}
+	return { names, prefixes };
+}
+
 // Server-only module (imported by core/renderer.ts, core/server.ts,
 // lib/server.ts — never the client barrel; client `invalidate` lives in
 // core/client/navigation.ts). The `process` guards below are kept as
@@ -59,6 +91,13 @@ export const CACHE_MAX_BODY_BYTES = parseMaxBodyBytes(env.CACHE_MAX_BODY_BYTES);
 /** Budget for every entry together (raw + gzip + brotli). 0 = entry count only. */
 export const CACHE_MAX_BYTES = parseBytes(env.CACHE_MAX_BYTES, 104_857_600); // 100MB
 export const CACHE_ENABLED = CACHE_MAX_ENTRIES > 0;
+/**
+ * How long a cache miss waits for another request already building the same
+ * key before building itself (ms). Bounds a leader that never finishes (an
+ * API handler that hangs: loaders have LOAD_TIMEOUT). 0 = wait for the leader.
+ */
+export const CACHE_WAIT_TIMEOUT = parseWaitMs(env.CACHE_WAIT_TIMEOUT, 5000);
+const IGNORE_PARAMS = parseIgnoreParams(env.CACHE_IGNORE_PARAMS);
 /** Largest body worth reading or compressing for the cache: the per-body cap,
  *  and at most a quarter of the budget (raw + two compressed copies still fit,
  *  and one entry can't flush the rest). 0 = no limit. */
@@ -98,6 +137,9 @@ export type CacheEntry = {
 	/** Digest of `raw`, filled in by `cacheSet`; the ETag is built from it per
 	 *  encoding so a gzip and a brotli copy are never mistaken for each other. */
 	etag?: string;
+	/** A loader read an ignored tracking param (or the whole query): not served
+	 *  to requests that carried one. See CACHE_IGNORE_PARAMS. */
+	queryAware?: boolean;
 };
 
 // ─── Tiny LRU ────────────────────────────────────────────
@@ -198,6 +240,63 @@ export function computeIdentityHash(req: Request, cookies: Pick<CookieJar, "peek
 
 export function computeCacheKey(url: URL, req: Request, cookies: Pick<CookieJar, "peek">): string {
 	return `${dedupKey(url)}|i=${computeIdentityHash(req, cookies)}`;
+}
+
+// ─── Tracking parameters (CACHE_IGNORE_PARAMS) ───────────
+// `/blog?utm_source=x` and `/blog?fbclid=…` are the same page as `/blog`, but
+// every value made its own entry: a full render per ad click, and the misses
+// pushed hot pages out of the LRU. Pages (SSR and data endpoint) look such a
+// request up under the URL without those params; API routes keep the full URL.
+//
+// A request that carried them is served the plain URL's entry, but never
+// writes one: a component or metadata() may render `page.url` (a canonical
+// link, a hidden gclid field), so its HTML can hold this visitor's values.
+// An entry whose loaders read an ignored param (or the whole query) is marked
+// `queryAware` and isn't served to such requests either.
+
+export function isIgnoredParam(name: string): boolean {
+	if (IGNORE_PARAMS.names.has(name)) return true;
+	for (const p of IGNORE_PARAMS.prefixes) if (name.startsWith(p)) return true;
+	return false;
+}
+
+/** `url` without ignored params, or `url` itself when it has none. */
+export function stripIgnoredParams(url: URL): URL {
+	if (url.search === "") return url;
+	if (IGNORE_PARAMS.names.size === 0 && IGNORE_PARAMS.prefixes.length === 0) return url;
+	let found = false;
+	for (const name of url.searchParams.keys()) {
+		if (isIgnoredParam(name)) {
+			found = true;
+			break;
+		}
+	}
+	if (!found) return url;
+	const out = new URL(url.href);
+	for (const name of [...out.searchParams.keys()]) {
+		if (isIgnoredParam(name)) out.searchParams.delete(name);
+	}
+	return out;
+}
+
+/** Loaders that read the whole query string (`url.search`, `url.href`, iterating
+ *  `url.searchParams`): their output may depend on any param. */
+const wholeQueryDeps = new WeakSet<LoaderDeps>();
+
+export function markWholeQueryRead(deps: LoaderDeps): void {
+	wholeQueryDeps.add(deps);
+}
+
+/** Whether any loader read an ignored param — its entry must not be served to a
+ *  request that carried one. */
+export function depsReadIgnoredParams(
+	layoutDeps: (LoaderDeps | null)[] | null,
+	pageDeps: LoaderDeps | null,
+): boolean {
+	const check = (d: LoaderDeps | null) =>
+		!!d && (wholeQueryDeps.has(d) || d.searchParams.some(isIgnoredParam));
+	if (check(pageDeps)) return true;
+	return !!layoutDeps && layoutDeps.some(check);
 }
 
 /** Extract pathname portion of a cacheKey for path-based invalidation. */
@@ -477,16 +576,23 @@ export function concatChunks(chunks: Uint8Array[]): Bytes {
 // from dedup(), which shares the *result*; this shares only the *wait*.
 //
 // INVARIANT: the leader must call release() exactly once, after its cacheSet
-// attempt completed or was skipped. A missed release() hangs waiters for the
-// process lifetime — callers guard with try/finally.
+// attempt completed or was skipped — callers guard with try/finally.
+//
+// A leader that never finishes (an API handler that hangs; loaders have
+// LOAD_TIMEOUT) held its key for the process lifetime: every later request
+// waited on it and the handler never ran again. Waiters give up after
+// CACHE_WAIT_TIMEOUT, counted from the first waiter, and the stuck gate is
+// dropped so the next miss leads a fresh build.
 
-const missGates = new Map<string, { promise: Promise<void>; release: () => void }>();
+type MissGate = { promise: Promise<void>; release: () => void; wait?: Promise<void> };
+
+const missGates = new Map<string, MissGate>();
 
 export function coalesceMiss(
 	key: string,
 ): { release: () => void; wait?: undefined } | { wait: Promise<void>; release?: undefined } {
 	const existing = missGates.get(key);
-	if (existing) return { wait: existing.promise };
+	if (existing) return { wait: (existing.wait ??= waitWithTimeout(key, existing)) };
 	let resolve!: () => void;
 	const promise = new Promise<void>((r) => (resolve = r));
 	const release = () => {
@@ -496,6 +602,22 @@ export function coalesceMiss(
 	};
 	missGates.set(key, { promise, release });
 	return { release };
+}
+
+/** One timer per gate, shared by all its waiters. */
+function waitWithTimeout(key: string, gate: MissGate): Promise<void> {
+	if (CACHE_WAIT_TIMEOUT <= 0) return gate.promise;
+	return new Promise<void>((resolve) => {
+		const timer = setTimeout(() => {
+			if (missGates.get(key) === gate) missGates.delete(key);
+			resolve();
+		}, CACHE_WAIT_TIMEOUT);
+		(timer as { unref?: () => void }).unref?.();
+		gate.promise.then(() => {
+			clearTimeout(timer);
+			resolve();
+		});
+	});
 }
 
 // ─── Serve a cache hit ───────────────────────────────────

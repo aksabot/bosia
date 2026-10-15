@@ -10,10 +10,15 @@ import {
 	computeIdentityHash,
 	concatChunks,
 	deferCacheWrite,
+	depsReadIgnoredParams,
 	invalidate,
 	invalidateAll,
+	isIgnoredParam,
+	markWholeQueryRead,
+	parseIgnoreParams,
 	readBodyForCache,
 	serveCached,
+	stripIgnoredParams,
 	varyBlocksCache,
 	type CacheEntry,
 } from "../src/core/cache.ts";
@@ -683,5 +688,57 @@ describe("deferCacheWrite", () => {
 		await handle();
 		await new Promise((r) => setImmediate(r));
 		expect(order).toEqual(["response returned", "cache write"]);
+	});
+});
+
+// ─── Tracking params (CACHE_IGNORE_PARAMS) ───────────────
+
+describe("CACHE_IGNORE_PARAMS", () => {
+	test("parses names and `prefix*`; unset or empty is the default list", () => {
+		const custom = parseIgnoreParams(" ref , utm_* ,, campaign ");
+		expect([...custom.names].sort()).toEqual(["campaign", "ref"]);
+		expect(custom.prefixes).toEqual(["utm_"]);
+		const dflt = parseIgnoreParams(undefined);
+		expect(dflt.names.has("fbclid")).toBe(true);
+		expect(dflt.prefixes).toEqual(["utm_"]);
+		expect(parseIgnoreParams("  ").names.has("gclid")).toBe(true);
+	});
+
+	test("`none` ignores nothing, and a bare `*` never matches every param", () => {
+		const none = parseIgnoreParams("none");
+		expect(none.names.size + none.prefixes.length).toBe(0);
+		const star = parseIgnoreParams("*");
+		expect(star.names.size + star.prefixes.length).toBe(0);
+	});
+
+	test("default list matches click ids and utm_*, not ordinary params", () => {
+		for (const p of ["utm_source", "utm_whatever", "fbclid", "gclid", "msclkid"]) {
+			expect(isIgnoredParam(p)).toBe(true);
+		}
+		for (const p of ["page", "q", "ref", "utm", "id"]) expect(isIgnoredParam(p)).toBe(false);
+	});
+
+	test("strip keeps other params and returns the same URL when nothing matched", () => {
+		const plain = new URL("http://x/blog?page=2");
+		expect(stripIgnoredParams(plain)).toBe(plain);
+		const ad = new URL("http://x/blog?utm_source=a&page=2&fbclid=z");
+		const stripped = stripIgnoredParams(ad);
+		expect(stripped).not.toBe(ad);
+		expect(stripped.search).toBe("?page=2");
+		expect(ad.search).toBe("?utm_source=a&page=2&fbclid=z");
+		expect(
+			computeCacheKey(stripped, mkRequest("http://x/"), mkCookies()) ===
+				computeCacheKey(new URL("http://x/blog?page=2"), mkRequest("http://x/"), mkCookies()),
+		).toBe(true);
+	});
+
+	test("an entry is query-aware when a loader read an ignored param or the whole query", () => {
+		const reads = (names: string[]) => ({ ...emptyDeps(), searchParams: names });
+		expect(depsReadIgnoredParams([reads(["page"])], reads(["q"]))).toBe(false);
+		expect(depsReadIgnoredParams(null, reads(["utm_source"]))).toBe(true);
+		expect(depsReadIgnoredParams([null, reads(["gclid"])], null)).toBe(true);
+		const whole = emptyDeps();
+		markWholeQueryRead(whole);
+		expect(depsReadIgnoredParams([whole], null)).toBe(true);
 	});
 });

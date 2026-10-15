@@ -116,6 +116,52 @@ beforeAll(async () => {
 			`\t});\n}\n`,
 	);
 
+	// Tracking params (CACHE_IGNORE_PARAMS): one page ignores the query, one
+	// reads utm_source and shows it.
+	mkdirSync(join(routes, "iklan"), { recursive: true });
+	writeFileSync(join(routes, "iklan", "+page.svelte"), `<p>Iklan</p>\n`);
+	writeFileSync(join(routes, "iklan", "+page.server.ts"), counter("iklan"));
+	mkdirSync(join(routes, "sumber"), { recursive: true });
+	writeFileSync(
+		join(routes, "sumber", "+page.svelte"),
+		`<script>\n\tlet { data } = $props();\n</script>\n<p>dari {data.from}</p>\n`,
+	);
+	writeFileSync(
+		join(routes, "sumber", "+page.server.ts"),
+		`export function load({ url }: any) {\n` +
+			`\treturn { from: url.searchParams.get("utm_source") ?? "langsung" };\n}\n`,
+	);
+
+	mkdirSync(join(routes, "semua"), { recursive: true });
+	writeFileSync(
+		join(routes, "semua", "+page.svelte"),
+		`<script>\n\tlet { data } = $props();\n</script>\n<p>q={data.q}</p>\n`,
+	);
+	writeFileSync(
+		join(routes, "semua", "+page.server.ts"),
+		`export function load({ url }: any) {\n` +
+			`\treturn { q: JSON.stringify(Object.fromEntries(url.searchParams)) };\n}\n`,
+	);
+
+	// The first call never settles; later ones answer.
+	mkdirSync(join(routes, "macet"), { recursive: true });
+	writeFileSync(join(routes, "macet", "+page.svelte"), `<p>Macet</p>\n`);
+	writeFileSync(
+		join(routes, "macet", "+page.server.ts"),
+		`export function load() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tif (!g.__macet) { g.__macet = 1; return new Promise(() => {}); }\n` +
+			`\treturn { ok: true };\n}\n`,
+	);
+	mkdirSync(join(routes, "api", "macet"), { recursive: true });
+	writeFileSync(
+		join(routes, "api", "macet", "+server.ts"),
+		`export function GET() {\n` +
+			`\tconst g = globalThis as any;\n` +
+			`\tif (!g.__apiMacet) { g.__apiMacet = 1; return new Promise(() => {}); }\n` +
+			`\treturn Response.json({ ok: true });\n}\n`,
+	);
+
 	const build = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "core", "build.ts")], {
 		cwd: tmpDir,
 		env: { ...process.env, NODE_ENV: "production", NODE_PATH: BOSIA_NODE_PATH },
@@ -138,6 +184,9 @@ beforeAll(async () => {
 			NODE_ENV: "production",
 			PORT: String(port),
 			NODE_PATH: BOSIA_NODE_PATH,
+			// LOAD_TIMEOUT stays unset: the default must bound a hung loader.
+			LOAD_TIMEOUT: "",
+			CACHE_WAIT_TIMEOUT: "1000",
 		},
 		stdout: "ignore",
 		stderr: "ignore",
@@ -156,7 +205,9 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
-	child?.kill();
+	// SIGKILL: the hung API handler below is still in flight, and a graceful
+	// stop would drain it for 10s.
+	child?.kill("SIGKILL");
 	// Windows keeps the server's files locked until it has exited (EBUSY).
 	await child?.exited;
 	rmSync(tmpDir, { recursive: true, force: true });
@@ -335,4 +386,86 @@ describe("ETag on cached responses", () => {
 		const revalidate = await fetch(`${origin}/hitung`, { headers: { "if-none-match": etag! } });
 		expect(revalidate.status).toBe(304);
 	});
+});
+
+describe("tracking params (CACHE_IGNORE_PARAMS)", () => {
+	test("a request with utm_* / fbclid is served the plain URL's entry", async () => {
+		await fetch(`${origin}/iklan`);
+		await settle();
+		const plain = await fetch(`${origin}/iklan`);
+		expect(plain.headers.get("x-bosia-cache")).toBe("HIT");
+		const html = await plain.text();
+
+		const ad = await fetch(`${origin}/iklan?utm_source=fb&utm_medium=cpc&fbclid=abc`);
+		expect(ad.headers.get("x-bosia-cache")).toBe("HIT");
+		expect(await ad.text()).toBe(html);
+
+		// Other params are still their own entry.
+		const other = await fetch(`${origin}/iklan?page=2`);
+		expect(other.headers.get("x-bosia-cache")).toBeNull();
+	});
+
+	test("the data endpoint does the same", async () => {
+		const first = await getData("/iklan.json");
+		await settle();
+		const ad = await getData("/iklan.json?gclid=xyz");
+		expect(ad.res.headers.get("x-bosia-cache")).toBe("HIT");
+		expect(ad.body.pageData.runs).toBe(first.body.pageData.runs);
+	});
+
+	test("a request with tracking params never writes an entry", async () => {
+		const ad = await getData("/iklan.json?_invalidated=1&utm_source=x");
+		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
+		await settle();
+		const plain = await getData("/iklan.json?_invalidated=1");
+		expect(plain.res.headers.get("x-bosia-cache")).toBeNull();
+		expect(plain.body.pageData.runs).toBe(ad.body.pageData.runs + 1);
+	});
+
+	test("a page whose loader reads the param is not served the plain entry", async () => {
+		await fetch(`${origin}/sumber`);
+		await settle();
+		expect((await fetch(`${origin}/sumber`)).headers.get("x-bosia-cache")).toBe("HIT");
+
+		const ad = await fetch(`${origin}/sumber?utm_source=newsletter`);
+		expect(ad.headers.get("x-bosia-cache")).toBeNull();
+		expect(await ad.text()).toContain("dari newsletter");
+		const data = await getData("/sumber.json?utm_source=newsletter");
+		expect(data.body.pageData.from).toBe("newsletter");
+	});
+
+	test("so is a page whose loader iterates the whole query", async () => {
+		await getData("/semua.json");
+		await settle();
+		expect((await getData("/semua.json")).res.headers.get("x-bosia-cache")).toBe("HIT");
+		const ad = await getData("/semua.json?utm_source=x");
+		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
+		expect(ad.body.pageData.q).toBe(JSON.stringify({ utm_source: "x" }));
+	});
+});
+
+describe("a request that never finishes", () => {
+	test("a hung loader times out by default and the URL recovers", async () => {
+		const first = await fetch(`${origin}/macet`);
+		expect(first.status).toBe(500);
+		await first.text();
+		const second = await fetch(`${origin}/macet`);
+		expect(second.status).toBe(200);
+	}, 15_000);
+
+	test("a hung API handler holds its cache key for at most CACHE_WAIT_TIMEOUT", async () => {
+		const ac = new AbortController();
+		const hung = fetch(`${origin}/api/macet`, { signal: ac.signal }).catch(() => null);
+		await Bun.sleep(100);
+		const started = Date.now();
+		const second = await fetch(`${origin}/api/macet`);
+		expect(second.status).toBe(200);
+		expect(Date.now() - started).toBeLessThan(4000);
+		// The stuck gate is gone: the next miss doesn't wait.
+		const t = Date.now();
+		expect((await fetch(`${origin}/api/macet`)).status).toBe(200);
+		expect(Date.now() - t).toBeLessThan(500);
+		ac.abort();
+		await hung;
+	}, 15_000);
 });

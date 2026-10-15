@@ -52,6 +52,8 @@ import {
 	cacheSet,
 	coalesceMiss,
 	collectTags,
+	depsReadIgnoredParams,
+	stripIgnoredParams,
 	computeCacheKey,
 	deferCacheWrite,
 	isNoStoreCacheControl,
@@ -450,19 +452,26 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			// (different masks return different slots), tag/path invalidation, and
 			// no CSP. Only GETs use it (the client router only sends GETs); a
 			// `_fresh` fetch after invalidate() skips the read only.
+			// Tracking params (CACHE_IGNORE_PARAMS) read the plain URL's entry but
+			// never write or lead one — see cache.ts.
+			const keyUrl = stripIgnoredParams(routeUrl);
+			const tracked = keyUrl !== routeUrl;
 			const cacheKey =
-				computeCacheKey(routeUrl, request, cookies as CookieJar) +
+				computeCacheKey(keyUrl, request, cookies as CookieJar) +
 				`|data${invalidatedBits ? `|m=${invalidatedBits}` : ""}`;
-			const dataCacheable =
+			const dataCacheRead =
 				CACHE_ENABLED &&
 				!CSP_ENABLED &&
 				!warmingUp &&
 				method === "GET" &&
 				pageMatch !== null &&
 				(await pageRouteCacheable(pageMatch.route));
-			if (dataCacheable && !fresh) {
+			const dataCacheable = dataCacheRead && !tracked;
+			if (dataCacheRead && !fresh) {
 				const hit = cacheGet(cacheKey);
-				if (hit) return serveCached(hit, request);
+				if (hit && !(tracked && hit.queryAware)) return serveCached(hit, request);
+			}
+			if (dataCacheable && !fresh) {
 				const gate = coalesceMiss(cacheKey);
 				if (gate.wait) {
 					await gate.wait;
@@ -518,6 +527,10 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				bodyFitsCache(body.length)
 			) {
 				const tags = collectTags(result.data.layoutDeps ?? null, result.data.pageDeps ?? null);
+				const queryAware = depsReadIgnoredParams(
+					result.data.layoutDeps ?? null,
+					result.data.pageDeps ?? null,
+				);
 				const rel = releaseDataMiss;
 				releaseDataMiss = null;
 				// Encoded once at cache quality and shared by response and entry.
@@ -543,6 +556,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 								status: 200,
 								extraHeaders: extra,
 								tags,
+								queryAware,
 							},
 							cookies,
 						);

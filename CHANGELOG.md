@@ -12,9 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `CACHE_MAX_BYTES` caps the response cache's memory (default 100MB); the oldest entries go first.
 - `bosia/plugins/access-log`: an opt-in access log, one line per request, written in batches.
+- `CACHE_IGNORE_PARAMS`: links with `?utm_source=…`, `?fbclid=…`, `?gclid=…` and other click params get the cached page instead of a new render per click. Pages whose `load()` reads such a param still render with it.
+- `CACHE_WAIT_TIMEOUT` (default 5s): how long a request waits for another one building the same cached response.
 
 ### Changed
 
+- `LOAD_TIMEOUT` and `METADATA_TIMEOUT` now default to 5000 and 3000 ms, as the docs said; unset meant no timeout. A loader that runs longer than 5s now fails with a 500. Set `LOAD_TIMEOUT=0` (or a higher value) to keep the old behavior.
 - New apps no longer log every request from `hooks.server.ts`. Use your proxy's log or add `accessLog()` to `bosia.config.ts`. That template hook also set the `X-Response-Time` header and, in shop/store, `locals.requestTime` / layout `data.requestTime`; those are gone too.
 
 ### Fixed
@@ -26,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Tapping a link while its data is still prefetching no longer loads that data twice.
 - A response with `Vary: Cookie` (or any `Vary` besides `Accept-Encoding`) is no longer cached.
 - A `+server.ts` GET that returns an already-gzipped body is no longer served broken from cache.
+- One loader or `+server.ts` GET that never finished no longer made its URL hang for everyone until a restart.
 
 ## [1.2.4] - 2026-10-14
 

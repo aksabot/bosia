@@ -14,6 +14,9 @@ import {
 	cacheSet,
 	coalesceMiss,
 	collectTags,
+	depsReadIgnoredParams,
+	markWholeQueryRead,
+	stripIgnoredParams,
 	computeCacheKey,
 	deferCacheWrite,
 	isNoStoreCacheControl,
@@ -139,10 +142,18 @@ class LoadTimeoutError extends Error {
 	}
 }
 
+/**
+ * Unset (or invalid) means the default; `0` or `Infinity` turns the timeout off.
+ * A hung loader with no timeout held its URL's cache gate forever (later
+ * requests waited on it and the loader never ran again), and the client only
+ * saw Bun reset the connection at IDLE_TIMEOUT. The defaults sit below
+ * IDLE_TIMEOUT (10s) so the client gets a 500 instead.
+ */
 function parseTimeout(raw: string | undefined, fallback: number): number {
-	if (!raw || raw === "Infinity") return 0;
+	if (raw === undefined || raw.trim() === "") return fallback;
+	if (raw.trim() === "Infinity") return 0;
 	const n = parseInt(raw, 10);
-	return Number.isFinite(n) && n > 0 ? n : fallback;
+	return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
 const LOAD_TIMEOUT = parseTimeout(process.env.LOAD_TIMEOUT, 5000);
@@ -291,6 +302,8 @@ function trackedUrl(url: URL, deps: LoaderDeps): URL {
 					return (target as any)[prop](key);
 				};
 			}
+			// entries(), size, toString(), iteration…: may depend on any param.
+			markWholeQueryRead(deps);
 			const value = Reflect.get(target, prop);
 			return typeof value === "function" ? value.bind(target) : value;
 		},
@@ -301,7 +314,11 @@ function trackedUrl(url: URL, deps: LoaderDeps): URL {
 			if (prop === "search") {
 				// Whole search string read → treat as broad searchParams dep
 				deps.uses_url = true;
+				markWholeQueryRead(deps);
 				return target.search;
+			}
+			if (prop === "href" || prop === "toString" || prop === "toJSON") {
+				markWholeQueryRead(deps);
 			}
 			if (typeof prop === "string" && URL_TRACKED_PROPS.has(prop)) {
 				deps.uses_url = true;
@@ -702,14 +719,18 @@ export async function renderSSRStream(
 		!warmingUp &&
 		routeCacheable &&
 		(req.method === "GET" || req.method === "HEAD");
-	const cacheable = cacheRead && req.method === "GET";
+	// A request with tracking params (CACHE_IGNORE_PARAMS) reads the plain
+	// URL's entry but never writes or leads one — see cache.ts.
+	const keyUrl = stripIgnoredParams(url);
+	const tracked = keyUrl !== url;
+	const cacheable = cacheRead && req.method === "GET" && !tracked;
 	let cacheKey: string | null = null;
 	let releaseMiss: (() => void) | null = null;
 	if (cacheRead) {
-		cacheKey = computeCacheKey(url, req, cookies as CookieJar);
+		cacheKey = computeCacheKey(keyUrl, req, cookies as CookieJar);
 		if (!cacheBypass) {
 			const hit = cacheGet(cacheKey);
-			if (hit) return serveCached(hit, req);
+			if (hit && !(tracked && hit.queryAware)) return serveCached(hit, req);
 		}
 		if (cacheable && !cacheBypass) {
 			// Miss coalescing: the first miss leads the build; concurrent misses
@@ -980,6 +1001,7 @@ export async function renderSSRStream(
 			// re-checks as the authoritative guard.
 			if (bodyFitsCache(fullBody.length)) {
 				const tags = collectTags(data.layoutDeps ?? null, data.pageDeps ?? null);
+				const queryAware = depsReadIgnoredParams(data.layoutDeps ?? null, data.pageDeps ?? null);
 				const keyForWrite = cacheKey;
 				// Hand the gate release to the deferred write: waiters resume only
 				// after cacheSet ran, so their re-check hits.
@@ -1007,6 +1029,7 @@ export async function renderSSRStream(
 								status: 200,
 								extraHeaders: headers,
 								tags,
+								queryAware,
 							},
 							cookies,
 						);
