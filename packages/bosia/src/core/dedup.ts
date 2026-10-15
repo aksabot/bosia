@@ -8,7 +8,7 @@
 // different users never share a loader result. Custom session cookie names
 // must be listed in CACHE_KEYS. See docs/guides/request-deduplication.md.
 
-type Inflight = { promise: Promise<unknown>; start: number; expiry?: Promise<void> };
+type Inflight = { promise: Promise<unknown>; start: number };
 const inflight = new Map<string, Inflight>();
 
 /** Build a stable dedup key from a URL: normalized path + sorted query. */
@@ -39,20 +39,27 @@ export function dedup<T>(
 		if (maxAgeMs <= 0) return existing.promise as Promise<T>;
 		const left = maxAgeMs - (performance.now() - existing.start);
 		if (left > 0) {
-			// Joined until the call reaches maxAgeMs; one timer per call. Then
-			// the first joiner replaces it and the rest join the new call.
-			existing.expiry ??= new Promise<void>((resolve) => {
-				const timer = setTimeout(resolve, left);
+			// Joined until the call reaches maxAgeMs; then the first joiner
+			// replaces it and the rest join the new call. One timer per joiner:
+			// on Workers a timer dies with the request that set it.
+			const joined = existing.promise as Promise<T>;
+			return new Promise<T>((resolve, reject) => {
+				const timer = setTimeout(() => {
+					const stuck = inflight.get(key) === existing;
+					dedup(key, fn, maxAgeMs, stuck ? Infinity : -Infinity).then(resolve, reject);
+				}, left);
 				(timer as { unref?: () => void }).unref?.();
-				const stop = () => clearTimeout(timer);
-				existing.promise.then(stop, stop);
+				joined.then(
+					(v) => {
+						clearTimeout(timer);
+						resolve(v);
+					},
+					(e) => {
+						clearTimeout(timer);
+						reject(e);
+					},
+				);
 			});
-			return Promise.race([
-				existing.promise as Promise<T>,
-				existing.expiry.then(() =>
-					dedup(key, fn, maxAgeMs, inflight.get(key) === existing ? Infinity : -Infinity),
-				),
-			]);
 		}
 	}
 	const entry: Inflight = { promise: null as unknown as Promise<T>, start: performance.now() };

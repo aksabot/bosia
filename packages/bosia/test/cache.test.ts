@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
 	buildCompressedVariants,
 	cacheClear,
-	cacheEpoch,
 	cacheGet,
 	cacheSet,
 	coalesceMiss,
@@ -779,41 +778,5 @@ describe("parseMs", () => {
 			console.warn = warn;
 		}
 		expect(seen.length).toBe(4);
-	});
-});
-
-describe("cacheSet since", () => {
-	test("a build that overlapped an invalidation covering it doesn't write", () => {
-		const tagged = mkEntry({ tags: ["k:posts"] });
-		let since = cacheEpoch();
-		invalidate("posts");
-		cacheSet("/epoch/a|i=0", tagged, undefined, since);
-		expect(cacheGet("/epoch/a|i=0")).toBeUndefined();
-
-		since = cacheEpoch();
-		invalidate("/epoch/a");
-		cacheSet("/epoch/a|i=0", mkEntry(), undefined, since);
-		expect(cacheGet("/epoch/a|i=0")).toBeUndefined();
-
-		since = cacheEpoch();
-		invalidateAll("/epoch/");
-		cacheSet("/epoch/a|i=0", mkEntry(), undefined, since);
-		expect(cacheGet("/epoch/a|i=0")).toBeUndefined();
-	});
-
-	test("an unrelated invalidation doesn't drop the write", () => {
-		const since = cacheEpoch();
-		invalidate("comments:1");
-		invalidate("/other");
-		invalidateAll("/elsewhere/");
-		cacheSet("/epoch/b|i=0", mkEntry({ tags: ["k:posts"] }), undefined, since);
-		expect(cacheGet("/epoch/b|i=0")).toBeDefined();
-	});
-
-	test("past the log's reach, it assumes the worst", () => {
-		const since = cacheEpoch();
-		for (let i = 0; i < 600; i++) invalidate(`noise:${i}`);
-		cacheSet("/epoch/c|i=0", mkEntry(), undefined, since);
-		expect(cacheGet("/epoch/c|i=0")).toBeUndefined();
 	});
 });

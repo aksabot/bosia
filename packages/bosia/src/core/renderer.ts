@@ -12,7 +12,6 @@ import {
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
-	cacheEpoch,
 	claimMiss,
 	collectTags,
 	depsReadIgnoredParams,
@@ -736,14 +735,12 @@ export async function renderSSRStream(
 			// wait, then re-check the cache — see claimMiss().
 			const claim = await claimMiss(cacheKey, req.signal);
 			if (claim.hit) return serveCached(claim.hit, req);
-			// The client left while waiting: nobody reads this.
-			if (claim.aborted) return new Response(null, { status: 503 });
+			// The client left while waiting: nobody reads this. 499 (nginx's
+			// "client closed request"), so logs don't count it as a server error.
+			if (claim.aborted) return new Response(null, { status: 499 });
 			if (claim.lead) releaseMiss = claim.lead.release;
 		}
 	}
-
-	// Invalidations from here on make this build's result stale.
-	const buildEpoch = cacheEpoch();
 
 	// INVARIANT: releaseMiss must fire exactly once — a missed release() hangs
 	// coalesced waiters for the process lifetime. Every early return and throw
@@ -1034,7 +1031,6 @@ export async function renderSSRStream(
 								queryAware,
 							},
 							cookies,
-							buildEpoch,
 						);
 					} finally {
 						rel?.();

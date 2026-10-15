@@ -51,7 +51,6 @@ import {
 	buildCompressedVariants,
 	cacheGet,
 	cacheSet,
-	cacheEpoch,
 	claimMiss,
 	collectTags,
 	depsReadIgnoredParams,
@@ -413,9 +412,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					)
 				: undefined;
 			const runLoad = async () => {
-				// Read by the run, not each joiner: a request that joins a run
-				// started before an invalidate() must not cache its result.
-				const epoch = cacheEpoch();
 				// metadata() runs alongside the loaders; the page load() gets its
 				// `data`, as on SSR. A failure stays non-fatal here.
 				const metaDeps = emptyDeps();
@@ -456,7 +452,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					data,
 					metadata,
 					metaDeps,
-					epoch,
 					cookiesAccessed: (cookies as CookieJar).accessed,
 				};
 			};
@@ -492,7 +487,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				if (hit) return serveCached(hit, request);
 				const claim = await claimMiss(cacheKey, request.signal);
 				if (claim.hit) return serveCached(claim.hit, request);
-				if (claim.aborted) return new Response(null, { status: 503 });
+				if (claim.aborted) return new Response(null, { status: 499 });
 				if (claim.lead) {
 					releaseDataMiss = claim.lead.release;
 					// It replaced a stuck leader: start a new loader run, which
@@ -580,7 +575,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 								queryAware,
 							},
 							cookies,
-							result.epoch,
 						);
 					} finally {
 						rel?.();
@@ -692,13 +686,11 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					// wait, re-check the cache, and on a still-miss run independently.
 					const claim = await claimMiss(apiCacheKey, request.signal);
 					if (claim.hit) return serveCached(claim.hit, request);
-					if (claim.aborted) return new Response(null, { status: 503 });
+					if (claim.aborted) return new Response(null, { status: 499 });
 					if (claim.lead) releaseApiMiss = claim.lead.release;
 				}
 			}
 
-			// Invalidations from here on make this response stale.
-			const apiEpoch = cacheEpoch();
 			const handlerResult = await handler({
 				request,
 				params: apiMatch.params,
@@ -775,7 +767,6 @@ async function resolve(event: RequestEvent): Promise<Response> {
 								tags: [],
 							},
 							cookies,
-							apiEpoch,
 						);
 					} catch {
 						/* drop silently — cache population is best-effort */
