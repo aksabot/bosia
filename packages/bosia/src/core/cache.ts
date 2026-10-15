@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import type { Cookies, LoaderDeps } from "./hooks.ts";
 import type { CookieJar } from "./cookies.ts";
 import { dedupKey } from "./dedup.ts";
-import { compressionOn, encodeBytes, PRECOMPRESSED } from "./html.ts";
+import { compressionOn, encodeBytes, PRECOMPRESSED, varyWithEncoding } from "./html.ts";
 import { matchesEtag } from "./etag.ts";
 
 // ─── Config ──────────────────────────────────────────────
@@ -106,6 +106,8 @@ export type CacheEntry = {
 
 class LRU<K, V> {
 	private map = new Map<K, V>();
+	// Weighed once on set, so a later change to a value can't skew the total.
+	private weights = new Map<K, number>();
 	private bytes = 0;
 	constructor(
 		private cap: number,
@@ -127,6 +129,7 @@ class LRU<K, V> {
 		const weight = this.weigh(value);
 		if (this.maxBytes > 0 && weight > this.maxBytes) return { stored: false, evicted };
 		this.map.set(key, value);
+		this.weights.set(key, weight);
 		this.bytes += weight;
 		while (
 			this.map.size > this.cap ||
@@ -140,9 +143,9 @@ class LRU<K, V> {
 		return { stored: true, evicted };
 	}
 	delete(key: K): boolean {
-		const v = this.map.get(key);
-		if (v === undefined) return false;
-		this.bytes -= this.weigh(v);
+		if (!this.map.has(key)) return false;
+		this.bytes -= this.weights.get(key) ?? 0;
+		this.weights.delete(key);
 		return this.map.delete(key);
 	}
 	keys(): IterableIterator<K> {
@@ -150,6 +153,7 @@ class LRU<K, V> {
 	}
 	clear(): void {
 		this.map.clear();
+		this.weights.clear();
 		this.bytes = 0;
 	}
 	get size(): number {
@@ -482,9 +486,9 @@ export function serveCached(entry: CacheEntry, req: Request): Response {
 	// override them instead of getting comma-joined by Headers.
 	const headers: Record<string, string> = {
 		"content-type": entry.contentType,
-		vary: "Accept-Encoding",
 		"x-bosia-cache": "HIT",
 		...entry.extraHeaders,
+		vary: varyWithEncoding(entry.extraHeaders.vary),
 	};
 	let body: Bytes = entry.raw;
 	let encoding: "br" | "gzip" | null = null;

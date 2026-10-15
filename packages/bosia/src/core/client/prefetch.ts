@@ -114,7 +114,9 @@ const MAX_PREFETCH_ENTRIES = 50;
 
 // In-flight prefetches. A click that lands while its prefetch is still loading
 // (a tap: touchstart prefetches ~100ms before the click) waits for that fetch
-// instead of sending the same `/__bosia/data` request a second time.
+// instead of sending the same `/__bosia/data` request a second time. It gets
+// whatever the response said (data, a redirect, an error), read like the
+// router's own fetch; `null` only when the request itself failed.
 // `clearPrefetches()` empties it on every navigation, so a prefetch that started
 // before it neither fills the cache nor serves a later click.
 const pending = new Map<string, Promise<any | null>>();
@@ -171,6 +173,9 @@ export async function prefetchPath(path: string): Promise<void> {
 	// A route without server data never fetches on click either.
 	if (!warmMatch?.route.hasServerData) return;
 
+	// Only a plain data response is kept for a later click; `ok` alone would
+	// cache a guard's login page (200 after the redirect was followed).
+	let storable = false;
 	const run = (async (): Promise<any | null> => {
 		try {
 			// Send the same mask as a real client nav would so the server leaves out
@@ -178,20 +183,19 @@ export async function prefetchPath(path: string): Promise<void> {
 			// the route can't be matched (e.g. external/unknown URL).
 			const maskBits = buildMaskBits(path) ?? undefined;
 			const res = await fetch(dataUrl(path, maskBits));
-			// `ok` alone would cache a guard's login page (200 after the redirect was
-			// followed) as if it were this route's data.
-			if (res.ok && !res.redirected && isJsonResponse(res)) return await res.json();
+			storable = res.ok && !res.redirected && isJsonResponse(res);
+			return await readDataResponse(res);
 		} catch {
 			// Silently ignore — prefetch is best-effort
+			return null;
 		}
-		return null;
 	})();
 	pending.set(path, run);
 	const data = await run;
 	// Consumed by a click, or dropped by a navigation, while in flight.
 	if (pending.get(path) !== run) return;
 	pending.delete(path);
-	if (data === null) return;
+	if (data === null || !storable || data.error) return;
 	if (prefetchCache.size >= MAX_PREFETCH_ENTRIES) {
 		const oldest = prefetchCache.keys().next().value;
 		if (oldest !== undefined) prefetchCache.delete(oldest);

@@ -699,7 +699,9 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				response.status === 200 &&
 				!isEventStream &&
 				!noStore &&
-				(cookies as CookieJar).outgoing.length === 0
+				(cookies as CookieJar).outgoing.length === 0 &&
+				// A declared size that can't fit: skip the copy and the read entirely.
+				bodyFitsCache(Number(response.headers.get("content-length") ?? 0))
 			) {
 				const cloned = response.clone();
 				const extraHeaders = captureCacheableHeaders(response.headers);
