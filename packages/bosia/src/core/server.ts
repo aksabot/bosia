@@ -80,13 +80,14 @@ let userHandle: Handle | null = null;
 // Headers that must not be baked into a cache entry. Content-Length is
 // recomputed by Bun, content-encoding/transfer-encoding depend on the chosen
 // variant, and security/CORS/Set-Cookie headers are applied by handleRequest.
+// A handler's own Vary is kept: serveCached adds Accept-Encoding to it, so a
+// hit varies on the same headers as the miss did.
 const NON_CACHEABLE_HEADERS = new Set([
 	"content-length",
 	"content-encoding",
 	"transfer-encoding",
 	"content-type",
 	"set-cookie",
-	"vary",
 	"x-bosia-cache",
 ]);
 
@@ -701,7 +702,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				!noStore &&
 				(cookies as CookieJar).outgoing.length === 0 &&
 				// A declared size that can't fit: skip the copy and the read entirely.
-				bodyFitsCache(Number(response.headers.get("content-length") ?? 0))
+				bodyFitsCache(parseInt(response.headers.get("content-length") ?? "", 10) || 0)
 			) {
 				const cloned = response.clone();
 				const extraHeaders = captureCacheableHeaders(response.headers);

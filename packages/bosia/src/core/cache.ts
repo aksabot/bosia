@@ -400,14 +400,17 @@ export async function readBodyForCache(res: Response): Promise<Bytes | null> {
 	const reader = stream.getReader();
 	const chunks: Uint8Array[] = [];
 	let total = 0;
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	const timedOut = new Promise<"timeout">((r) => {
-		timer = setTimeout(() => r("timeout"), CACHE_READ_TIMEOUT_MS);
-	});
+	// Cancelling ends the pending read() as `done`; the flag tells that apart
+	// from a body that really ended.
+	let timedOut = false;
+	const timer = setTimeout(() => {
+		timedOut = true;
+		reader.cancel().catch(() => {});
+	}, CACHE_READ_TIMEOUT_MS);
 	try {
 		for (;;) {
-			const step = await Promise.race([reader.read(), timedOut]);
-			if (step === "timeout") return null;
+			const step = await reader.read();
+			if (timedOut) return null;
 			if (step.done) return concatChunks(chunks);
 			// A handler's stream may enqueue strings; Bun passes them through a clone.
 			const value: unknown = step.value;
