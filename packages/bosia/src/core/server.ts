@@ -413,6 +413,9 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					)
 				: undefined;
 			const runLoad = async () => {
+				// Read by the run, not each joiner: a request that joins a run
+				// started before an invalidate() must not cache its result.
+				const epoch = cacheEpoch();
 				// metadata() runs alongside the loaders; the page load() gets its
 				// `data`, as on SSR. A failure stays non-fatal here.
 				const metaDeps = emptyDeps();
@@ -453,6 +456,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					data,
 					metadata,
 					metaDeps,
+					epoch,
 					cookiesAccessed: (cookies as CookieJar).accessed,
 				};
 			};
@@ -462,9 +466,9 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			// (different masks return different slots), tag/path invalidation, and
 			// no CSP. Only GETs use it (the client router only sends GETs); a
 			// `_fresh` fetch after invalidate() skips the read only.
-			// Set when this request replaced a stuck leader: don't join its
-			// dedup() call either, start a new one.
-			let freshDedup = false;
+			// Set when this request replaced a stuck leader: its dedup() call,
+			// started right after that gate, is replaced rather than joined.
+			let replaceDedupBefore = -Infinity;
 			const keySuffix = `|data${invalidatedBits ? `|m=${invalidatedBits}` : ""}`;
 			const cacheKey = computeCacheKey(routeUrl, request, cookies as CookieJar) + keySuffix;
 			const dataCacheable =
@@ -492,8 +496,10 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				if (claim.lead) {
 					releaseDataMiss = claim.lead.release;
 					// It replaced a stuck leader: start a new loader run, which
-					// later requests join, instead of joining the stuck one.
-					freshDedup = claim.lead.stale;
+					// later requests join, instead of joining the stuck one (a
+					// call that began within 1s of the stuck gate, not a later
+					// healthy one).
+					if (claim.lead.stale) replaceDedupBefore = claim.lead.staleStart + 1000;
 				}
 			}
 
@@ -505,15 +511,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 			const dedupK =
 				computeCacheKey(routeUrl, request, cookies as CookieJar) +
 				(invalidatedBits ? `|m=${invalidatedBits}` : "");
-			// Invalidations from here on make this result stale.
-			const buildEpoch = cacheEpoch();
-			const result = await dedup(
-				dedupK,
-				runLoad,
-				CACHE_WAIT_TIMEOUT,
-				// Replace only the stuck call, not a recent healthy one.
-				freshDedup ? CACHE_WAIT_TIMEOUT / 2 : Infinity,
-			);
+			const result = await dedup(dedupK, runLoad, CACHE_WAIT_TIMEOUT, replaceDedupBefore);
 			// Identity only covers CACHE_KEYS — warn if a loader read a session
 			// cookie outside that list (dedup could then mix users' results).
 			warnUncoveredCookies(cookies);
@@ -582,7 +580,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 								queryAware,
 							},
 							cookies,
-							buildEpoch,
+							result.epoch,
 						);
 					} finally {
 						rel?.();

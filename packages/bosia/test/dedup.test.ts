@@ -111,7 +111,7 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 			const run = async () => {
 				const claim = await claimMiss("k");
 				if (claim.hit) return "ok";
-				const out = await dedup("k", build, 40, claim.lead?.stale ? 20 : Infinity);
+				const out = await dedup("k", build, 40, claim.lead?.stale ? claim.lead.staleStart + 1000 : -Infinity);
 				if (claim.lead) {
 					cacheSet("k", entry());
 					claim.lead.release();

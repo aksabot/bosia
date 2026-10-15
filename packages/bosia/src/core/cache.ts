@@ -422,11 +422,12 @@ export function cacheSet(
 	key: string,
 	entry: CacheEntry,
 	cookies?: Cookies,
-	/** cacheEpoch() when the build started; the write is dropped if it moved. */
+	/** cacheEpoch() when the build started: dropped if an invalidation since
+	 *  then covers this entry. */
 	since?: number,
 ): void {
 	if (!CACHE_ENABLED) return;
-	if (since !== undefined && since !== epoch) return;
+	if (since !== undefined && invalidatedSince(since, key, entry.tags)) return;
 	if (CACHE_MAX_BODY_BYTES > 0 && entry.raw.length > CACHE_MAX_BODY_BYTES) return;
 	if (cookies) warnUncoveredCookies(cookies);
 	// Runs in the deferred write, after the response went out — never on a hit.
@@ -657,7 +658,8 @@ function sweepGates(now: number): void {
 	}
 }
 
-export type MissLead = { release: () => void; stale: boolean };
+/** `staleStart`: when the expired gate this lead replaced started (else -Infinity). */
+export type MissLead = { release: () => void; stale: boolean; staleStart: number };
 
 export function coalesceMiss(
 	key: string,
@@ -677,7 +679,7 @@ export function coalesceMiss(
 	};
 	// Replaces an expired gate; the old leader's release() won't touch this one.
 	missGates.set(key, { promise, release, start: now, expired: false });
-	return { release, stale: existing !== undefined };
+	return { release, stale: existing !== undefined, staleStart: existing?.start ?? -Infinity };
 }
 
 /**
@@ -778,20 +780,60 @@ export function serveCached(entry: CacheEntry, req: Request): Response {
  * - `invalidate("/api/posts")` → evict entries tagged with a fetch URL whose
  *   path equals `/api/posts`, AND entries whose own path equals `/api/posts`.
  */
-/**
- * Bumped by every invalidation. A build reads it before it starts and passes
- * it to cacheSet, which drops the write if anything was invalidated since:
- * the build may have read data from before the change (a slow or stuck one
- * finishing after a newer build and an invalidate() would bring it back).
- */
+// ─── Invalidation log ────────────────────────────────────
+// A build reads cacheEpoch() before it starts and passes it to cacheSet,
+// which drops the write if an invalidation since then covers that entry: the
+// build may have read data from before the change (a slow or stuck one
+// finishing after a newer build and an invalidate() would bring it back).
+// Only matching invalidations count — an app that invalidates one tag on
+// every POST must not lose every other page's cache writes.
+
+type Invalidation =
+	| { seq: number; kind: "key"; value: string }
+	| { seq: number; kind: "prefix"; value: string }
+	| { seq: number; kind: "all" };
+
+const INVALIDATION_LOG_MAX = 512;
+const invalidationLog: Invalidation[] = [];
 let epoch = 0;
+
 export function cacheEpoch(): number {
 	return epoch;
 }
 
+function logInvalidation(rec: Invalidation): void {
+	invalidationLog.push(rec);
+	if (invalidationLog.length > INVALIDATION_LOG_MAX) invalidationLog.shift();
+}
+
+/** Same matching as invalidate() / invalidateAll() below. */
+function covers(rec: Invalidation, key: string, tags: string[]): boolean {
+	if (rec.kind === "all") return true;
+	const path = pathOfKey(key);
+	if (rec.kind === "prefix") return path.startsWith(rec.value);
+	const k = rec.value;
+	if (!k.startsWith("/")) return tags.includes(`k:${k}`);
+	if (path === k || tags.includes(`u:${k}`)) return true;
+	return tags.some((t) => t.startsWith("u:") && t.endsWith(k));
+}
+
+/** Whether an invalidation after `since` covers this entry. */
+function invalidatedSince(since: number, key: string, tags: string[]): boolean {
+	if (since === epoch) return false;
+	// The log no longer reaches back to `since`: assume it was.
+	const oldest = invalidationLog[0];
+	if (!oldest || oldest.seq > since + 1) return true;
+	for (let i = invalidationLog.length - 1; i >= 0; i--) {
+		const rec = invalidationLog[i]!;
+		if (rec.seq <= since) break;
+		if (covers(rec, key, tags)) return true;
+	}
+	return false;
+}
+
 export function invalidate(key: string): number {
 	if (!CACHE_ENABLED) return 0;
-	epoch++;
+	logInvalidation({ seq: ++epoch, kind: "key", value: key });
 	let count = 0;
 	const tagKey = key.startsWith("/") ? `u:${key}` : `k:${key}`;
 	const fromTag = tagIndex.get(tagKey);
@@ -832,7 +874,7 @@ export function invalidate(key: string): number {
  */
 export function invalidateAll(prefix: string): number {
 	if (!CACHE_ENABLED) return 0;
-	epoch++;
+	logInvalidation({ seq: ++epoch, kind: "prefix", value: prefix });
 	let count = 0;
 	for (const [path, set] of [...pathIndex]) {
 		if (path.startsWith(prefix)) {
@@ -847,7 +889,7 @@ export function invalidateAll(prefix: string): number {
 
 /** Test-only: clear everything. */
 export function cacheClear(): void {
-	epoch++;
+	logInvalidation({ seq: ++epoch, kind: "all" });
 	htmlCache.clear();
 	tagIndex.clear();
 	pathIndex.clear();
