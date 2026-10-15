@@ -546,8 +546,10 @@ export async function loadRouteData(
 			const { data, deps } = await layers[i]!;
 			layoutData[ls.depth] = omit ? null : data;
 			layoutDeps[ls.depth] = omit ? null : deps;
-			// Left out of the response but still reached the page via parent().
+			// A left-out layout still feeds the layers below it via parent(): its
+			// ignored-param reads count for every one that is sent.
 			if (omit && depsReadIgnoredParams(null, deps)) omittedReadIgnored = true;
+			else if (!omit && omittedReadIgnored) markWholeQueryRead(deps);
 		} catch (err) {
 			// Loaders below this one already started; dev warns about the guard.
 			const thrown = isDev ? guardLabel(err) : null;
@@ -715,6 +717,7 @@ export async function renderSSRStream(
 	const cacheable = cacheRead && req.method === "GET";
 	let cacheKey: string | null = null;
 	let releaseMiss: (() => void) | null = null;
+	let ownsMiss: (() => boolean) | null = null;
 	if (cacheRead) {
 		cacheKey = computeCacheKey(url, req, cookies as CookieJar);
 		if (!cacheBypass) {
@@ -739,6 +742,7 @@ export async function renderSSRStream(
 				if (rehit) return serveCached(rehit, req);
 			} else {
 				releaseMiss = gate.release;
+				ownsMiss = gate.current;
 			}
 		}
 	}
@@ -1006,11 +1010,14 @@ export async function renderSSRStream(
 				// Hand the gate release to the deferred write: waiters resume only
 				// after cacheSet ran, so their re-check hits.
 				const rel = releaseMiss;
+				const owns = ownsMiss;
 				releaseMiss = null;
 				const encoded = encodeForRequest(fullBody, req, "cache");
 				sent = encoded;
 				deferCacheWrite(() => {
 					try {
+						// A newer build replaced this stuck one's gate.
+						if (owns && !owns()) return;
 						const { gzip, brotli } = buildCompressedVariants(
 							fullBody,
 							encoded?.enc === "br"

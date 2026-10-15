@@ -397,6 +397,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 		// INVARIANT: once set, releaseDataMiss must fire exactly once — see the
 		// API-route cache below for the same contract.
 		let releaseDataMiss: (() => void) | null = null;
+		let ownsDataMiss: (() => boolean) | null = null;
 		try {
 			const pageMatch = (await routesFor(request, routeUrl.pathname, true)).page;
 			// Build mask from `?_invalidated=<bits>` — see buildMaskFromBits. A page
@@ -493,6 +494,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					if (rehit) return serveCached(rehit, request);
 				} else {
 					releaseDataMiss = gate.release;
+					ownsDataMiss = gate.current;
 					if (gate.stale) freshDedup = true;
 				}
 			}
@@ -547,12 +549,15 @@ async function resolve(event: RequestEvent): Promise<Response> {
 					result.data.pageDeps ?? null,
 				);
 				const rel = releaseDataMiss;
+				const owns = ownsDataMiss;
 				releaseDataMiss = null;
 				// Encoded once at cache quality and shared by response and entry.
 				const encoded = encodeForRequest(body, request, "cache");
 				sent = encoded;
 				deferCacheWrite(() => {
 					try {
+						// A newer build replaced this stuck one's gate.
+						if (owns && !owns()) return;
 						const { gzip, brotli } = buildCompressedVariants(
 							body,
 							encoded?.enc === "br"
@@ -644,6 +649,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 		// release() hangs coalesced waiters for the process lifetime. The cache
 		// write path hands it off to its deferred write by nulling it first.
 		let releaseApiMiss: (() => void) | null = null;
+		let ownsApiMiss: (() => boolean) | null = null;
 		try {
 			const mod = await apiMatch.route.module();
 			// HEAD falls back to GET (an explicit HEAD export still wins). BosiaApp
@@ -690,6 +696,7 @@ async function resolve(event: RequestEvent): Promise<Response> {
 						if (rehit) return serveCached(rehit, request);
 					} else {
 						releaseApiMiss = gate.release;
+						ownsApiMiss = gate.current;
 					}
 				}
 			}
@@ -748,13 +755,15 @@ async function resolve(event: RequestEvent): Promise<Response> {
 				// Hand the gate release to the deferred write: waiters resume only
 				// after the cacheSet attempt, so their re-check hits.
 				const rel = releaseApiMiss;
+				const owns = ownsApiMiss;
 				releaseApiMiss = null;
 				deferCacheWrite(async () => {
 					try {
 						// Stops reading once the body can't fit, so an oversized body
 						// never sits in memory or pays compression; cacheSet re-checks.
 						const buf = await readBodyForCache(cloned);
-						if (buf === null) return;
+						// null: too big. !owns(): a newer build replaced this stuck one.
+						if (buf === null || (owns && !owns())) return;
 						const { gzip, brotli } = buildCompressedVariants(buf);
 						// API endpoints have no LoaderDeps in v0.6 — invalidation is
 						// URL/prefix only. See ROADMAP for deferred tag support.

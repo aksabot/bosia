@@ -756,6 +756,18 @@ describe("parseMs", () => {
 		expect(parseMs("9999999999", 30_000, "X")).toBe(2_147_483_647);
 	});
 
+	test("the derived CACHE_WAIT_TIMEOUT stays a valid timer delay", async () => {
+		const script = `const { CACHE_WAIT_TIMEOUT } = await import(${JSON.stringify(
+			new URL("../src/core/cache.ts", import.meta.url).pathname,
+		)}); console.log(CACHE_WAIT_TIMEOUT);`;
+		const proc = Bun.spawn(["bun", "-e", script], {
+			env: { ...process.env, LOAD_TIMEOUT: "2147483647", CACHE_WAIT_TIMEOUT: "" },
+			stdout: "pipe",
+		});
+		const out = (await new Response(proc.stdout).text()).trim().split("\n").pop();
+		expect(Number(out)).toBe(2_147_483_647);
+	});
+
 	test("a value that isn't whole milliseconds warns and uses the fallback", () => {
 		const warn = console.warn;
 		const seen: string[] = [];

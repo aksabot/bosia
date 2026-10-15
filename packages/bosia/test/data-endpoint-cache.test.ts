@@ -180,6 +180,22 @@ beforeAll(async () => {
 			`\tconst { campaign } = await parent();\n\treturn { promo: campaign };\n}\n`,
 	);
 
+	mkdirSync(join(routes, "kampanye", "anak"), { recursive: true });
+	writeFileSync(join(routes, "kampanye", "anak", "+page.svelte"), `<p>Anak</p>\n`);
+	writeFileSync(
+		join(routes, "kampanye", "anak", "+page.server.ts"),
+		`export function load() {\n\treturn { anak: true };\n}\n`,
+	);
+	writeFileSync(
+		join(routes, "kampanye", "anak", "+layout.svelte"),
+		`<script>\n\tlet { children } = $props();\n</script>\n{@render children()}\n`,
+	);
+	writeFileSync(
+		join(routes, "kampanye", "anak", "+layout.server.ts"),
+		`export async function load({ parent }: any) {\n` +
+			`\tconst { campaign } = await parent();\n\treturn { banner: campaign };\n}\n`,
+	);
+
 	// metadata() hangs on the first call (METADATA_TIMEOUT=0 here).
 	mkdirSync(join(routes, "meta-macet"), { recursive: true });
 	writeFileSync(join(routes, "meta-macet", "+page.svelte"), `<p>Meta macet</p>\n`);
@@ -500,6 +516,21 @@ describe("tracking params (CACHE_IGNORE_PARAMS)", () => {
 		const ad = await getData("/kampanye.json?_invalidated=1000&utm_campaign=lebaran");
 		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
 		expect(ad.body.pageData.promo).toBe("lebaran");
+	});
+
+	test("…and when only a lower layout that got it through parent() is sent", async () => {
+		const full = await getData("/kampanye/anak.json");
+		const n = full.body.layoutData.length;
+		// Page skipped, the reading layout left out, the one below it sent.
+		const bits = "0" + "1".repeat(n - 2) + "01";
+		await getData(`/kampanye/anak.json?_invalidated=${bits}`);
+		await settle();
+		const plain = await getData(`/kampanye/anak.json?_invalidated=${bits}`);
+		expect(plain.res.headers.get("x-bosia-cache")).toBe("HIT");
+		expect(plain.body.pageData).toBeNull();
+		const ad = await getData(`/kampanye/anak.json?_invalidated=${bits}&utm_campaign=x`);
+		expect(ad.res.headers.get("x-bosia-cache")).toBeNull();
+		expect(ad.body.layoutData[n - 1].banner).toBe("x");
 	});
 
 	test("so is a page whose metadata() reads the param", async () => {

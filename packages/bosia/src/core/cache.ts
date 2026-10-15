@@ -122,12 +122,12 @@ const LOADER_BUDGET =
  */
 export const CACHE_WAIT_TIMEOUT = parseMs(
 	env.CACHE_WAIT_TIMEOUT,
-	Math.max(60_000, LOADER_BUDGET),
+	Math.min(Math.max(60_000, LOADER_BUDGET), MAX_TIMER_MS),
 	"CACHE_WAIT_TIMEOUT",
 );
 if (
 	CACHE_WAIT_TIMEOUT > 0 &&
-	CACHE_WAIT_TIMEOUT < LOADER_BUDGET &&
+	CACHE_WAIT_TIMEOUT < Math.min(LOADER_BUDGET, MAX_TIMER_MS) &&
 	typeof console !== "undefined"
 ) {
 	console.warn(
@@ -631,19 +631,34 @@ type MissGate = {
 
 const missGates = new Map<string, MissGate>();
 
-function gateExpired(gate: MissGate): boolean {
-	return CACHE_WAIT_TIMEOUT > 0 && performance.now() - gate.start >= CACHE_WAIT_TIMEOUT;
+function gateExpired(gate: MissGate, now = performance.now()): boolean {
+	return CACHE_WAIT_TIMEOUT > 0 && now - gate.start >= CACHE_WAIT_TIMEOUT;
+}
+
+// An expired gate stays until its key misses again (it tells that miss it is
+// `stale`). Keys that never come back are swept once the map grows; by twice
+// the timeout the stuck dedup() call is too old to be joined anyway.
+const SWEEP_AT = 256;
+let lastSweep = 0;
+function sweepGates(now: number): void {
+	if (missGates.size < SWEEP_AT || now - lastSweep < CACHE_WAIT_TIMEOUT) return;
+	lastSweep = now;
+	for (const [key, gate] of missGates) {
+		if (now - gate.start >= 2 * CACHE_WAIT_TIMEOUT) missGates.delete(key);
+	}
 }
 
 export function coalesceMiss(
 	key: string,
 ):
-	| { release: () => void; stale: boolean; wait?: undefined }
-	| { wait: Promise<boolean>; release?: undefined; stale?: undefined } {
+	| { release: () => void; stale: boolean; current: () => boolean; wait?: undefined }
+	| { wait: Promise<boolean>; release?: undefined; stale?: undefined; current?: undefined } {
+	const now = performance.now();
 	const existing = missGates.get(key);
-	if (existing && !gateExpired(existing)) {
+	if (existing && !gateExpired(existing, now)) {
 		return { wait: (existing.wait ??= waitWithTimeout(existing)) };
 	}
+	if (CACHE_WAIT_TIMEOUT > 0) sweepGates(now);
 	let resolve!: () => void;
 	const promise = new Promise<void>((r) => (resolve = r));
 	const release = () => {
@@ -652,8 +667,16 @@ export function coalesceMiss(
 		resolve();
 	};
 	// Replaces an expired gate; the old leader's release() won't touch this one.
-	missGates.set(key, { promise, release, start: performance.now() });
-	return { release, stale: existing !== undefined };
+	const gate: MissGate = { promise, release, start: now };
+	missGates.set(key, gate);
+	return {
+		release,
+		stale: existing !== undefined,
+		// False once another miss replaced this gate: the newer build owns the
+		// key, and this one's late (possibly pre-invalidate) result must not
+		// overwrite it.
+		current: () => missGates.get(key) === gate,
+	};
 }
 
 /** One timer per gate, shared by all its waiters: true when the leader

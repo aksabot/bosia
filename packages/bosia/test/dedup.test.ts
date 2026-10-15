@@ -76,18 +76,18 @@ describe("dedup()", () => {
 
 	test("a call older than maxAgeMs isn't joined, and its late finish keeps the new one", async () => {
 		let release!: () => void;
-		const stuck = dedup("k4", () => new Promise<string>((r) => (release = () => r("old"))), 20);
-		await Bun.sleep(30);
+		const stuck = dedup("k4", () => new Promise<string>((r) => (release = () => r("old"))), 80);
+		await Bun.sleep(90);
 		let runs = 0;
 		const fresh = () => {
 			runs++;
 			return new Promise<string>((r) => setTimeout(() => r("new"), 20));
 		};
-		const a = dedup("k4", fresh, 20);
+		const a = dedup("k4", fresh, 80);
 		release();
 		await stuck;
 		// The old call settled; the new one is still in flight and still joined.
-		const b = dedup("k4", fresh, 20);
+		const b = dedup("k4", fresh, 80);
 		expect(await a).toBe("new");
 		expect(await b).toBe("new");
 		expect(runs).toBe(1);
@@ -114,7 +114,16 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 			const waiters = await Promise.race([Promise.all(Array.from({ length: 20 }, run)), timeout]);
 			await Bun.sleep(50);
 			const next = await Promise.race([run(), timeout]);
-			console.log(JSON.stringify({ waiters, next, leader: typeof leader.release }));
+			// The stuck leader's gate was replaced: it must not write.
+			const owned = leader.current();
+			// A request that joins a stuck call still gives up at maxAgeMs.
+			let runs = 0;
+			dedup("j", () => new Promise(() => {}), 40);
+			const joiners = await Promise.race([
+				Promise.all(Array.from({ length: 5 }, () => dedup("j", () => (runs++, Bun.sleep(20).then(() => "ok")), 40))),
+				timeout,
+			]);
+			console.log(JSON.stringify({ waiters, next, owned, joiners, runs }));
 		`;
 		const proc = Bun.spawn(["bun", "-e", script], {
 			env: { ...process.env, CACHE_WAIT_TIMEOUT: "40" },
@@ -127,5 +136,8 @@ describe("a stuck build past CACHE_WAIT_TIMEOUT", () => {
 		const result = JSON.parse(line);
 		expect(result.waiters).toEqual(Array(20).fill("ok"));
 		expect(result.next).toBe("ok");
+		expect(result.owned).toBe(false);
+		expect(result.joiners).toEqual(Array(5).fill("ok"));
+		expect(result.runs).toBe(1);
 	});
 });
